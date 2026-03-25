@@ -1,0 +1,20 @@
+# Ignore files and folders
+.DS_Store
+.env
+.venv
+__pycache__
+build
+dist
+.tox
+.egg-info
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+migrations
+static/node_modules/
+static/webpack-stats.json
+static/webpack-bundle.js
+static/webpack-bundle.js.map
+static/webpack-vendors.js
+static/webpack-vendors.js.map
+*.db

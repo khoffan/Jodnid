@@ -1,4 +1,5 @@
 import fastapi
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from pydantic import BaseModel
 from typing import List, Dict, Any
@@ -11,11 +12,24 @@ from ai.text_nlp import extract_transactions
 from helper.helper import get_content_line, create_dynamic_flex_receipt, send_line_reply, send_loading_indicator, save_line_image
 
 # database service
-from model.db_manament import get_or_create_user, save_temp_transaction, confirm_and_save_transaction
+from model.db_manament import get_or_create_user, save_temp_transaction, confirm_and_save_transaction, create_attachment_record, get_dashboard_data
+
 
 load_dotenv()
 
 app = fastapi.FastAPI()
+
+origin = [
+    os.getenv("FRONTEND_URL"),
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origin,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # Usage
 api_key = os.getenv("TYPHOON_API_KEY")
 line_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
@@ -42,6 +56,8 @@ async def line_webhook(data: LineWebhook):
 
         get_or_create_user(line_user_id=user_id)
 
+        temp_id = None
+
         if event_type == "message":
             message = event.get("message", {})
             msg_type = message.get("type")
@@ -56,7 +72,7 @@ async def line_webhook(data: LineWebhook):
                 # ส่งไปให้ Typhoon วิเคราะห์รายการ
                 final_transactions = extract_transactions(api_key, user_text)
 
-
+                temp_id = save_temp_transaction(user_id, final_transactions)
                 
                 # TODO: บันทึกลง Database โดยผูกกับ user_id
                 # TODO: Reply กลับหา User ผ่าน LINE Messaging API
@@ -76,11 +92,14 @@ async def line_webhook(data: LineWebhook):
                 # จากนั้นค่อยส่งไฟล์นั้นไปที่ extract_text_from_image
                 save_file = save_line_image(user_id=user_id, message_id=message_id, image_bytes=image_bytes)
                 if save_file:
+                    attachment_id = create_attachment_record(user_id=user_id, file_path=save_file, file_type="image/jpeg")
                     # ตัวอย่าง Flow:
                     # image_bytes = download_line_image(message_id)
                     ocr_json = extract_text_from_image(image_bytes, f"{message_id}.jpg", api_key)
                     ocr_text = ocr_json["text"]
                     final_transactions = [ocr_text]
+
+                    temp_id = save_temp_transaction(user_id, final_transactions, attachment_id=attachment_id, source_type="image")
                 else:
                     print("Failed to save image")
 
@@ -89,7 +108,6 @@ async def line_webhook(data: LineWebhook):
             if final_transactions:
                 try:
                     print(f"DEBUG: final_transactions type: {final_transactions}")
-                    temp_id = save_temp_transaction(user_id, final_transactions)
                     
                     # 1. จัดทำ Flex JSON
                     flex_msg = create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
@@ -97,10 +115,10 @@ async def line_webhook(data: LineWebhook):
                     # 2. ส่ง Reply
                     print("DEBUG: Sending reply...")
                     response = send_line_reply(reply_token, flex_content={
-                "type": "flex",
-                "altText": "บันทึกรายการสำเร็จ",
-                "contents": flex_msg # รับค่ามาจากฟังก์ชันแรก
-            }, line_token=line_access_token)
+                        "type": "flex",
+                        "altText": "บันทึกรายการสำเร็จ",
+                        "contents": flex_msg # รับค่ามาจากฟังก์ชันแรก
+                    }, line_token=line_access_token)
                     print(f"DEBUG: Line API Response: {response}")
                     
                 except Exception as e:
@@ -117,7 +135,7 @@ async def line_webhook(data: LineWebhook):
             post_temp_id = params.get("temp_id")
             category = params.get("cat")
             if action == "confirm":
-                success = confirm_and_save_transaction(temp_id=post_temp_id)
+                success = confirm_and_save_transaction(temp_id=post_temp_id, category_name=category)
                 print(success)
                 if success:
                     # แปลง category code เป็นคำอ่านภาษาไทยให้ User เข้าใจง่าย
@@ -139,16 +157,9 @@ async def line_webhook(data: LineWebhook):
 
     return {"status": "ok"}
 
-# @app.post("/webhook/ocr")
-# async def extract_text_from_image_endpoint(file: fastapi.UploadFile):
-#     image_path = await file.read()
-#     # return
-#     return extract_text_from_image(image_path, file.filename ,api_key)
-
-# @app.post("/webhook/text_nlp")
-# async def nlp(body: UserMessage):
-#     result = extract_transactions(api_key, body.message)
-#     return {"success": True, "result": result}
+@app.get("/api/dashboard/{user_id}")
+async def get_dashboard(user_id: str, month: int = None, year: int = None):
+    return get_dashboard_data(user_id, month, year)
 
 
 if __name__ == "__main__":

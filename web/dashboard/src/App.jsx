@@ -2,21 +2,29 @@ import { useState, useEffect } from 'react';
 import liff from '@line/liff';
 import Dashboard from './pages/Dashboard';
 import Onboarding from './pages/Onboarding';
-import { Routes, Route, Navigate } from 'react-router'
+import { Routes, Route, Navigate, useNavigate } from 'react-router'
 
 function App() {
   const [userId, setUserId] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     liff.init({ liffId: import.meta.env.VITE_LINE_LIFF_ID }).then(() => {
       if (liff.isLoggedIn()) {
-        const profile = liff.getContext();
-        setUserId(profile.userId);
+        const context = liff.getContext();
+        setUserId(context.userId);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetPath = urlParams.get("path");
+
+        if(targetPath) {
+          navigate(targetPath);
+        }
       } else {
         liff.login();
       }
     });
-  }, []);
+  }, [navigate]);
 
   const element = (
     <Routes>

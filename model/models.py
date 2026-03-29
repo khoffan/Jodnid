@@ -3,6 +3,9 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import uuid
 from sqlmodel import Field, Relationship, SQLModel, create_engine, Session, Column, JSON
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- 1. ตาราง Users ---
 class Users(SQLModel, table=True):
@@ -83,8 +86,8 @@ class TempTransactions(SQLModel, table=True):
     attachment: Optional[Attachments] = Relationship(back_populates="temp_transaction")
 
 # --- Database Connection ---
-DATABASE_URL = os.getenv("DATABASE_URL")
-engine = create_engine(DATABASE_URL, echo=True)
+raw_url_db = os.getenv("DATABASE_URL")
+engine = create_engine(raw_url_db, echo=True)
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)

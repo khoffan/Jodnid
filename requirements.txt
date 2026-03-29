@@ -1,5 +1,6 @@
 fastapi
 requests
 openai
+uvicorn
 python-dotenv
 psycopg2-binary

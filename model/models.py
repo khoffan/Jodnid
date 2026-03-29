@@ -1,3 +1,4 @@
+import os
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import uuid
@@ -82,7 +83,7 @@ class TempTransactions(SQLModel, table=True):
     attachment: Optional[Attachments] = Relationship(back_populates="temp_transaction")
 
 # --- Database Connection ---
-DATABASE_URL = "sqlite:///database_2.db"
+DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL, echo=True)
 
 def create_db_and_tables():

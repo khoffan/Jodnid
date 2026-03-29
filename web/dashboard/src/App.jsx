@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import liff from '@line/liff';
 import Dashboard from './pages/Dashboard';
 
@@ -6,7 +6,7 @@ function App() {
   const [userId, setUserId] = useState(null);
 
   useEffect(() => {
-    liff.init({ liffId: "2009591013-HEgnyCkE" }).then(() => {
+    liff.init({ liffId: import.meta.env.VITE_LINE_LIFF_ID }).then(() => {
       if (liff.isLoggedIn()) {
         const profile = liff.getContext();
         setUserId(profile.userId);

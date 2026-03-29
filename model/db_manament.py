@@ -98,7 +98,7 @@ def get_category_by_name(name: str):
         statement = select(Categories).where(Categories.name == name)
         return session.exec(statement).first()
     
-def get_dashboard_data(user_id: str, type: str = "monthly", month: int = None, year: int = None):
+def get_dashboard_data(user_id: str, type: str = "monthly", month: int = datetime.now().month, year: int = datetime.now().year):
     with Session(engine) as session:
         now = datetime.now()
         

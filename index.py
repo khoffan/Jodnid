@@ -12,7 +12,7 @@ from ai.text_nlp import extract_transactions
 from helper.helper import get_content_line, create_dynamic_flex_receipt, send_line_reply, send_loading_indicator, save_line_image
 
 # database service
-from model.db_manament import get_or_create_user, save_temp_transaction, confirm_and_save_transaction, create_attachment_record, get_dashboard_data
+from model.db_manament import get_or_create_user, save_temp_transaction, confirm_and_save_transaction, create_attachment_record, get_dashboard_data, setup_user_budget
 
 
 load_dotenv()
@@ -158,8 +158,16 @@ async def line_webhook(data: LineWebhook):
     return {"status": "ok"}
 
 @app.get("/api/dashboard/{user_id}")
-async def get_dashboard(user_id: str, month: int = None, year: int = None):
-    return get_dashboard_data(user_id, month, year)
+async def get_dashboard(user_id: str, type: str = "monthly", month: int = None, year: int = None):
+    # ส่ง type เข้าไปในฟังก์ชันจัดการข้อมูล
+    return get_dashboard_data(user_id, type, month, year)
+
+@app.post("/api/budget/setup")
+async def setup_budget(data: dict):
+    user_id = data.get("user_id")
+    amount = data.get("amount")
+    
+    return setup_user_budget(user_id, amount)
 
 
 if __name__ == "__main__":

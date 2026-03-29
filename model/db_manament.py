@@ -1,5 +1,6 @@
+from sqlalchemy import and_
 from sqlmodel import Session, extract, select
-from model.models import engine, Users, Transactions, TempTransactions, Categories, Attachments
+from model.models import UserBudget, engine, Users, Transactions, TempTransactions, Categories, Attachments
 from typing import List, Dict, Any, Optional
 import uuid
 from datetime import datetime
@@ -97,22 +98,36 @@ def get_category_by_name(name: str):
         statement = select(Categories).where(Categories.name == name)
         return session.exec(statement).first()
     
-def get_dashboard_data(user_id: str, month: int = None, year: int = None):
+def get_dashboard_data(user_id: str, type: str = "monthly", month: int = None, year: int = None):
     with Session(engine) as session:
-        # กำหนดช่วงเวลา (Default เดือนปัจจุบัน)
         now = datetime.now()
-        target_month = month or now.month
-        target_year = year or now.year
         
-        # 1. ดึงข้อมูล Transactions พร้อมหมวดหมู่
-        statement = select(Transactions, Categories).join(Categories, isouter=True).where(
-            Transactions.user_id == user_id,
-            extract('month', Transactions.transaction_date) == target_month,
-            extract('year', Transactions.transaction_date) == target_year
+        # สร้างเงื่อนไขพื้นฐาน (Filter by User)
+        filters = [Transactions.user_id == user_id]
+        
+        if type == "daily":
+            # --- Logic สำหรับรายวัน ---
+            # กรองเฉพาะ วัน/เดือน/ปี ปัจจุบัน
+            filters.append(extract('day', Transactions.transaction_date) == now.day)
+            filters.append(extract('month', Transactions.transaction_date) == now.month)
+            filters.append(extract('year', Transactions.transaction_date) == now.year)
+        else:
+            # --- Logic สำหรับรายเดือน (Default) ---
+            target_month = month or now.month
+            target_year = year or now.year
+            filters.append(extract('month', Transactions.transaction_date) == target_month)
+            filters.append(extract('year', Transactions.transaction_date) == target_year)
+
+        # 1. ดึงข้อมูล Transactions พร้อมหมวดหมู่ (เรียงลำดับใหม่ล่าสุดขึ้นก่อน)
+        statement = (
+            select(Transactions, Categories)
+            .join(Categories, isouter=True)
+            .where(and_(*filters))
+            .order_by(Transactions.transaction_date.desc()) # เอาล่าสุดขึ้นก่อน
         )
         results = session.exec(statement).all()
         
-        # 2. คำนวณยอดรวมแยกตามหมวดหมู่ (สำหรับกราฟ)
+        # 2. คำนวณยอดรวมและ Summary
         summary_by_cat = {}
         total_amount = 0
         
@@ -128,8 +143,34 @@ def get_dashboard_data(user_id: str, month: int = None, year: int = None):
                 {
                     "item": tx.item_name,
                     "amount": tx.amount,
-                    "date": tx.transaction_date.strftime("%d/%m/%Y"),
-                    "icon": cat.icon if cat else "✨"
-                } for tx, cat in results[:10] # ส่งไปแค่ 10 รายการล่าสุด
+                    "date": tx.transaction_date.strftime("%H:%M" if type == "daily" else "%d/%m/%Y"), # ถ้ารายวันโชว์เป็นเวลาแทน
+                    "icon": cat.icon if cat else "✨",
+                    "category": cat.name if cat else "ทั่วไป"
+                } for tx, cat in results[:10]
             ]
         }
+
+def setup_user_budget(user_id: str, amount: float):
+    with Session(engine) as session:
+        now = datetime.now()
+        # เช็คว่าเดือนนี้เคยตั้งงบไปหรือยัง ถ้ามีแล้วให้ Update ถ้าไม่มีให้ Create
+        statement = select(UserBudget).where(
+            UserBudget.user_id == user_id,
+            UserBudget.month == now.month,
+            UserBudget.year == now.year
+        )
+        budget = session.exec(statement).first()
+        
+        if budget:
+            budget.amount = amount
+        else:
+            budget = UserBudget(
+                user_id=user_id, 
+                amount=amount, 
+                month=now.month, 
+                year=now.year
+            )
+            session.add(budget)
+            
+        session.commit()
+        return {"status": "success", "message": "ตั้งค่าบัดเจทเรียบร้อย"}

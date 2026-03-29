@@ -2,6 +2,8 @@ fastapi
 requests
 openai
 uvicorn
+gunicorn
+sqlmodel
 python-multipart
 python-dotenv
 psycopg2-binary

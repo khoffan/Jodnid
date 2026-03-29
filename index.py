@@ -20,6 +20,7 @@ load_dotenv()
 app = fastapi.FastAPI()
 
 origin = [
+    "https://jodnid.vercel.app",
     os.getenv("FRONTEND_URL"),
 ]
 

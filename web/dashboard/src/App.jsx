@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import liff from '@line/liff';
 import Dashboard from './pages/Dashboard';
-import Onboarding from './pages/OnBoarding';
+import Onboarding from './pages/Onboarding';
 import { Routes, Route, Navigate } from 'react-router'
 
 function App() {
@@ -10,11 +10,9 @@ function App() {
   useEffect(() => {
     liff.init({ liffId: import.meta.env.VITE_LINE_LIFF_ID }).then(() => {
       if (liff.isLoggedIn()) {
-        console.log("LIFF Login Success");
         const profile = liff.getContext();
         setUserId(profile.userId);
       } else {
-        console.log("LIFF Login Required");
         liff.login();
       }
     });

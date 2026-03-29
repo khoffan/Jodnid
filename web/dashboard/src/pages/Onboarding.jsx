@@ -1,4 +1,4 @@
-// src/pages/Onboarding.jsx
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import useTransactionStore from '../store/useTransectionStore';

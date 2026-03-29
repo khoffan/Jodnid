@@ -5,7 +5,6 @@ import useTransactionStore from '../store/useTransectionStore';
 const Dashboard = ({ userId }) => {
   const { type } = useParams(); // รับค่า 'daily' หรือ 'monthly' จาก URL
   const { transactions, totalAmount, summary, fetchDashboard, loading } = useTransactionStore();
-  console.log("Dashboard Rendered with Type:", useParams(), "UserID:", userId);
   useEffect(() => {
     if (userId) {
       // คุณสามารถส่ง type ไปที่ store เพื่อให้ backend filter ข้อมูลตามช่วงเวลาได้

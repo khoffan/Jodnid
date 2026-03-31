@@ -1,6 +1,26 @@
 import requests
 import os
 from datetime import datetime
+from sqlmodel import Session, select, func, extract
+from model.models import Transactions, Users
+from dotenv import load_dotenv
+from linebot.v3.messaging import (
+    Configuration,
+    ApiClient,
+    MessagingApi,
+    ReplyMessageRequest,
+    FlexMessage,
+    FlexContainer,
+    ShowLoadingAnimationRequest,
+    PushMessageRequest,
+    
+    TextMessage
+)
+
+load_dotenv()
+
+
+configuration = Configuration(access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 
 # file system
 def save_line_image(user_id: str, message_id: str, image_bytes: bytes):
@@ -35,6 +55,39 @@ def save_line_image(user_id: str, message_id: str, image_bytes: bytes):
         return None
 
 
+def send_push_notification(user_id: str, content: any, alt_text: str = "แจ้งเตือนจากจดนิด"):
+    """
+    ฟังก์ชันกลางสำหรับส่ง Push Message
+    :param user_id: ID ของผู้ใช้ LINE
+    :param content: ถ้าเป็น str จะส่งเป็น Text, ถ้าเป็น dict จะส่งเป็น Flex
+    :param alt_text: ข้อความที่จะโชว์บน Notification ของมือถือ
+    """
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        
+        try:
+            # ตรวจสอบว่าเป็นข้อความธรรมดาหรือ Flex
+            if isinstance(content, str):
+                message = TextMessage(text=content)
+            elif isinstance(content, dict):
+                message = FlexMessage(
+                    altText=alt_text,
+                    contents=FlexContainer.from_dict(content)
+                )
+            else:
+                print("Error: Unsupported content type")
+                return False
+
+            # ส่ง Push Message
+            line_bot_api.push_message(
+                PushMessageRequest(to=user_id, messages=[message])
+            )
+            return True
+            
+        except Exception as e:
+            print(f"Failed to send push notification: {str(e)}")
+            return False
+
 def get_content_line(msg_id: str, line_token:str):
     line_api = os.getenv("LINE_DATA_API")
     url = f"{line_api}/bot/message/{msg_id}/content"
@@ -49,70 +102,6 @@ def get_content_line(msg_id: str, line_token:str):
     else:
         print(f"Error fetching image: {response.connection}")
         return None
-
-# def send_flex_receipt(reply_token: str, transactions: list, line_token: str):    
-#     # 1. คำนวณยอดรวมและชื่อร้าน (ตัวอย่าง)
-#     total_amount = sum(t['amount'] for t in transactions)
-#     store_name = " & ".join(list(set([t.get('store', 'ร้านค้า') for t in transactions])))
-
-#     # 2. วนลูปสร้างรายการสินค้า (Dynamic Rows)
-#     item_rows = []
-#     for t in transactions:
-#         item_rows.append({
-#             "type": "box",
-#             "layout": "horizontal",
-#             "contents": [
-#                 {"type": "text", "text": t['item'], "size": "sm", "color": "#555555", "flex": 0},
-#                 {"type": "text", "text": f"฿ {t['amount']:.2f}", "size": "sm", "color": "#111111", "align": "end"}
-#             ]
-#         })
-
-#     # 3. ประกอบเข้ากับโครงสร้าง Flex JSON
-#     flex_content = {
-#         "type": "bubble",
-#         "header": {
-#             "type": "box",
-#             "layout": "vertical",
-#             "contents": [
-#                 {"type": "text", "text": "บันทึกรายการสำเร็จ", "color": "#1DB446", "weight": "bold", "size": "sm"},
-#                 {"type": "text", "text": f"฿ {total_amount:.2f}", "weight": "bold", "size": "xxl", "margin": "md"},
-#                 {"type": "text", "text": store_name, "size": "xs", "color": "#aaaaaa", "wrap": True}
-#             ]
-#         },
-#         "body": {
-#             "type": "box",
-#             "layout": "vertical",
-#             "contents": [
-#                 {"type": "separator", "margin": "md"},
-#                 {
-#                     "type": "box",
-#                     "layout": "vertical",
-#                     "margin": "lg",
-#                     "spacing": "sm",
-#                     "contents": item_rows # <--- เอาแถวที่วนลูปไว้มาใส่ตรงนี้
-#                 }
-#                 # ... ส่วนอื่นๆ ของ JSON (Footer, Separator) ตามที่ให้ไปด้านบน ...
-#             ]
-#         }
-#     }
-
-#     # 4. ยิง API ส่งกลับหา LINE
-#     payload = {
-#         "replyToken": reply_token,
-#         "messages": [
-#             {
-#                 "type": "flex",
-#                 "altText": f"บันทึกยอดเงิน ฿{total_amount:.2f} เรียบร้อย",
-#                 "contents": flex_content
-#             }
-#         ]
-#     }
-    
-#     return requests.post(
-#         "https://api.line.me/v2/bot/message/reply",
-#         headers={"Authorization": f"Bearer {line_token}"},
-#         json=payload
-#     )
 
 
 def create_dynamic_flex_receipt(transactions: list, temp_id: str):
@@ -215,22 +204,61 @@ def create_dynamic_flex_receipt(transactions: list, temp_id: str):
     return flex_json
 
 # 2. ฟังก์ชันส่ง (เน้นเรื่องการสื่อสาร)
-def send_line_reply(reply_token: str, flex_content: dict, line_token: str):
-    url = "https://api.line.me/v2/bot/message/reply"
-    payload = {
-        "replyToken": reply_token,
-        "messages": [
-            flex_content
-        ]
-    }
-    headers = {"Authorization": f"Bearer {line_token}", "Content-Type": "application/json"}
-    return requests.post(url, headers=headers, json=payload)
+def send_line_reply_v3(reply_token: str, alt_text: str = None ,flex_json: dict = None, text: str = None, ):
+    """ส่ง Reply โดยใช้ SDK v3"""
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        
+        # SDK จะช่วย Validate JSON ให้ผ่าน FlexContainer
+        message = None
+        if flex_json:
+            # ใช้ FlexContainer.from_dict เพื่อ Validate JSON ของคุณ
+            message = FlexMessage(
+                altText=alt_text,
+                contents=FlexContainer.from_dict(flex_json)
+            )
+        elif text:
+            message = TextMessage(text=text)
+            
+        if message:
+            return line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    replyToken=reply_token,
+                    messages=[message]
+                )
+            )
 
-def send_loading_indicator(user_id: str, line_token: str):
-    url = "https://api.line.me/v2/bot/chat/loading/start"
-    payload = {
-        "chatId": user_id,
-        "loadingSeconds": 5 # โชว์ไว้ 5 วินาที (สูงสุด 60)
-    }
-    headers = {"Authorization": f"Bearer {line_token}", "Content-Type": "application/json"}
-    requests.post(url, headers=headers, json=payload)
+def send_loading_indicator_v3(user_id: str, seconds: int = 5):
+    """โชว์ Loading Animation (SDK v3)"""
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        line_bot_api.show_loading_animation(
+            ShowLoadingAnimationRequest(chatId=user_id, loadingSeconds=seconds)
+        )
+
+def get_daily_usage(session: Session, user_id: str):
+    """เช็คว่าวันนี้มีการจดหรือยัง และดึงยอดรวม"""
+    today = datetime.now()
+    statement = select(func.sum(Transactions.amount)).where(
+        Transactions.user_id == user_id,
+        extract('day', Transactions.transaction_date) == today.day,
+        extract('month', Transactions.transaction_date) == today.month,
+        extract('year', Transactions.transaction_date) == today.year
+    )
+    result = session.exec(statement).first()
+    return result # ถ้าเป็น None แปลว่ายังไม่ได้จด, ถ้ามีค่าคือยอดรวมวันนี้
+
+def get_monthly_usage(session: Session, user_id: str):
+    """ดึงยอดรวมรายเดือน"""
+    today = datetime.now()
+    statement = select(func.sum(Transactions.amount)).where(
+        Transactions.user_id == user_id,
+        extract('month', Transactions.transaction_date) == today.month,
+        extract('year', Transactions.transaction_date) == today.year
+    )
+    return session.exec(statement).first() or 0.0
+
+def get_all_users(session: Session):
+    """ดึงข้อมูลผู้ใช้ทั้งหมด (สำหรับการส่ง Notification)"""
+    statement = select(Users)
+    return session.exec(statement).all()

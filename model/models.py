@@ -99,3 +99,9 @@ engine = create_engine(raw_url_db, echo=True)
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
     print("Database structure updated with Attachments table.")
+
+# --- Session Generator (สำหรับ FastAPI Dependency) ---
+def get_session():
+    """สร้าง Database Session และปิดให้อัตโนมัติเมื่อทำงานเสร็จ"""
+    with Session(engine) as session:
+        yield session

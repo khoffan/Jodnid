@@ -1,5 +1,8 @@
 import fastapi
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, HTTPException, Security
+from fastapi.security import APIKeyHeader
+from sqlmodel import Session
 import uvicorn
 from pydantic import BaseModel
 from typing import List, Dict, Any
@@ -9,10 +12,28 @@ import os
 # function
 from ai.ocr import extract_text_from_image
 from ai.text_nlp import extract_transactions
-from helper.helper import get_content_line, create_dynamic_flex_receipt, send_line_reply, send_loading_indicator, save_line_image
+from helper.helper import (
+    get_content_line,
+    create_dynamic_flex_receipt,
+    send_line_reply_v3,
+    send_loading_indicator_v3,
+    save_line_image,
+    send_push_notification,
+    get_daily_usage,
+    get_monthly_usage,
+    get_all_users
+)
 
 # database service
-from model.db_manament import get_or_create_user, save_temp_transaction, confirm_and_save_transaction, create_attachment_record, get_dashboard_data, setup_user_budget
+from model.db_manament import (
+    get_or_create_user,
+    save_temp_transaction,
+    confirm_and_save_transaction,
+    create_attachment_record,
+    get_dashboard_data,
+    setup_user_budget
+)
+from model.models import get_session
 
 
 load_dotenv()
@@ -34,6 +55,17 @@ app.add_middleware(
 # Usage
 api_key = os.getenv("TYPHOON_API_KEY")
 line_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+
+header_scheme = APIKeyHeader(name="X-Cron-Token", auto_error=False)
+
+def verify_cron_token(token: str = Security(header_scheme)):
+    expected_token = os.getenv("CRON_SECRET_TOKEN")
+    if not token or token != expected_token:
+        raise HTTPException(
+            status_code=403, 
+            detail="Could not validate credentials"
+        )
+    return token
 
 
 class UserMessage(BaseModel):
@@ -69,7 +101,7 @@ async def line_webhook(data: LineWebhook):
             if msg_type == "text":
                 user_text = message.get("text")
                 print(f"[{user_id}] Text: {user_text}")
-                send_loading_indicator(user_id=user_id, line_token=line_access_token)
+                send_loading_indicator_v3(user_id=user_id, line_token=line_access_token)
                 # ส่งไปให้ Typhoon วิเคราะห์รายการ
                 final_transactions = extract_transactions(api_key, user_text)
 
@@ -83,7 +115,7 @@ async def line_webhook(data: LineWebhook):
             elif msg_type == "image":
                 message_id = message.get("id")
                 print(f"[{user_id}] Image ID: {message_id}")
-                send_loading_indicator(user_id=user_id, line_token=line_access_token)
+                send_loading_indicator_v3(user_id=user_id, line_token=line_access_token)
                 image_bytes = get_content_line(message_id, line_token=line_access_token)
                 if image_bytes is None:
                     print("Failed to download image")
@@ -115,11 +147,7 @@ async def line_webhook(data: LineWebhook):
                     
                     # 2. ส่ง Reply
                     print("DEBUG: Sending reply...")
-                    response = send_line_reply(reply_token, flex_content={
-                        "type": "flex",
-                        "altText": "บันทึกรายการสำเร็จ",
-                        "contents": flex_msg # รับค่ามาจากฟังก์ชันแรก
-                    }, line_token=line_access_token)
+                    response = send_line_reply_v3(reply_token, flex_msg, altText="บันทึกรายการสำเร็จ")
                     print(f"DEBUG: Line API Response: {response}")
                     
                 except Exception as e:
@@ -152,7 +180,7 @@ async def line_webhook(data: LineWebhook):
                     text_reply = "❌ ไม่พบข้อมูลรายการนี้ หรือรายการอาจหมดอายุแล้วครับ"
 
                 # 3. ตอบกลับเพื่อยืนยันผลการทำงาน
-                send_line_reply(reply_token, flex_content={"type": "text", "text": text_reply}, line_token=line_access_token)
+                send_line_reply_v3(reply_token, flex_content=text_reply)
 
                 
 
@@ -169,6 +197,55 @@ async def setup_budget(data: dict):
     amount = data.get("amount")
     
     return setup_user_budget(user_id, amount)
+
+
+# cron job service
+@app.post("/api/cron/remind-to-record")
+async def remind_logic(db: Session = Depends(get_session), _ : str = Depends(verify_cron_token)):
+    all_users = get_all_users(db)
+    count_reminded = 0
+    for user in all_users:
+        user_id = user.line_user_id
+        daily_amount = get_daily_usage(db, user_id)
+        
+        if daily_amount is None:
+            # 4. ถ้ายังไม่จด (None) -> ส่ง Push Notification ทันที
+            send_push_notification(
+                user_id=user.line_user_id,
+                content="📝 วันนี้ยังไม่ได้บันทึกรายการเลยนะ อย่าลืมจด 'จดนิด' เพื่อวินัยทางการเงินที่แม่นยำนะครับ",
+                alt_text="เตือนบันทึกรายจ่ายวันนี้"
+            )
+            count_reminded += 1
+    return {
+        "status": "success", 
+        "total_users": len(all_users), 
+        "reminded_count": count_reminded
+    }
+
+# --- เส้นที่ 2: สรุปรายวัน (Run ตอน 21:00) ---
+@app.post("/api/cron/summary-daily")
+async def daily_summary(_ : str = Depends(verify_cron_token), db: Session = Depends(get_session)):
+
+
+    all_users = get_all_users(db)
+    for user in all_users:
+        user_id = user.line_user_id
+        amount = get_daily_usage(db, user_id) or 0.0
+        # คุณสามารถสร้าง Flex JSON สวยๆ ตรงนี้แล้วส่งไป
+        msg = f"📊 สรุปยอดใช้จ่ายวันนี้ของคุณคือ ฿{amount:,.2f} ครับ"
+        send_push_notification(user_id, msg, alt_text="สรุปยอดรายวัน")
+        return {"status": "summary_sent"}
+
+# --- เส้นที่ 3: สรุปรายเดือน (Run ทุกสิ้นเดือน หรือตามสั่ง) ---
+@app.post("/api/cron/summary-monthly")
+async def monthly_summary(_ : str = Depends(verify_cron_token),db: Session = Depends(get_session)):
+    all_users = get_all_users(db)
+    for user in all_users:
+        user_id = user.line_user_id
+        amount = get_monthly_usage(db, user_id)
+        msg = f"📅 สรุปยอดใช้จ่ายเดือนนี้ทั้งหมด ฿{amount:,.2f} ครับ"
+        send_push_notification(user_id, msg, alt_text="สรุปยอดรายเดือน")
+        return {"status": "monthly_summary_sent"}
 
 
 if __name__ == "__main__":

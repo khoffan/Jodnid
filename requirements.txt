@@ -7,3 +7,4 @@ sqlmodel
 python-multipart
 python-dotenv
 psycopg2-binary
+line-bot-sdk

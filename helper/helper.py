@@ -13,7 +13,6 @@ from linebot.v3.messaging import (
     FlexContainer,
     ShowLoadingAnimationRequest,
     PushMessageRequest,
-    
     TextMessage
 )
 

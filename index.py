@@ -101,7 +101,7 @@ async def line_webhook(data: LineWebhook):
             if msg_type == "text":
                 user_text = message.get("text")
                 print(f"[{user_id}] Text: {user_text}")
-                send_loading_indicator_v3(user_id=user_id, line_token=line_access_token)
+                send_loading_indicator_v3(user_id=user_id, seconds=10)
                 # ส่งไปให้ Typhoon วิเคราะห์รายการ
                 final_transactions = extract_transactions(api_key, user_text)
 
@@ -115,7 +115,7 @@ async def line_webhook(data: LineWebhook):
             elif msg_type == "image":
                 message_id = message.get("id")
                 print(f"[{user_id}] Image ID: {message_id}")
-                send_loading_indicator_v3(user_id=user_id, line_token=line_access_token)
+                send_loading_indicator_v3(user_id=user_id, seconds=20)
                 image_bytes = get_content_line(message_id, line_token=line_access_token)
                 if image_bytes is None:
                     print("Failed to download image")
@@ -147,7 +147,7 @@ async def line_webhook(data: LineWebhook):
                     
                     # 2. ส่ง Reply
                     print("DEBUG: Sending reply...")
-                    response = send_line_reply_v3(reply_token, flex_msg, altText="บันทึกรายการสำเร็จ")
+                    response = send_line_reply_v3(reply_token, alt_text="บันทึกรายการสำเร็จ", flex_json=flex_msg)
                     print(f"DEBUG: Line API Response: {response}")
                     
                 except Exception as e:
@@ -180,7 +180,7 @@ async def line_webhook(data: LineWebhook):
                     text_reply = "❌ ไม่พบข้อมูลรายการนี้ หรือรายการอาจหมดอายุแล้วครับ"
 
                 # 3. ตอบกลับเพื่อยืนยันผลการทำงาน
-                send_line_reply_v3(reply_token, flex_content=text_reply)
+                send_line_reply_v3(reply_token, flex_content=text_reply, alt_text="ผลการบันทึกรายการ")
 
                 
 

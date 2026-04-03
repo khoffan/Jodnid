@@ -104,7 +104,7 @@ async def line_webhook(data: LineWebhook):
                 send_loading_indicator_v3(user_id=user_id, seconds=10)
                 # ส่งไปให้ Typhoon วิเคราะห์รายการ
                 final_transactions = extract_transactions(api_key, user_text)
-
+                print(f"Extracted Transactions: {final_transactions}")
                 temp_id = save_temp_transaction(user_id, final_transactions)
                 
                 # TODO: บันทึกลง Database โดยผูกกับ user_id
@@ -162,27 +162,22 @@ async def line_webhook(data: LineWebhook):
 
             action = params.get("action")
             post_temp_id = params.get("temp_id")
-            category = params.get("cat")
             if action == "confirm":
-                success = confirm_and_save_transaction(temp_id=post_temp_id, category_name=category)
-                print(success)
-                if success:
-                    # แปลง category code เป็นคำอ่านภาษาไทยให้ User เข้าใจง่าย
-                    cat_map = {
-                        "food": "🍔 อาหาร",
-                        "travel": "🚗 เดินทาง",
-                        "shopping": "🛍️ ช้อปปิ้ง",
-                        "other": "✨ อื่นๆ"
-                    }
-                    display_cat = cat_map.get(category, "ทั่วไป")
-                    text_reply = f"✅ บันทึกรายการลงหมวด {display_cat} เรียบร้อยแล้วครับ"
+                result = confirm_and_save_transaction(temp_id=post_temp_id)
+                print(result)
+                if result:
+                    
+                    count = result.get("count", 0)
+                    total = result.get("total", 0.0)
+                    text_reply = f"✅ บันทึกสำเร็จ {count} รายการ\n💰 ยอดรวม ฿{total:,.2f}\nเรียบร้อยแล้วครับ"
                 else:
                     text_reply = "❌ ไม่พบข้อมูลรายการนี้ หรือรายการอาจหมดอายุแล้วครับ"
 
                 # 3. ตอบกลับเพื่อยืนยันผลการทำงาน
-                send_line_reply_v3(reply_token, flex_content=text_reply, alt_text="ผลการบันทึกรายการ")
-
-                
+                send_line_reply_v3(reply_token, text=text_reply)
+            elif action == "cancel":
+                # (Option) ถ้า User กดกยกเลิก อาจจะแค่บอกว่ายกเลิกแล้ว
+                send_line_reply_v3(reply_token=reply_token, text="🗑️ ยกเลิกการบันทึกรายการเรียบร้อยครับ")
 
     return {"status": "ok"}
 

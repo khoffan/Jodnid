@@ -110,32 +110,42 @@ def create_dynamic_flex_receipt(transactions: list, temp_id: str):
     except:
         total = 0.0
     
+    cat_map = {
+        "food": "🍔 อาหาร",
+        "อาหาร": "🍔 อาหาร",
+        "travel": "🚗 เดินทาง",
+        "เดินทาง": "🚗 เดินทาง",
+        "shopping": "🛍️ ช้อปปิ้ง",
+        "ช้อปปิ้ง": "🛍️ ช้อปปิ้ง",
+        "เครื่องดื่ม": "☕ เครื่องดื่ม", # เพิ่มกรณีที่ Typhoon ส่ง 'เครื่องดื่ม' มา
+        "other": "✨ อื่นๆ",
+        "อื่นๆ": "✨ อื่นๆ"
+    }
+
     item_rows = []
     for t in transactions:
-        # ดึงค่าและจัดการให้เป็น String เสมอ
         name = str(t.get('item') or t.get('receiver') or 'ไม่ระบุ')
         amount = float(t.get('amount', 0))
+        # ดึงหมวดหมู่ที่ AI วิเคราะห์มาให้ (ถ้าไม่มีให้เป็น other)
+        cat_code = t.get('category', 'other')
+        cat_display = cat_map.get(cat_code, f"✨ {cat_code}")
 
+        # แถวรายการสินค้า
         item_rows.append({
             "type": "box",
             "layout": "horizontal",
             "contents": [
-                {
-                    "type": "text", 
-                    "text": name, 
-                    "size": "sm", 
-                    "color": "#555555", 
-                    "flex": 4  # ใช้ flex 4 แทน 0 เพื่อให้มีพื้นที่ตัวหนังสือ
-                },
-                {
-                    "type": "text", 
-                    "text": f"฿{amount:,.2f}", 
-                    "size": "sm", 
-                    "color": "#111111", 
-                    "align": "end",
-                    "flex": 2  # ให้ราคากินพื้นที่ 2 ส่วน
-                }
+                {"type": "text", "text": name, "size": "sm", "color": "#555555", "flex": 4},
+                {"type": "text", "text": f"฿{amount:,.2f}", "size": "sm", "color": "#111111", "align": "end", "flex": 2}
             ]
+        })
+        # แถวแสดงหมวดหมู่ (ตัวเล็กๆ ใต้รายการ)
+        item_rows.append({
+            "type": "text",
+            "text": f"หมวดหมู่: {cat_display}",
+            "size": "xs",
+            "color": "#999999",
+            "margin": "none"
         })
 
     flex_json = {
@@ -144,7 +154,7 @@ def create_dynamic_flex_receipt(transactions: list, temp_id: str):
             "type": "box",
             "layout": "vertical",
             "contents": [
-                {"type": "text", "text": "สกัดข้อมูลสำเร็จ", "color": "#1DB446", "weight": "bold", "size": "sm"},
+                {"type": "text", "text": "ตรวจสอบรายการ", "color": "#1DB446", "weight": "bold", "size": "sm"},
                 {"type": "text", "text": f"฿ {total:,.2f}", "weight": "bold", "size": "xxl", "margin": "md"}
             ]
         },
@@ -165,37 +175,29 @@ def create_dynamic_flex_receipt(transactions: list, temp_id: str):
         "footer": {
             "type": "box",
             "layout": "vertical",
-            "spacing": "sm", # เพิ่มระยะห่างระหว่างแถวปุ่ม
+            "spacing": "sm",
             "contents": [
                 {
-                    "type": "box",
-                    "layout": "horizontal",
-                    "spacing": "sm",
-                    "contents": [
-                        {
-                            "type": "button", "style": "primary", "color": "#FF5733", "height": "sm",
-                            "action": {"type": "postback", "label": "🍔 อาหาร", "data": f"action=confirm&temp_id={temp_id}&cat=food"}
-                        },
-                        {
-                            "type": "button", "style": "primary", "color": "#3357FF", "height": "sm",
-                            "action": {"type": "postback", "label": "🚗 เดินทาง", "data": f"action=confirm&temp_id={temp_id}&cat=travel"}
-                        }
-                    ]
+                    "type": "button",
+                    "style": "primary",
+                    "color": "#1DB446", # สีเขียวเพื่อการยืนยัน
+                    "action": {
+                        "type": "postback",
+                        "label": "✅ ยืนยันบันทึกรายการ",
+                        "data": f"action=confirm&temp_id={temp_id}" # ไม่ต้องส่ง cat แล้วเพราะฝังใน temp_id/db ไปแล้ว
+                    }
                 },
                 {
-                    "type": "box",
-                    "layout": "horizontal",
-                    "spacing": "sm",
-                    "contents": [
-                        {
-                            "type": "button", "style": "primary", "color": "#FF33A1", "height": "sm",
-                            "action": {"type": "postback", "label": "🛍️ ช้อปปิ้ง", "data": f"action=confirm&temp_id={temp_id}&cat=shopping"}
-                        },
-                        {
-                            "type": "button", "style": "primary", "color": "#1DB446", "height": "sm",
-                            "action": {"type": "postback", "label": "✨ อื่นๆ", "data": f"action=confirm&temp_id={temp_id}&cat=other"}
-                        }
-                    ]
+                    "type": "button",
+                    "style": "secondary",
+                    "color": "#FF3B30",
+                    "height": "sm",
+                    "margin": "sm",
+                    "action": {
+                        "type": "postback",
+                        "label": "❌ ยกเลิก",
+                        "data": f"action=cancel&temp_id={temp_id}"
+                    }
                 }
             ]
         }

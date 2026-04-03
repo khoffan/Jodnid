@@ -32,44 +32,73 @@ def save_temp_transaction(user_id: str, raw_data: List[Dict[str, Any]],
         return temp_entry.id
 
 # --- 3. ย้ายข้อมูลจาก Temp ไปเป็น Transaction จริง (รองรับ Category และ Attachment) ---
-def confirm_and_save_transaction(temp_id: str, category_name: str):
+def confirm_and_save_transaction(temp_id: str):
     with Session(engine) as session:
+        # 1. ดึงข้อมูลชั่วคราว
         temp = session.get(TempTransactions, temp_id)
         if not temp:
             return False
         
-        statement = select(Categories).where(Categories.name == category_name)
-        category = session.exec(statement).first()
-        
-        # ถ้ายังไม่มี ให้สร้างใหม่
-        if not category:
-            category = Categories(
-                name=category_name,
-                icon="✨", # ใส่ icon default ไว้ก่อน หรือจะ map ตามชื่อก็ได้
-                color_code="#808080" # สีเทา default
-            )
-            session.add(category)
-            session.flush() # เพื่อให้ได้ category.id มาใช้ต่อโดยยังไม่ commit ทั้งหมด
-        
-        # วนลูปบันทึกรายการ (รองรับกรณี 1 รูปมีหลายรายการ)
+        # Mapping ภาษาไทย/อังกฤษ และ Icon สำหรับหมวดหมู่
+        cat_map = {
+            "food": {"name": "อาหาร", "icon": "🍔", "color": "#FF5733"},
+            "อาหาร": {"name": "อาหาร", "icon": "🍔", "color": "#FF5733"},
+            "travel": {"name": "เดินทาง", "icon": "🚗", "color": "#3357FF"},
+            "เดินทาง": {"name": "เดินทาง", "icon": "🚗", "color": "#3357FF"},
+            "shopping": {"name": "ช้อปปิ้ง", "icon": "🛍️", "color": "#FF33A1"},
+            "ช้อปปิ้ง": {"name": "ช้อปปิ้ง", "icon": "🛍️", "color": "#FF33A1"},
+            "เครื่องดื่ม": {"name": "เครื่องดื่ม", "icon": "☕", "color": "#6F4E37"}
+        }
+
+        total_amount = 0.0
+        item_count = 0
+
+        # 2. วนลูปตามรายการที่ AI สกัดมาได้ (รองรับหลายรายการใน 1 temp_id)
         for item in temp.raw_data:
+            # ดึงหมวดหมู่จาก item (AI ส่งมา) และทำความสะอาด String
+            raw_cat = str(item.get('category', 'other')).strip()
+            clean_cat = "".join(raw_cat.split()) # ลบช่องว่างกลางคำ
+            
+            # หาข้อมูลหมวดหมู่มาตรฐานจาก Map
+            cat_info = cat_map.get(clean_cat, {"name": clean_cat, "icon": "✨", "color": "#808080"})
+            final_cat_name = cat_info["name"]
+
+            # ตรวจสอบใน DB ว่ามีหมวดหมู่นี้หรือยัง
+            statement = select(Categories).where(Categories.name == final_cat_name)
+            category = session.exec(statement).first()
+            
+            if not category:
+                category = Categories(
+                    name=final_cat_name,
+                    icon=cat_info["icon"],
+                    color_code=cat_info["color"]
+                )
+                session.add(category)
+                session.flush() # เพื่อให้ได้ ID มาใช้ต่อ
+
+            # 3. สร้าง Transaction จริง
+            amount = float(item.get('amount', 0))
             new_tx = Transactions(
                 user_id=temp.user_id,
-                amount=float(item.get('amount', 0)),
+                amount=amount,
                 item_name=item.get('item') or item.get('receiver') or "ไม่ระบุรายการ",
                 transaction_type="expense", 
                 receiver_name=item.get('receiver'),
-                # ดึงข้อมูลจาก Temp มาใส่ใน Transaction จริง
                 source_type=temp.source_type,
                 attachment_id=temp.attachment_id,
-                category_id=category.id
+                category_id=category.id,
+                transaction_date=datetime.now() # หรือจะใช้เวลาจาก temp ถ้ามีเก็บไว้
             )
             session.add(new_tx)
+            total_amount += amount
+            item_count += 1
         
-        # ลบ Temp หลังจากย้ายเสร็จ (Clean up)
+        # 4. ลบ Temp และ Commit
         session.delete(temp)
         session.commit()
-        return True
+        
+        # คืนค่ากลับไปบอกผลลัพธ์ (เพื่อเอาไปโชว์ใน Flex Message ตอบกลับ)
+        return {"count": item_count, "total": total_amount}
 # --- 4. บันทึก Metadata ของรูปภาพ ---
 def create_attachment_record(user_id: str, file_path: str, file_type: str = "image/jpeg"):
     """

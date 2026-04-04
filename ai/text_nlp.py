@@ -30,7 +30,7 @@ def extract_transactions(api_key: str, user_prompt: str):
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.1, # ปรับให้ต่ำลงเพื่อให้ผลลัพธ์คงที่ (Deterministic)
-            max_tokens=512,
+            max_tokens=1000,
             top_p=0.9,
             response_format={"type": "json_object"} # บังคับให้ตอบเป็น JSON
         )
@@ -51,11 +51,35 @@ def extract_transactions(api_key: str, user_prompt: str):
         print(f"Error extracting transactions: {e}")
         return None
 
-# --- วิธีการใช้งาน ---
-# my_api_key = "YOUR_TYPHOON_API_KEY"
-# user_text = "ผมซื้อข้าวที่ร้านมาเรียม 60 บาทพร้อมกับน้ำอัดลม 17 บาทจาก 7/11"
-# results = extract_transactions(my_api_key, user_text)
+def is_transaction_message(api_key: str, user_prompt: str) -> bool:
+    """
+    ใช้ AI ตรวจสอบว่าข้อความเป็นรายการรับ-จ่ายหรือไม่ 
+    คืนค่า True หากเป็นรายการ, False หากไม่ใช่
+    """
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://api.opentyphoon.ai/v1"
+    )
 
-# if results:
-#     for txn in results:
-#         print(f"รายการ: {txn['item']} | ยอด: {txn['amount']} | หมวดหมู่: {txn['category']}")
+    system_prompt = (
+        "Check if the message is about financial transactions (income/expense/buy/sell/pay).\n"
+        "Return ONLY 'true' or 'false'. No explanation."
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model="typhoon-v2.5-30b-a3b-instruct",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0, # ต้องการความแม่นยำสูงสุด
+            max_tokens=50  # ใช้ token น้อยมากเพราะตอบแค่คำเดียว
+        )
+
+        result = response.choices[0].message.content.strip().lower()
+        return "true" in result
+    except Exception as e:
+        print(f"Validation Error: {e}")
+        return True # Fallback เป็น True เพื่อให้ไปเช็คต่อที่ตัวหลักหาก AI ตัวเล็กพัง
+

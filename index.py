@@ -11,10 +11,15 @@ import os
 
 # function
 from ai.ocr import extract_text_from_image
-from ai.text_nlp import extract_transactions
+from ai.text_nlp import (
+    extract_transactions,
+    is_transaction_message
+)
 from helper.helper import (
     get_content_line,
     create_dynamic_flex_receipt,
+    get_instruction_flex,
+    get_line_profile,
     send_line_reply_v3,
     send_loading_indicator_v3,
     save_line_image,
@@ -31,7 +36,8 @@ from model.db_manament import (
     confirm_and_save_transaction,
     create_attachment_record,
     get_dashboard_data,
-    setup_user_budget
+    setup_user_budget,
+    delete_temp_transaction
 )
 from model.models import get_session
 
@@ -94,22 +100,61 @@ async def line_webhook(data: LineWebhook):
         if event_type == "message":
             message = event.get("message", {})
             msg_type = message.get("type")
-
-            # กรณีที่ 1: เป็นข้อความ (Text)
             
+            # bot conversation condition
+            # รายการคำสำคัญ (Keywords)
+            HELPER_KEYWORDS = ["ช่วยด้วย", "วิธีใช้", "ทำอะไรได้บ้าง", "สอนหน่อย"]
+            GREETING_KEYWORDS = ["สวัสดี", "hello", "hi", "เริ่ม"]
+            SUMMARY_KEYWORDS = ["ขอดูยอด", "สรุปยอด", "ใช้ไปเท่าไหร่"]
+            
+            # transaction condition
             final_transactions = None
             if msg_type == "text":
                 user_text = message.get("text")
+                user_text_lower = user_text.lower()
                 print(f"[{user_id}] Text: {user_text}")
                 send_loading_indicator_v3(user_id=user_id, seconds=10)
-                # ส่งไปให้ Typhoon วิเคราะห์รายการ
-                final_transactions = extract_transactions(api_key, user_text)
-                print(f"Extracted Transactions: {final_transactions}")
-                temp_id = save_temp_transaction(user_id, final_transactions)
+                is_transaction = is_transaction_message(api_key, user_text)
+                print(f"Is Transaction: {is_transaction}")
+
+                                # --- 1. คำสั่งช่วยเหลือ (Help/Guidance) ---
+                if any(k in user_text_lower for k in HELPER_KEYWORDS):
+                    send_line_reply_v3(reply_token, alt_text="คําแนะนำ",  flex_json=get_instruction_flex()) # ส่ง Flex คำแนะนำที่เราคุยกัน
                 
-                # TODO: บันทึกลง Database โดยผูกกับ user_id
-                # TODO: Reply กลับหา User ผ่าน LINE Messaging API
-                # return {"status": "success", "type": "text", "result": final_transection}
+                # --- 2. คำทักทาย (Greetings) ---
+                elif any(k in user_text_lower for k in GREETING_KEYWORDS):
+                    profile = get_line_profile(user_id=user_id, line_token=line_access_token)
+                    user_name = profile.get("displayName", "คุณ")
+                    greeting_text = (
+                        f"สวัสดีครับคุณ {user_name}! 🙏\n"
+                        "ผม 'จดนิด' พร้อมช่วยบันทึกรายจ่ายให้คุณแล้ว\n"
+                        "ลองพิมพ์ 'ค่าข้าว 60' หรือส่งรูปสลิปมาได้เลยครับ"
+                    )
+                    send_line_reply_v3(reply_token, text=greeting_text)
+
+                elif is_transaction:
+                    # ส่งไปให้ Typhoon วิเคราะห์รายการ
+                    final_transactions = extract_transactions(api_key, user_text)
+                    print(f"Extracted Transactions: {final_transactions}")
+                    temp_id = save_temp_transaction(user_id, final_transactions)
+                    
+                    # TODO: บันทึกลง Database โดยผูกกับ user_id
+                    # TODO: Reply กลับหา User ผ่าน LINE Messaging API
+                    # return {"status": "success", "type": "text", "result": final_transection}
+                else:
+                    print("Not a transaction message.")
+                    guidance_text = (
+                        "🤖 จดนิด ยังไม่เข้าใจรายการนี้ครับ\n\n"
+                        "💡 วิธีจดที่ถูกต้อง:\n"
+                        "• พิมพ์ [รายการ] [จำนวนเงิน]\n"
+                        "  เช่น 'ค่าข้าว 60' หรือ 'ได้เงินเดือน 30000'\n"
+                        "• ส่งรูป 'สลิปโอนเงิน' ได้เลย\n\n"
+                        "⚠️ สิ่งที่จดไม่ได้:\n"
+                        "• ข้อความทักทายหรือคุยเล่น\n"
+                        "• ข้อความที่ไม่มีตัวเลขจำนวนเงิน"
+                    )
+                    # (Option) คุณอาจจะส่งข้อความกลับไปบอก User ว่าไม่พบรายการในข้อความนี้ก็ได้
+                    send_line_reply_v3(reply_token, text=guidance_text)
 
             # กรณีที่ 2: เป็นรูปภาพ (Image)
             elif msg_type == "image":
@@ -129,8 +174,13 @@ async def line_webhook(data: LineWebhook):
                     # ตัวอย่าง Flow:
                     # image_bytes = download_line_image(message_id)
                     ocr_json = extract_text_from_image(image_bytes, f"{message_id}.jpg", api_key)
-                    ocr_text = ocr_json["text"]
-                    final_transactions = [ocr_text]
+                    status = ocr_json.get("success")
+                    if not status:
+                        print(f"OCR failed: {ocr_json.get('error')}")
+                        send_line_reply_v3(reply_token, text="ขออภัยครับ ระบบไม่สามารถอ่านข้อมูลจากรูปนี้ได้ กรุณาลองใหม่อีกครั้งด้วยรูปที่ชัดเจนขึ้นครับ")
+                        return
+                    ocr_result = ocr_json["text"]
+                    final_transactions = ocr_result
 
                     temp_id = save_temp_transaction(user_id, final_transactions, attachment_id=attachment_id, source_type="image")
                 else:
@@ -176,6 +226,7 @@ async def line_webhook(data: LineWebhook):
                 # 3. ตอบกลับเพื่อยืนยันผลการทำงาน
                 send_line_reply_v3(reply_token, text=text_reply)
             elif action == "cancel":
+                delete_temp_transaction(temp_id=post_temp_id)
                 # (Option) ถ้า User กดกยกเลิก อาจจะแค่บอกว่ายกเลิกแล้ว
                 send_line_reply_v3(reply_token=reply_token, text="🗑️ ยกเลิกการบันทึกรายการเรียบร้อยครับ")
 

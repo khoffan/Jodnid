@@ -31,6 +31,15 @@ def save_temp_transaction(user_id: str, raw_data: List[Dict[str, Any]],
         session.refresh(temp_entry)
         return temp_entry.id
 
+def delete_temp_transaction(temp_id: str):
+    with Session(engine) as session:
+        temp = session.get(TempTransactions, temp_id)
+        if temp:
+            session.delete(temp)
+            session.commit()
+            return True
+        return False
+
 # --- 3. ย้ายข้อมูลจาก Temp ไปเป็น Transaction จริง (รองรับ Category และ Attachment) ---
 def confirm_and_save_transaction(temp_id: str):
     with Session(engine) as session:

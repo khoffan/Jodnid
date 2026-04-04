@@ -94,7 +94,7 @@ class UserBudget(SQLModel, table=True):
 
 # --- Database Connection ---
 raw_url_db = os.getenv("DATABASE_URL")
-engine = create_engine(raw_url_db, echo=True)
+engine = create_engine(raw_url_db)
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)

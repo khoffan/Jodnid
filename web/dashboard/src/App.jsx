@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import liff from '@line/liff';
+import { Routes, Route, Navigate, useNavigate } from 'react-router'
 import Dashboard from './pages/Dashboard';
 import Onboarding from './pages/Onboarding';
-import { Routes, Route, Navigate, useNavigate } from 'react-router'
+import UserCheckingLoading from './components/LoadingCheckUser';
+import Overview from './pages/OverviewPage';
 
 function App() {
   const [userId, setUserId] = useState(null);
@@ -29,7 +31,7 @@ function App() {
   const element = (
     <Routes>
       {/* ถ้ามี userId ให้ไป Dashboard ถ้าไม่มี (หรือยังไม่ Login) ให้กลับไปหน้าหลัก */}
-      <Route path="/" element={userId ? <Dashboard userId={userId} /> : <div className="p-10">กรุณาเข้าสู่ระบบผ่าน LINE</div>} />
+      <Route path="/" element={<Overview userId={userId} />} />
       
       {/* หน้า Onboarding สำหรับตั้งค่า Budget ครั้งแรก */}
       <Route path="/setup" element={<Onboarding userId={userId} />} />
@@ -44,8 +46,8 @@ function App() {
 
 
   return (
-    <div className="max-w-md mx-auto min-h-screen shadow-2xl bg-white">
-      {element}
+    <div className="max-w-md mx-auto min-h-screen shadow-2xl bg-white p-5 pt-10 pb-20 rounded-3xl">
+      {!userId ? <UserCheckingLoading /> : element}
     </div>
   );
 }

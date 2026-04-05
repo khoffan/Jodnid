@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import useTransactionStore from '../store/useTransectionStore';
 
@@ -12,16 +12,18 @@ const Onboarding = ({ userId }) => {
     if (!budget || budget <= 0) return alert("กรุณาระบุงบประมาณที่ถูกต้อง");
     
     const result = await saveBudget(userId, budget);
+    console.log("Budget Save Result:", result);
     if (result.success) {
       // เมื่อบันทึกสำเร็จ ให้ส่งกลับไปหน้า Dashboard
       navigate('/');
     } else {
       alert("เกิดข้อผิดพลาด กรุณาลองใหม่");
+      window.location.reload(); // รีโหลดหน้าเพื่อให้ผู้ใช้ลองใหม่อีกครั้ง (หรือจะใช้วิธีอื่นก็ได้ตามความเหมาะสม)
     }
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col p-8">
+    <>
       <div className="flex-1 flex flex-col justify-center">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800">ยินดีต้อนรับ! 👋</h1>
@@ -59,7 +61,7 @@ const Onboarding = ({ userId }) => {
       >
         {loading ? 'กำลังบันทึก...' : 'เริ่มจดเลย!'}
       </button>
-    </div>
+    </>
   );
 };
 

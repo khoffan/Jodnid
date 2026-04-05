@@ -20,6 +20,7 @@ from helper.helper import (
     create_dynamic_flex_receipt,
     get_instruction_flex,
     get_line_profile,
+    get_user_overview,
     send_line_reply_v3,
     send_loading_indicator_v3,
     save_line_image,
@@ -92,8 +93,9 @@ async def line_webhook(data: LineWebhook):
         user_id = event.get("source", {}).get("userId")
         reply_token = event.get("replyToken")
         event_type = event.get("type")
+        
 
-        get_or_create_user(line_user_id=user_id)
+        get_or_create_user(line_user_id=user_id, line_access_token=line_access_token)
 
         temp_id = None
 
@@ -234,6 +236,7 @@ async def line_webhook(data: LineWebhook):
 
 @app.get("/api/dashboard/{user_id}")
 async def get_dashboard(user_id: str, type: str = "monthly", month: int = None, year: int = None):
+    print(f"User ID: {user_id}, Type: {type}, Month: {month}, Year: {year}")
     # ส่ง type เข้าไปในฟังก์ชันจัดการข้อมูล
     return get_dashboard_data(user_id, type, month, year)
 
@@ -241,6 +244,10 @@ async def get_dashboard(user_id: str, type: str = "monthly", month: int = None, 
 async def setup_budget(data: dict):
     user_id = data.get("user_id")
     amount = data.get("amount")
+    print(f"Setting up budget for user_id: {user_id} with amount: {amount}")
+    if not user_id or not amount:
+        return {"success": False, "message": "Missing user_id or amount"}
+    
     
     return setup_user_budget(user_id, amount)
 
@@ -292,6 +299,22 @@ async def monthly_summary(_ : str = Depends(verify_cron_token),db: Session = Dep
         msg = f"📅 สรุปยอดใช้จ่ายเดือนนี้ทั้งหมด ฿{amount:,.2f} ครับ"
         send_push_notification(user_id, msg, alt_text="สรุปยอดรายเดือน")
         return {"status": "monthly_summary_sent"}
+
+
+@app.post("/api/overview/stats")
+async def overview_stat(data: dict, db: Session = Depends(get_session)):
+    user_id = data.get("user_id")
+    if not user_id:
+        return {"success": False, "message": "Missing user_id"}
+    
+    data = get_user_overview(db, user_id)
+
+    print(f"overview data {data}")
+
+    return {
+        "success": True,
+        "data": data
+    }
 
 
 if __name__ == "__main__":

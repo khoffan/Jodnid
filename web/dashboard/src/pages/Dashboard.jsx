@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useParams } from 'react-router'; // เพิ่ม useParams
 import useTransactionStore from '../store/useTransectionStore';
+import LoadingSkeleton from '../components/LoadindSkeleton';
 
 const Dashboard = ({ userId }) => {
   const { type } = useParams(); // รับค่า 'daily' หรือ 'monthly' จาก URL
@@ -10,9 +11,9 @@ const Dashboard = ({ userId }) => {
       // คุณสามารถส่ง type ไปที่ store เพื่อให้ backend filter ข้อมูลตามช่วงเวลาได้
       fetchDashboard(userId, type || 'monthly'); 
     }
-  }, [userId, type]); // ทำงานใหม่ทุกครั้งที่ type เปลี่ยน (เช่น กดสลับปุ่มใน Rich Menu)
+  }, [userId, type]);
 
-  if (loading) return <div className="p-10 text-center font-medium text-green-600 animate-pulse">กำลังดึงข้อมูล...</div>;
+  if (loading) return <LoadingSkeleton />;
 
   // --- จัดการ UI ตาม Type ---
   const isDaily = type === 'daily';
@@ -22,8 +23,7 @@ const Dashboard = ({ userId }) => {
     : "from-green-500 to-green-600"; // สีเขียวสำหรับรายเดือน
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 pb-20">
-      
+    <>
       {/* Header Card (Dynamic Color & Title) */}
       <div className={`bg-gradient-to-br ${headerGradient} rounded-3xl p-6 text-white shadow-lg mb-6 transition-all duration-500`}>
         <div className="flex justify-between items-center mb-1">
@@ -89,7 +89,7 @@ const Dashboard = ({ userId }) => {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

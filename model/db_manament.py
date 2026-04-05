@@ -1,19 +1,31 @@
 from sqlalchemy import and_
 from sqlmodel import Session, extract, select
+from helper.helper import get_line_profile
 from model.models import UserBudget, engine, Users, Transactions, TempTransactions, Categories, Attachments
 from typing import List, Dict, Any, Optional
 import uuid
 from datetime import datetime
 
 # --- 1. จัดการ User (เหมือนเดิมแต่เพิ่ม Error Handling) ---
-def get_or_create_user(line_user_id: str, display_name: str = None):
+def get_or_create_user(line_user_id: str, line_access_token: str = None):
+    profile = get_line_profile(user_id=line_user_id, line_token=line_access_token)
+    display_name = profile["displayName"] if profile else "Unknown User"
+    
     with Session(engine) as session:
         user = session.get(Users, line_user_id)
+        
         if not user:
+            # กรณี User ใหม่: สร้าง Record ใหม่
             user = Users(line_user_id=line_user_id, display_name=display_name)
             session.add(user)
-            session.commit()
-            session.refresh(user)
+        else:
+            # กรณี User เก่า: เช็คว่าต้องอัปเดตชื่อไหม (ป้องกันค่า null หรือชื่อเก่า)
+            if user.display_name != display_name:
+                user.display_name = display_name
+                # หากมีฟิลด์รูปโปรไฟล์ (pictureUrl) ก็อัปเดตตรงนี้ได้เลย
+        
+        session.commit()
+        session.refresh(user)
         return user
 
 # --- 2. บันทึกข้อมูลชั่วคราว (เพิ่ม attachment_id และ source_type) ---
@@ -136,23 +148,24 @@ def get_category_by_name(name: str):
         statement = select(Categories).where(Categories.name == name)
         return session.exec(statement).first()
     
-def get_dashboard_data(user_id: str, type: str = "monthly", month: int = None, year: int = None):
+def get_dashboard_data(user_id: str, type: str = "monthly",day: int = None, month: int = None, year: int = None):
     with Session(engine) as session:
         now = datetime.now()
         
+
+        target_month = int(month) if month else now.month
+        target_year = int(year) if year else now.year
+        target_day = int(day) if day else now.day
         # สร้างเงื่อนไขพื้นฐาน (Filter by User)
         filters = [Transactions.user_id == user_id]
         
         if type == "daily":
             # --- Logic สำหรับรายวัน ---
             # กรองเฉพาะ วัน/เดือน/ปี ปัจจุบัน
-            filters.append(extract('day', Transactions.transaction_date) == now.day)
-            filters.append(extract('month', Transactions.transaction_date) == now.month)
-            filters.append(extract('year', Transactions.transaction_date) == now.year)
+            filters.append(extract('day', Transactions.transaction_date) == target_day)
+            filters.append(extract('month', Transactions.transaction_date) == target_month)
+            filters.append(extract('year', Transactions.transaction_date) == target_year)
         else:
-            # --- Logic สำหรับรายเดือน (Default) ---
-            target_month = month or now.month
-            target_year = year or now.year
             filters.append(extract('month', Transactions.transaction_date) == target_month)
             filters.append(extract('year', Transactions.transaction_date) == target_year)
 
@@ -211,4 +224,4 @@ def setup_user_budget(user_id: str, amount: float):
             session.add(budget)
             
         session.commit()
-        return {"status": "success", "message": "ตั้งค่าบัดเจทเรียบร้อย"}
+        return {"success": True, "message": "ตั้งค่าบัดเจทเรียบร้อย"}

@@ -1,6 +1,6 @@
 const TransactionDetail = ({ transaction }) => {
   return (
-    <div className="min-h-screen bg-white">
+    <>
       <div className="p-6 border-b text-center">
         <h2 className="font-bold text-xl">รายละเอียดรายการ</h2>
       </div>
@@ -27,7 +27,7 @@ const TransactionDetail = ({ transaction }) => {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 };
 

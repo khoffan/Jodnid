@@ -2,7 +2,7 @@ import requests
 import os
 from datetime import datetime
 from sqlmodel import Session, select, func, extract
-from model.models import Transactions, Users
+from model.models import Categories, Transactions, UserBudget, Users
 from dotenv import load_dotenv
 from linebot.v3.messaging import (
     Configuration,
@@ -380,6 +380,74 @@ def get_monthly_usage(session: Session, user_id: str):
         extract('year', Transactions.transaction_date) == today.year
     )
     return session.exec(statement).first() or 0.0
+
+# ฟังชั้นนี้ใช้ในการทำงานทางด้าน stats ต่างๆ เช่น ดึงข้อมูลยอดรวมรายวัน รายเดือน หรือคำนวณค่าเฉลี่ย เป็นต้น
+def get_user_overview(session: Session, user_id: str):
+    today = datetime.now()
+    
+    # 1. Monthly Total
+    monthly_total = session.exec(
+        select(func.sum(Transactions.amount)).where(
+            Transactions.user_id == user_id,
+            extract('month', Transactions.transaction_date) == today.month,
+            extract('year', Transactions.transaction_date) == today.year
+        )
+    ).first() or 0.0
+
+    # 2. Daily Total
+    daily_total = session.exec(
+        select(func.sum(Transactions.amount)).where(
+            Transactions.user_id == user_id,
+            extract('day', Transactions.transaction_date) == today.day,
+            extract('month', Transactions.transaction_date) == today.month,
+            extract('year', Transactions.transaction_date) == today.year
+        )
+    ).first() or 0.0
+
+    # 1. สร้าง Statement
+    statement = select(UserBudget).where(UserBudget.user_id == user_id)
+
+    # 2. ยิงคำสั่งผ่าน session และดึงตัวแรกออกมา (.first())
+    result = session.exec(statement).first()
+
+    # 3. ตรวจสอบว่าเจอไหม ถ้าเจอให้ดึง .amount ถ้าไม่เจอให้เป็น 0
+    budget_limit = result.amount if result else 0.0
+
+    # 3. Daily Average (คำนวณจากยอดเดือนนี้ หารด้วยจำนวนวันที่ผ่านมาในเดือนนั้น)
+    days_passed = today.day
+    daily_average = monthly_total / days_passed if days_passed > 0 else 0.0
+
+    # 4. Categories Summary (Join เพื่อเอาชื่อหมวดหมู่)
+    category_statement = select(
+        Categories.name,              # ดึงชื่อจากตาราง Categories
+        func.sum(Transactions.amount) # รวมยอดจากตาราง Transactions
+    ).join(
+        Categories, Transactions.category_id == Categories.id  # เชื่อมตารางด้วย ID
+    ).where(
+        Transactions.user_id == user_id,
+        extract('month', Transactions.transaction_date) == today.month,
+        extract('year', Transactions.transaction_date) == today.year
+    ).group_by(
+        Categories.name               # จัดกลุ่มตามชื่อหมวดหมู่
+    )
+
+    
+    category_results = session.exec(category_statement).all()
+    print(category_results)
+    categories_map = {name: float(amount) for name, amount in category_results}
+
+    # 5. Percent Change (เปรียบเทียบกับเดือนที่แล้ว - Optional)
+    # ในขั้นตอนนี้อาจจะใส่ค่า Static ไว้ก่อน หรือคำนวณจากยอดเดือนที่แล้ว (today.month - 1)
+    percent_change = 0.0 # Logic เพิ่มเติม: (Monthly - LastMonthly) / LastMonthly * 100
+
+    return {
+        "monthlyTotal": float(monthly_total),
+        "dailyTotal": float(daily_total),
+        "dailyAverage": round(float(daily_average), 2),
+        "percentChange": percent_change,
+        "budgetLimit": budget_limit, # ดึงมาจากฟิลด์ใน Users table ถ้ามี
+        "categories": categories_map
+    }
 
 def get_all_users(session: Session):
     """ดึงข้อมูลผู้ใช้ทั้งหมด (สำหรับการส่ง Notification)"""

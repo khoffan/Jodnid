@@ -18,7 +18,7 @@ const useTransactionStore = create((set) => ({
     categories: {},
   },
 
-  fetchDashboard: async (userId, type = "monthly", month, year) => {
+  fetchDashboard: async (userId, type = "monthly",day, month, year) => {
     // ป้องกันการโหลดซ้ำถ้ากำลังโหลดอยู่ (Optional)
     set({ loading: true, currentType: type });
 
@@ -26,6 +26,7 @@ const useTransactionStore = create((set) => ({
       const now = new Date();
       const queryParams = {
         type: type,
+        day: day || now.getDate(), // ถ้าไม่ส่ง day มาให้ใช้วันปัจจุบัน
         month: month || now.getMonth() + 1, // ถ้าไม่ส่ง month มาให้ใช้เดือนปัจจุบัน
         year: year || now.getFullYear(), // ถ้าไม่ส่ง year มาให้ใช้ปีปัจจุบัน
       };

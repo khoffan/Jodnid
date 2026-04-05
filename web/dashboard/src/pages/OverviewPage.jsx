@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import useTransactionStore from '../store/useTransectionStore';
-import LoadingSkeleton from '../components/LoadindSkeleton';
+import LoadingSkeleton from '../components/loading/LoadindSkeleton';
 
 const Overview = ({ userId }) => {
   const { overviewStat, loading, fetchOverviewStat } = useTransactionStore();

@@ -235,10 +235,10 @@ async def line_webhook(data: LineWebhook):
     return {"status": "ok"}
 
 @app.get("/api/dashboard/{user_id}")
-async def get_dashboard(user_id: str, type: str = "monthly", month: int = None, year: int = None):
+async def get_dashboard(user_id: str, type: str = "monthly",day: int = None, month: int = None, year: int = None):
     print(f"User ID: {user_id}, Type: {type}, Month: {month}, Year: {year}")
     # ส่ง type เข้าไปในฟังก์ชันจัดการข้อมูล
-    return get_dashboard_data(user_id, type, month, year)
+    return get_dashboard_data(user_id, type, day, month, year)
 
 @app.post("/api/budget/setup")
 async def setup_budget(data: dict):

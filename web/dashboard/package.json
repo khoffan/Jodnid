@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.9",
     "@line/liff": "^2.28.0",
     "@tailwindcss/vite": "^4.2.2",
     "axios": "1.13.6",

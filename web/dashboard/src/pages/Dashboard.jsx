@@ -1,17 +1,23 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router'; // เพิ่ม useParams
 import useTransactionStore from '../store/useTransectionStore';
-import LoadingSkeleton from '../components/LoadindSkeleton';
+import LoadingSkeleton from '../components/loading/LoadindSkeleton';
+import SelectField from '../dropdown/SelectFields';
 
 const Dashboard = ({ userId }) => {
   const { type } = useParams(); // รับค่า 'daily' หรือ 'monthly' จาก URL
   const { transactions, totalAmount, summary, fetchDashboard, loading } = useTransactionStore();
+  const now = new Date();
+
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedDay, setSelectedDay] = useState(new Date().getDate());
   useEffect(() => {
     if (userId) {
       // คุณสามารถส่ง type ไปที่ store เพื่อให้ backend filter ข้อมูลตามช่วงเวลาได้
-      fetchDashboard(userId, type || 'monthly'); 
+      fetchDashboard(userId, type || 'monthly', selectedDay ,selectedMonth, selectedYear); 
     }
-  }, [userId, type]);
+  }, [userId, type, selectedDay, selectedMonth, selectedYear, fetchDashboard]);
 
   if (loading) return <LoadingSkeleton />;
 
@@ -22,8 +28,48 @@ const Dashboard = ({ userId }) => {
     ? "from-blue-500 to-blue-600" // สีฟ้าสำหรับรายวัน
     : "from-green-500 to-green-600"; // สีเขียวสำหรับรายเดือน
 
+  // --- Prepare Options ---
+  const monthOptions = [
+    "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+  ].map((name, i) => ({ label: name, value: i + 1 }));
+
+  const yearOptions = [0, 1, 2].map(offset => {
+    const year = now.getFullYear() - offset;
+    return { label: `พ.ศ. ${year + 543}`, value: year };
+  });
+
+  const daysOptions= Array.from({ length: 31 }, (_, i) => ({ label: `${i + 1}`, value: i + 1 }));
+
   return (
     <>
+    {/* 📅 Date Picker Section */}
+      {/* 📊 Reusable Filter Bar */}
+      <div className="flex gap-3 mb-6">
+        <SelectField 
+          label="ปี"
+          options={yearOptions}
+          value={selectedYear}
+          onChange={setSelectedYear}
+          className='flex-[1.5]'
+        />
+        <SelectField 
+          label="เดือน"
+          options={monthOptions}
+          value={selectedMonth}
+          onChange={setSelectedMonth}
+          className="flex-[2]" // ให้ช่องเดือนกว้างกว่าปีนิดหน่อย
+        />
+        {type === 'daily' && (
+          <SelectField
+          label="วัน"
+          options={daysOptions}
+          value={selectedDay}
+          onChange={setSelectedDay}
+          className="flex-[1]" // ให้ช่องวันเล็กที่สุด
+        />
+        )}
+      </div>
       {/* Header Card (Dynamic Color & Title) */}
       <div className={`bg-gradient-to-br ${headerGradient} rounded-3xl p-6 text-white shadow-lg mb-6 transition-all duration-500`}>
         <div className="flex justify-between items-center mb-1">

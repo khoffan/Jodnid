@@ -3,7 +3,7 @@ import liff from '@line/liff';
 import { Routes, Route, Navigate, useNavigate } from 'react-router'
 import Dashboard from './pages/Dashboard';
 import Onboarding from './pages/Onboarding';
-import UserCheckingLoading from './components/LoadingCheckUser';
+import UserCheckingLoading from './components/loading/LoadingCheckUser';
 import Overview from './pages/OverviewPage';
 
 function App() {

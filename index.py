@@ -40,7 +40,7 @@ from model.db_manament import (
     setup_user_budget,
     delete_temp_transaction
 )
-from model.models import get_session
+from model.models import create_db_and_tables, get_session
 
 
 load_dotenv()
@@ -318,10 +318,6 @@ async def overview_stat(data: dict, db: Session = Depends(get_session)):
 
 
 if __name__ == "__main__":
-    from model.models import create_db_and_tables
     create_db_and_tables()
-    
     port = int(os.getenv("PORT", 5005)) # ถ้าไม่มีใน .env ให้ใช้ 5005 เป็น default
-
-    
     uvicorn.run("index:app", host="0.0.0.0", port=port, reload=True)

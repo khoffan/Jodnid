@@ -97,6 +97,7 @@ raw_url_db = os.getenv("DATABASE_URL")
 engine = create_engine(raw_url_db)
 
 def create_db_and_tables():
+    print("Tables detected:", SQLModel.metadata.tables.keys())
     SQLModel.metadata.create_all(engine)
     print("Database structure updated with Attachments table.")
 

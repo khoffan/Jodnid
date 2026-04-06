@@ -1,5 +1,7 @@
 import requests
 import os
+import io
+from PIL import Image, ImageOps, ImageEnhance
 from datetime import datetime
 from sqlmodel import Session, select, func, extract
 from model.models import Categories, Transactions, UserBudget, Users
@@ -471,3 +473,34 @@ def get_line_profile(user_id: str, line_token: str):
     else:
         print(f"Error fetching profile: {result.status_code} - {result.text}")
         return None
+    
+def pre_process_image_file(image_data):
+    try:
+        if isinstance(image_data, bytes):
+            img = Image.open(io.BytesIO(image_data))
+        else:
+            # กรณีส่งเป็น File Object มา
+            img = Image.open(image_data)
+
+        # --- 1. Resize ---
+        max_width = 1500
+        if img.width > max_width:
+            w_percent = (max_width / float(img.width))
+            h_size = int((float(img.height) * float(w_percent)))
+            img = img.resize((max_width, h_size), Image.Resampling.LANCZOS)
+
+        # --- 2. Convert to Grayscale (ลดสีเหลือขาวดำ/เทา) ---
+        img = img.convert('L')
+
+        # --- 3. Enhance Contrast (ช่วยให้ตัวหนังสือในใบกำกับภาษีชัดขึ้น) ---
+        enhancer = ImageEnhance.Contrast(img)
+        img = enhancer.enhance(2.0) 
+
+        # แปลงกลับเป็น Bytes เพื่อส่งไป API ต่อ
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, format='JPEG', quality=85)
+        return img_byte_arr.getvalue() # คืนค่ากลับเป็น bytes
+    except Exception as e:
+        print(f"Image Preprocessing Error: {e}")
+        return image
+        

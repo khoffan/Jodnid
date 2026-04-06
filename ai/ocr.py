@@ -4,38 +4,6 @@ import json
 import re
 from ai.text_nlp import extract_transactions
 
-def parse_slip_data(text):
-    data = {
-        "amount": 0.0,
-        "fee": 0.0,
-        "timestamp": None,
-        "receiver": None
-    }
-
-    # 1. หาจำนวนเงิน (Amount) - มองหาตัวเลขหน้าคำว่า "บาท"
-    amount_match = re.search(r"จำนวนเงิน\s*\*?\*?([\d,]+\.\d{2})\*?\*?\s*บาท", text)
-    if amount_match:
-        data["amount"] = float(amount_match.group(1).replace(",", ""))
-
-    # 2. หาค่าธรรมเนียม (Fee)
-    fee_match = re.search(r"ค่าธรรมเนียม\s*\*?\*?([\d,]+\.\d{2})\*?\*?\s*บาท", text)
-    if fee_match:
-        data["fee"] = float(fee_match.group(1).replace(",", ""))
-
-    # 3. หาวันที่และเวลา (Timestamp)
-    # แพทเทิร์น: 19 ก.พ. 2569 - 00:30
-    time_match = re.search(r"(\d{1,2}\s+[ก-ฮ\.]+\s+\d{4}\s*-\s*\d{2}:\d{2})", text)
-    if time_match:
-        data["timestamp"] = time_match.group(1)
-
-    # 4. หาผู้รับเงิน (Receiver) 
-    # Logic: หาบรรทัดที่ต่อจาก "ไปยัง"
-    receiver_match = re.search(r"ไปยัง\n(.+)", text)
-    if receiver_match:
-        data["receiver"] = receiver_match.group(1).strip()
-
-    return data
-
 def is_financial_document(api_key: str, ocr_text: str) -> bool:
     """
     ตรวจสอบว่าข้อความจาก OCR เข้าข่ายเป็นสลิปธนาคารหรือใบเสร็จรับเงินหรือไม่

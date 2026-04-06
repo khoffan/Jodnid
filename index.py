@@ -1,3 +1,4 @@
+from helper.helper import pre_process_image_file
 import fastapi
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Depends, HTTPException, Security
@@ -164,7 +165,8 @@ async def line_webhook(data: LineWebhook):
                 print(f"[{user_id}] Image ID: {message_id}")
                 send_loading_indicator_v3(user_id=user_id, seconds=20)
                 image_bytes = get_content_line(message_id, line_token=line_access_token)
-                if image_bytes is None:
+                processing_image = pre_process_image_file(image_bytes)
+                if processing_image is None:
                     print("Failed to download image")
                     return {"status": "error", "message": "Failed to download image"}
                 # NOTE: LINE ไม่ได้ส่งไฟล์รูปมาตรงๆ แต่ส่ง message_id มา
@@ -175,7 +177,7 @@ async def line_webhook(data: LineWebhook):
                     attachment_id = create_attachment_record(user_id=user_id, file_path=save_file, file_type="image/jpeg")
                     # ตัวอย่าง Flow:
                     # image_bytes = download_line_image(message_id)
-                    ocr_json = extract_text_from_image(image_bytes, f"{message_id}.jpg", api_key)
+                    ocr_json = extract_text_from_image(processing_image, f"{message_id}.jpg", api_key)
                     status = ocr_json.get("success")
                     if not status:
                         print(f"OCR failed: {ocr_json.get('error')}")
@@ -199,9 +201,8 @@ async def line_webhook(data: LineWebhook):
                     
                     # 2. ส่ง Reply
                     print("DEBUG: Sending reply...")
-                    response = send_line_reply_v3(reply_token, alt_text="บันทึกรายการสำเร็จ", flex_json=flex_msg)
-                    print(f"DEBUG: Line API Response: {response}")
-                    
+                    send_line_reply_v3(reply_token, alt_text="บันทึกรายการสำเร็จ", flex_json=flex_msg)
+                    print("DEBUG: Sended successfully")
                 except Exception as e:
                     print(f"ERROR in processing Flex Reply: {str(e)}")
             

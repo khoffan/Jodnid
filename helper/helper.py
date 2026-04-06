@@ -476,6 +476,7 @@ def get_line_profile(user_id: str, line_token: str):
     
 def pre_process_image_file(image_data):
     try:
+        print('DEBUG: start pre processing image')
         if isinstance(image_data, bytes):
             img = Image.open(io.BytesIO(image_data))
         else:
@@ -499,8 +500,9 @@ def pre_process_image_file(image_data):
         # แปลงกลับเป็น Bytes เพื่อส่งไป API ต่อ
         img_byte_arr = io.BytesIO()
         img.save(img_byte_arr, format='JPEG', quality=85)
+        print("DEBUG: processed image")
         return img_byte_arr.getvalue() # คืนค่ากลับเป็น bytes
     except Exception as e:
         print(f"Image Preprocessing Error: {e}")
-        return image
+        return image_data
         

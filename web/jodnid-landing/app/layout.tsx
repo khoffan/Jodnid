@@ -10,13 +10,21 @@ const thaiFont = IBM_Plex_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: "JodNid - จดบันทึกรายจ่ายง่ายๆ ผ่าน LINE AI",
-  description: "สแกนสลิป แยก VAT และทำสรุปบัญชีอัตโนมัติด้วยพลัง AI",
-  openGraph: {
-    title: "JodNid - จดง่าย นิดเดียว",
-    description: "จัดการเงินผ่าน LINE ไม่ต้องโหลดแอปเพิ่ม",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+  metadataBase: new URL("https://jodnid-home.vercel.app"),
+  title: {
+    default: "JodNid - จดบันทึกรายจ่ายง่ายๆ ผ่าน LINE AI",
+    template: "%s | JodNid"
   },
+  description: "เปลี่ยนการจดบัญชีให้เป็นเรื่องง่ายด้วย JodNid AI บน LINE แค่ส่งสลิปหรือพิมพ์บอก ระบบจะช่วยแยกหมวดหมู่และ VAT ให้อัตโนมัติ",
+  openGraph: {
+    title: "JodNid - จดบันทึกรายจ่ายผ่าน LINE AI",
+    description: "จัดการการเงินของคุณได้ง่ายกว่าที่เคยผ่านแอป LINE",
+    type: "website",
+    locale: "th_TH",
+  },
+  alternates: {
+    canonical: "/",
+  }
 };
 
 export default function RootLayout({

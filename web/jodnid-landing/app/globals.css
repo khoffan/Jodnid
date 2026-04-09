@@ -1,8 +1,15 @@
 @import "tailwindcss";
 
+
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem; /* ปรับตามความสูงของ Navbar */
 }
 
 @theme inline {

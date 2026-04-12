@@ -42,7 +42,7 @@ async def process_webhook_event(event: dict, user_id: str, reply_token: str, lin
     elif event_type == 'postback':
         postback_data = event.get("postback", {}).get("data")
         # Logic การจัดการ Confirm/Cancel
-        await handle_postback(user_id, postback_data, reply_token)
+        await handle_postback(postback_data, reply_token)
 
 
 async def handle_text_message(user_id: str, user_text: str, reply_token: str, line_access_token: str, api_key: str):
@@ -123,7 +123,7 @@ async def handle_image_message(user_id: str, message_id: str, reply_token: str, 
     else:
         print("Failed to save image")
 
-async def handle_postback(user_id: str, postback_data, reply_token: str):
+async def handle_postback(postback_data, reply_token: str):
     from urllib.parse import parse_qsl
     params = dict(parse_qsl(postback_data))
     print(params)

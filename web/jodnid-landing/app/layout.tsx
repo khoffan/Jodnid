@@ -15,12 +15,27 @@ export const metadata: Metadata = {
     default: "JodNid - จดบันทึกรายจ่ายง่ายๆ ผ่าน LINE AI",
     template: "%s | JodNid"
   },
-  description: "เปลี่ยนการจดบัญชีให้เป็นเรื่องง่ายด้วย JodNid AI บน LINE แค่ส่งสลิปหรือพิมพ์บอก ระบบจะช่วยแยกหมวดหมู่และ VAT ให้อัตโนมัติ",
+  description: "แอปผู้ช่วยจดบันทึกรายจ่ายอัตโนมัติผ่าน LINE ใช้ AI วิเคราะห์สลิปธนาคารและข้อความ สะดวก รวดเร็ว แม่นยำ",
+  keywords: ["จดบันทึกรายจ่าย", "แอปรายรับรายจ่าย", "AI สแกนสลิป", "LINE Bot รายรับรายจ่าย"],
+  authors: [{ name: "Khoffan Leemanan" }],
   openGraph: {
     title: "JodNid - จดบันทึกรายจ่ายผ่าน LINE AI",
     description: "จัดการการเงินของคุณได้ง่ายกว่าที่เคยผ่านแอป LINE",
     type: "website",
     locale: "th_TH",
+    url: "https://jodnid-home.vercel.app",
+    siteName: "JodNid",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
   },
   alternates: {
     canonical: "/",

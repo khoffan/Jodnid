@@ -1,3 +1,4 @@
+from helper.utils import create_summary_flex
 from model.db_manament import get_parent_categories
 from helper.webhook_helper import process_webhook_event
 from fastapi import FastAPI, BackgroundTasks
@@ -139,16 +140,28 @@ async def remind_logic(db: Session = Depends(get_session), _ : str = Depends(ver
 # --- เส้นที่ 2: สรุปรายวัน (Run ตอน 21:00) ---
 @app.post("/api/cron/summary-daily")
 async def daily_summary(_ : str = Depends(verify_cron_token), db: Session = Depends(get_session)):
-
-
     all_users = get_all_users(db)
+    processed_count = 0
+    
     for user in all_users:
         user_id = user.line_user_id
-        amount = get_daily_usage(db, user_id) or 0.0
-        # คุณสามารถสร้าง Flex JSON สวยๆ ตรงนี้แล้วส่งไป
-        msg = f"📊 สรุปยอดใช้จ่ายวันนี้ของคุณคือ ฿{amount:,.2f} ครับ"
-        send_push_notification(user_id, msg, alt_text="สรุปยอดรายวัน")
-        return {"status": "summary_sent"}
+        # ดึงข้อมูลจากฟังก์ชันสรุปที่คุยกันก่อนหน้า
+        data = get_dashboard_data(db, user_id, type="daily") 
+        
+        if data["total_amount"] > 0:
+            flex_content = create_summary_flex(
+                title="📊 สรุปรายงานรายวัน",
+                total=data["total_amount"],
+                items=data["transactions"],
+                remaining=data.get("budget_remaining", 0),
+                percent=data.get("total_percent", 0)
+            )
+            
+            # ส่งเป็น Flex Message
+            send_push_notification(user_id, content=flex_content, alt_text="สรุปยอดรายวัน")
+            processed_count += 1
+            
+    return {"status": "success", "users_notified": processed_count}
 
 # --- เส้นที่ 3: สรุปรายเดือน (Run ทุกสิ้นเดือน หรือตามสั่ง) ---
 @app.post("/api/cron/summary-monthly")

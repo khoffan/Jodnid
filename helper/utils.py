@@ -330,6 +330,70 @@ def get_instruction_flex():
             ]
         }
     }
+    
+def create_summary_flex(title, total, items, remaining, percent):
+    # กำหนดสีของ Progress Bar ตามสถานะ
+    bar_color = "#EF4444" if percent > 90 else "#22C55E"
+    
+    # สร้างส่วนรายการ (Transaction Rows)
+    item_nodes = []
+    for item in items[:3]: # แสดง 3 รายการล่าสุดใน Flex เพื่อความกระชับ
+        item_nodes.append({
+            "type": "box",
+            "layout": "horizontal",
+            "contents": [
+                {"type": "text", "text": f"{item['icon']} {item['item']}", "size": "sm", "color": "#555555", "flex": 4},
+                {"type": "text", "text": f"฿{item['amount']:,.0f}", "size": "sm", "color": "#111111", "align": "end", "weight": "bold", "flex": 2}
+            ]
+        })
+
+    return {
+        "type": "bubble",
+        "size": "giga",
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {"type": "text", "text": title, "weight": "bold", "color": "#1DB446", "size": "sm"},
+                {"type": "text", "text": f"฿{total:,.2f}", "weight": "bold", "size": "xxl", "margin": "md"},
+                {"type": "text", "text": "ยอดใช้จ่ายรวมวันนี้", "size": "xs", "color": "#aaaaaa"},
+                {"type": "separator", "margin": "lg"},
+                
+                # รายการล่าสุด
+                {"type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": item_nodes},
+                
+                {"type": "separator", "margin": "lg"},
+                
+                # Progress Bar ของงบประมาณเดือน
+                {"type": "box", "layout": "vertical", "margin": "lg", "contents": [
+                    {"type": "box", "layout": "horizontal", "contents": [
+                        {"type": "text", "text": "งบประมาณเดือนนี้", "size": "xs", "color": "#aaaaaa"},
+                        {"type": "text", "text": f"{percent:.1f}%", "size": "xs", "color": "#aaaaaa", "align": "end"}
+                    ]},
+                    {"type": "box", "layout": "vertical", "margin": "sm", "backgroundColor": "#F3F4F6", "height": "6px", "cornerRadius": "3px", "contents": [
+                        {"type": "box", "layout": "vertical", "width": f"{min(percent, 100)}%", "backgroundColor": bar_color, "height": "6px", "cornerRadius": "3px", "contents": []}
+                    ]}
+                ]}
+            ]
+        },
+        "footer": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "button",
+                    "action": {
+                        "type": "uri",
+                        "label": "ดูรายละเอียดในแอป",
+                        "uri": "https://liff.line.me/YOUR_LIFF_ID/dashboard/daily"
+                    },
+                    "style": "primary",
+                    "color": "#111827",
+                    "height": "sm"
+                }
+            ]
+        }
+    }
 
 
 # 2. ฟังก์ชันส่ง (เน้นเรื่องการสื่อสาร)

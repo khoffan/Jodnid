@@ -19,6 +19,7 @@
 
 # production
 /build
+/public/*.xml
 
 # misc
 .DS_Store

@@ -1,7 +1,7 @@
 import requests
 import os
 import io
-from PIL import Image, ImageOps, ImageEnhance
+from PIL import Image, ImageEnhance
 from datetime import datetime
 from sqlmodel import Session, select, func, extract
 from model.models import Categories, Transactions, UserBudget, Users
@@ -19,9 +19,13 @@ from linebot.v3.messaging import (
 )
 
 load_dotenv()
-
-
-configuration = Configuration(access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
+is_test_mode = os.getenv("TEST_MODE")
+line_access_token = ""
+if is_test_mode:
+    line_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN_TEST")
+else:
+    line_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+configuration = Configuration(access_token=line_access_token)
 
 # file system
 def save_line_image(user_id: str, message_id: str, image_bytes: bytes):
@@ -387,68 +391,61 @@ def get_monthly_usage(session: Session, user_id: str):
 def get_user_overview(session: Session, user_id: str):
     today = datetime.now()
     
-    # 1. Monthly Total
-    monthly_total = session.exec(
-        select(func.sum(Transactions.amount)).where(
-            Transactions.user_id == user_id,
-            extract('month', Transactions.transaction_date) == today.month,
-            extract('year', Transactions.transaction_date) == today.year
-        )
-    ).first() or 0.0
+    # 1. ยอดรวมทั้งเดือน และ วันนี้ (เหมือนเดิม)
+    monthly_total = get_monthly_usage(session, user_id)
+    if monthly_total is None:
+        monthly_total = 0.0
 
-    # 2. Daily Total
-    daily_total = session.exec(
-        select(func.sum(Transactions.amount)).where(
-            Transactions.user_id == user_id,
-            extract('day', Transactions.transaction_date) == today.day,
-            extract('month', Transactions.transaction_date) == today.month,
-            extract('year', Transactions.transaction_date) == today.year
-        )
-    ).first() or 0.0
+    daily_total = get_daily_usage(session, user_id)
+    if daily_total is None:
+        daily_total = 0.0
 
-    # 1. สร้าง Statement
-    statement = select(UserBudget).where(UserBudget.user_id == user_id)
+    # 2. ดึงข้อมูล Budget รายหมวดหมู่ (หัวใจสำคัญของระบบใหม่)
+    # เราจะ Join UserBudget กับ Categories เพื่อเอาชื่อและ Icon ของ Parent Category มาแสดง
+    budget_statement = select(
+        Categories.name,
+        Categories.icon,
+        UserBudget.amount,       # งบที่ตั้งไว้ (Limit)
+        UserBudget.current_spent  # ยอดที่ใช้ไป (Actual Spent)
+    ).join(
+        Categories, UserBudget.category_id == Categories.id
+    ).where(
+        UserBudget.user_id == user_id,
+        UserBudget.month == today.month,
+        UserBudget.year == today.year
+    )
+    
+    budget_results = session.exec(budget_statement).all()
 
-    # 2. ยิงคำสั่งผ่าน session และดึงตัวแรกออกมา (.first())
-    result = session.exec(statement).first()
+    # จัดรูปแบบข้อมูล Categories สำหรับ Frontend
+    # จะมีข้อมูลทั้ง limit, spent และ percentage เพื่อให้ Frontend วาด Progress Bar ได้ทันที
+    categories_overview = []
+    total_budget_limit = 0.0
+    
+    for name, icon, limit, spent in budget_results:
+        total_budget_limit += float(limit)
+        remaining = float(limit) - float(spent)
+        percent = (float(spent) / float(limit) * 100) if limit > 0 else 0
+        
+        categories_overview.append({
+            "name": name,
+            "icon": icon,
+            "limit": float(limit),
+            "spent": float(spent),
+            "remaining": round(remaining, 2),
+            "percent": round(percent, 1)
+        })
 
-    # 3. ตรวจสอบว่าเจอไหม ถ้าเจอให้ดึง .amount ถ้าไม่เจอให้เป็น 0
-    budget_limit = result.amount if result else 0.0
-
-    # 3. Daily Average (คำนวณจากยอดเดือนนี้ หารด้วยจำนวนวันที่ผ่านมาในเดือนนั้น)
+    # 3. คำนวณค่าเฉลี่ยรายวัน (Daily Average)
     days_passed = today.day
     daily_average = monthly_total / days_passed if days_passed > 0 else 0.0
-
-    # 4. Categories Summary (Join เพื่อเอาชื่อหมวดหมู่)
-    category_statement = select(
-        Categories.name,              # ดึงชื่อจากตาราง Categories
-        func.sum(Transactions.amount) # รวมยอดจากตาราง Transactions
-    ).join(
-        Categories, Transactions.category_id == Categories.id  # เชื่อมตารางด้วย ID
-    ).where(
-        Transactions.user_id == user_id,
-        extract('month', Transactions.transaction_date) == today.month,
-        extract('year', Transactions.transaction_date) == today.year
-    ).group_by(
-        Categories.name               # จัดกลุ่มตามชื่อหมวดหมู่
-    )
-
-    
-    category_results = session.exec(category_statement).all()
-    print(category_results)
-    categories_map = {name: float(amount) for name, amount in category_results}
-
-    # 5. Percent Change (เปรียบเทียบกับเดือนที่แล้ว - Optional)
-    # ในขั้นตอนนี้อาจจะใส่ค่า Static ไว้ก่อน หรือคำนวณจากยอดเดือนที่แล้ว (today.month - 1)
-    percent_change = 0.0 # Logic เพิ่มเติม: (Monthly - LastMonthly) / LastMonthly * 100
 
     return {
         "monthlyTotal": float(monthly_total),
         "dailyTotal": float(daily_total),
         "dailyAverage": round(float(daily_average), 2),
-        "percentChange": percent_change,
-        "budgetLimit": budget_limit, # ดึงมาจากฟิลด์ใน Users table ถ้ามี
-        "categories": categories_map
+        "budgetLimit": total_budget_limit, # ยอดรวมงบทุกหมวดหมู่
+        "categories": categories_overview   # ข้อมูลรายหมวดหมู่แบบละเอียด
     }
 
 def get_all_users(session: Session):

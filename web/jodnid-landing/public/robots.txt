@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://jodnid-home.vercel.app
+
+# Sitemaps
+Sitemap: https://jodnid-home.vercel.app/sitemap.xml

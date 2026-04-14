@@ -1,3 +1,4 @@
+from helper.utils import send_push_notification
 from model.db_manament import delete_temp_transaction
 from model.db_manament import confirm_and_save_transaction
 from ai.text_nlp import extract_transactions
@@ -42,7 +43,7 @@ async def process_webhook_event(event: dict, user_id: str, reply_token: str, lin
     elif event_type == 'postback':
         postback_data = event.get("postback", {}).get("data")
         # Logic การจัดการ Confirm/Cancel
-        await handle_postback(postback_data, reply_token)
+        await handle_postback(postback_data, reply_token, user_id)
 
 
 async def handle_text_message(user_id: str, user_text: str, reply_token: str, line_access_token: str, api_key: str):
@@ -70,13 +71,14 @@ async def handle_text_message(user_id: str, user_text: str, reply_token: str, li
         send_line_reply_v3(reply_token, text=greeting_text)
 
     elif is_transaction:
+        send_line_reply_v3(reply_token, text="จดนิดกำลังวิเคราะห์รายการให้นะครับ... ⏳")
         # ส่งไปให้ Typhoon วิเคราะห์รายการ
         final_transactions = extract_transactions(api_key, user_text)
         print(f"Extracted Transactions: {final_transactions}")
         temp_id = save_temp_transaction(user_id, final_transactions)
         
         flex_msg = create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
-        send_line_reply_v3(reply_token, alt_text="บันทึกรายการสำเร็จ", flex_json=flex_msg)
+        send_push_notification(user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ")
     else:
         print("Not a transaction message.")
         guidance_text = (
@@ -105,6 +107,7 @@ async def handle_image_message(user_id: str, message_id: str, reply_token: str, 
     # จากนั้นค่อยส่งไฟล์นั้นไปที่ extract_text_from_image
     save_file = save_line_image(user_id=user_id, message_id=message_id, image_bytes=image_bytes)
     if save_file:
+        send_line_reply_v3(reply_token, text="จดนิดกำลังวิเคราะห์รายการให้นะครับ... ⏳")
         attachment_id = create_attachment_record(user_id=user_id, file_path=save_file, file_type="image/jpeg")
         # ตัวอย่าง Flow:
         # image_bytes = download_line_image(message_id)
@@ -119,31 +122,62 @@ async def handle_image_message(user_id: str, message_id: str, reply_token: str, 
 
         temp_id = save_temp_transaction(user_id, final_transactions, attachment_id=attachment_id, source_type="image")
         flex_msg = create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
-        send_line_reply_v3(reply_token, alt_text="บันทึกรายการสำเร็จ", flex_json=flex_msg)
+        send_push_notification(user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ")
     else:
         print("Failed to save image")
 
-async def handle_postback(postback_data, reply_token: str):
+async def handle_postback(postback_data: str, reply_token: str, user_id: str):
     from urllib.parse import parse_qsl
     params = dict(parse_qsl(postback_data))
-    print(params)
-
+    
     action = params.get("action")
     post_temp_id = params.get("temp_id")
+
     if action == "confirm":
+        # 1. บันทึกลง DB และดึงข้อมูลสรุปงบที่อัปเดต
         result = confirm_and_save_transaction(temp_id=post_temp_id)
-        print(result)
+        
         if result:
-            
             count = result.get("count", 0)
             total = result.get("total", 0.0)
-            text_reply = f"✅ บันทึกสำเร็จ {count} รายการ\n💰 ยอดรวม ฿{total:,.2f}\nเรียบร้อยแล้วครับ"
-        else:
-            text_reply = "❌ ไม่พบข้อมูลรายการนี้ หรือรายการอาจหมดอายุแล้วครับ"
+            budgets = result.get("budgets", [])
 
-        # 3. ตอบกลับเพื่อยืนยันผลการทำงาน
-        send_line_reply_v3(reply_token, text=text_reply)
+            # 2. ส่ง Reply ยืนยันการบันทึกสำเร็จก่อน (เพื่อปิด Loading ของ LINE)
+            text_confirm = f"✅ บันทึกสำเร็จ {count} รายการ\n💰 ยอดรวม ฿{total:,.2f}"
+            send_line_reply_v3(reply_token, text=text_confirm)
+
+            # 3. ส่ง Push Message สรุปงบประมาณ (ถ้ามีการตั้งงบไว้)
+            if budgets:
+                for b in budgets:
+                    # คำนวณสถานะ
+                    amount = b['amount']
+                    spent = b['current_spent']
+                    percent = (spent / amount) * 100 if amount > 0 else 0
+                    remaining = amount - spent
+                    
+                    # สร้างข้อความเตือนตามระดับการใช้จ่าย
+                    status_emoji = "📊"
+                    if percent >= 100:
+                        status_emoji = "⚠️ งบเกินแล้ว!"
+                    elif percent >= 80:
+                        status_emoji = "🔔 ใกล้เต็มแล้ว!"
+
+                    budget_msg = (
+                        f"{status_emoji}\n"
+                        f"หมวด: {b['icon']} {b['category_name']}\n"
+                        f"ใช้ไป: {percent:.1f}% (฿{spent:,.2f})\n"
+                        f"คงเหลือ: ฿{remaining:,.2f}"
+                    )
+                    
+                    # ส่งเป็น Push Message (เพราะอาจจะใช้เวลาประมวลผลแยกกัน)
+                    send_push_notification(user_id, content=budget_msg, alt_text="สรุปยอดใช้จ่าย")
+                    
+                    # TIP: ในอนาคตคุณสามารถเปลี่ยนจากส่ง Text เป็นส่ง 
+                    # send_line_push_v3(user_id, flex_json=create_budget_flex(b))
+                    # เพื่อความสวยงามได้ครับ
+        else:
+            send_line_reply_v3(reply_token, text="❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ")
+
     elif action == "cancel":
         delete_temp_transaction(temp_id=post_temp_id)
-        # (Option) ถ้า User กดกยกเลิก อาจจะแค่บอกว่ายกเลิกแล้ว
         send_line_reply_v3(reply_token=reply_token, text="🗑️ ยกเลิกการบันทึกรายการเรียบร้อยครับ")

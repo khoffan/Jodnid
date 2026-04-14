@@ -1,3 +1,4 @@
+from model.db_manament import get_parent_categories
 from helper.webhook_helper import process_webhook_event
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,22 +32,27 @@ load_dotenv()
 
 app = FastAPI()
 
-origin = [
-    "https://jodnid.vercel.app",
+origins = [
     os.getenv("FRONTEND_URL"),
+    "https://jodnid.vercel.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origin,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 # Usage
 api_key = os.getenv("TYPHOON_API_KEY")
-line_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
-
+is_test_mode = os.getenv("TEST_MODE")
+print(is_test_mode)
+line_access_token = ""
+if is_test_mode:
+    line_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN_TEST")
+else:
+    line_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 header_scheme = APIKeyHeader(name="X-Cron-Token", auto_error=False)
 
 def verify_cron_token(token: str = Security(header_scheme)):
@@ -87,16 +93,24 @@ async def get_dashboard(user_id: str, type: str = "monthly",day: int = None, mon
     # ส่ง type เข้าไปในฟังก์ชันจัดการข้อมูล
     return get_dashboard_data(user_id, type, day, month, year)
 
+
+@app.get("/api/categories/parent")
+async def get_categories_parent():
+    print("fetch categories parent")
+    return get_parent_categories()
+
+
 @app.post("/api/budget/setup")
 async def setup_budget(data: dict):
     user_id = data.get("user_id")
     amount = data.get("amount")
-    print(f"Setting up budget for user_id: {user_id} with amount: {amount}")
-    if not user_id or not amount:
-        return {"success": False, "message": "Missing user_id or amount"}
+    category_id = data.get("category_id")
+    print(f"Setting up budget for user_id: {user_id} with amount: {amount} and category_id: {category_id}")
+    if not user_id or not amount or not category_id:
+        return {"success": False, "message": "Missing user_id or amount or category_id"}
     
     
-    return setup_user_budget(user_id, amount)
+    return setup_user_budget(user_id, category_id=category_id, amount=amount)
 
 
 # cron job service
@@ -155,8 +169,6 @@ async def overview_stat(data: dict, db: Session = Depends(get_session)):
         return {"success": False, "message": "Missing user_id"}
     
     data = get_user_overview(db, user_id)
-
-    print(f"overview data {data}")
 
     return {
         "success": True,

@@ -194,9 +194,21 @@ def create_dynamic_flex_receipt(transactions: list, temp_id: str):
                         "data": f"action=confirm&temp_id={temp_id}" # ไม่ต้องส่ง cat แล้วเพราะฝังใน temp_id/db ไปแล้ว
                     }
                 },
+                # 2. ปุ่มแก้ไข (เปิด LIFF)
                 {
                     "type": "button",
                     "style": "secondary",
+                    "color": "#E5E7EB", # สีเทาอ่อนเพื่อให้ปุ่ม ยืนยัน เด่นกว่า
+                    "margin": "sm",
+                    "action": {
+                        "type": "uri",
+                        "label": "✏️ แก้ไขรายการ",
+                        "uri": f"https://liff.line.me/YOUR_LIFF_ID/edit-temp/{temp_id}"
+                    }
+                },
+                {
+                    "type": "button",
+                    "style": "link",
                     "color": "#FF3B30",
                     "height": "sm",
                     "margin": "sm",
@@ -566,4 +578,5 @@ def pre_process_image_file(image_data):
     except Exception as e:
         print(f"Image Preprocessing Error: {e}")
         return image_data
-        
+
+

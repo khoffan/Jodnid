@@ -1,3 +1,6 @@
+from typing import (
+    Dict, List, Any
+)
 from helper.utils import send_push_notification
 from model.db_manament import delete_temp_transaction
 from model.db_manament import confirm_and_save_transaction
@@ -43,7 +46,7 @@ async def process_webhook_event(event: dict, user_id: str, reply_token: str, lin
     elif event_type == 'postback':
         postback_data = event.get("postback", {}).get("data")
         # Logic การจัดการ Confirm/Cancel
-        await handle_postback(postback_data, reply_token, user_id)
+        await handle_postback(postback_data, user_id)
 
 
 async def handle_text_message(user_id: str, user_text: str, reply_token: str, line_access_token: str, api_key: str):
@@ -126,7 +129,7 @@ async def handle_image_message(user_id: str, message_id: str, reply_token: str, 
     else:
         print("Failed to save image")
 
-async def handle_postback(postback_data: str, reply_token: str, user_id: str):
+async def handle_postback(postback_data: str, user_id: str):
     from urllib.parse import parse_qsl
     params = dict(parse_qsl(postback_data))
     
@@ -144,7 +147,7 @@ async def handle_postback(postback_data: str, reply_token: str, user_id: str):
 
             # 2. ส่ง Reply ยืนยันการบันทึกสำเร็จก่อน (เพื่อปิด Loading ของ LINE)
             text_confirm = f"✅ บันทึกสำเร็จ {count} รายการ\n💰 ยอดรวม ฿{total:,.2f}"
-            send_line_reply_v3(reply_token, text=text_confirm)
+            send_push_notification(user_id=user_id, content=text_confirm, alt_text="บันทึกสำเร็จ")
 
             # 3. ส่ง Push Message สรุปงบประมาณ (ถ้ามีการตั้งงบไว้)
             if budgets:
@@ -176,8 +179,54 @@ async def handle_postback(postback_data: str, reply_token: str, user_id: str):
                     # send_line_push_v3(user_id, flex_json=create_budget_flex(b))
                     # เพื่อความสวยงามได้ครับ
         else:
-            send_line_reply_v3(reply_token, text="❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ")
+            send_push_notification(user_id=user_id, content="❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ", alt_text="ไม่พบข้อมูล")
 
     elif action == "cancel":
         delete_temp_transaction(temp_id=post_temp_id)
-        send_line_reply_v3(reply_token=reply_token, text="🗑️ ยกเลิกการบันทึกรายการเรียบร้อยครับ")
+        send_push_notification(user_id=user_id, content="🗑️ ยกเลิกการบันทึกรายการเรียบร้อยครับ", alt_text="ยกเลิกการบันทึก")
+
+
+def confirme_data_from_edit(post_temp_id: str, user_id: str, items: List[Dict[str, Any]] = None):
+    # 1. บันทึกลง DB และดึงข้อมูลสรุปงบที่อัปเดต
+    result = confirm_and_save_transaction(temp_id=post_temp_id, edit=True, items=items)
+    
+    if result:
+        count = result.get("count", 0)
+        total = result.get("total", 0.0)
+        budgets = result.get("budgets", [])
+
+        # 2. ส่ง Reply ยืนยันการบันทึกสำเร็จก่อน (เพื่อปิด Loading ของ LINE)
+        text_confirm = f"✅ บันทึกสำเร็จ {count} รายการ\n💰 ยอดรวม ฿{total:,.2f}"
+        send_push_notification(user_id=user_id, content=text_confirm, alt_text="บันทึกสำเร็จ")
+
+        # 3. ส่ง Push Message สรุปงบประมาณ (ถ้ามีการตั้งงบไว้)
+        if budgets:
+            for b in budgets:
+                # คำนวณสถานะ
+                amount = b['amount']
+                spent = b['current_spent']
+                percent = (spent / amount) * 100 if amount > 0 else 0
+                remaining = amount - spent
+                
+                # สร้างข้อความเตือนตามระดับการใช้จ่าย
+                status_emoji = "📊"
+                if percent >= 100:
+                    status_emoji = "⚠️ งบเกินแล้ว!"
+                elif percent >= 80:
+                    status_emoji = "🔔 ใกล้เต็มแล้ว!"
+
+                budget_msg = (
+                    f"{status_emoji}\n"
+                    f"หมวด: {b['icon']} {b['category_name']}\n"
+                    f"ใช้ไป: {percent:.1f}% (฿{spent:,.2f})\n"
+                    f"คงเหลือ: ฿{remaining:,.2f}"
+                )
+                
+                # ส่งเป็น Push Message (เพราะอาจจะใช้เวลาประมวลผลแยกกัน)
+                send_push_notification(user_id, content=budget_msg, alt_text="สรุปยอดใช้จ่าย")
+                
+                # TIP: ในอนาคตคุณสามารถเปลี่ยนจากส่ง Text เป็นส่ง 
+                # send_line_push_v3(user_id, flex_json=create_budget_flex(b))
+                # เพื่อความสวยงามได้ครับ
+    else:
+        send_push_notification(user_id=user_id, content="❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ", alt_text="ไม่พบข้อมูล")

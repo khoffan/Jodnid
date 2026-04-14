@@ -1,6 +1,12 @@
-from helper.utils import create_summary_flex
-from model.db_manament import get_parent_categories
-from helper.webhook_helper import process_webhook_event
+from model.db_manament import (
+    get_parent_categories,
+    get_temp_transaction_data,
+    get_temp_transaction_data
+)
+from helper.webhook_helper import (
+    process_webhook_event,
+    confirme_data_from_edit
+)
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Depends, HTTPException, Security
@@ -48,7 +54,6 @@ app.add_middleware(
 # Usage
 api_key = os.getenv("TYPHOON_API_KEY")
 is_test_mode = os.getenv("TEST_MODE")
-print(is_test_mode)
 line_access_token = ""
 if is_test_mode:
     line_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN_TEST")
@@ -95,10 +100,26 @@ async def get_dashboard(user_id: str, type: str = "monthly",day: int = None, mon
     return get_dashboard_data(user_id, type, day, month, year)
 
 
+@app.get("/api/temp-transaction/{temp_id}")
+async def get_temp_transaction(temp_id: str):
+    data = get_temp_transaction_data(temp_id)
+    print(data)
+    return data
+
+@app.post("/api/transactions/confirm-bulk")
+async def confirme_transaction_bulk_edit(data: dict):
+    user_id = data.get("user_id")
+    items = data.get("items")
+    temp_id = data.get("temp_id")
+    confirme_data_from_edit(temp_id, user_id, items)
+    return {"success": True, "message": "Confirm bulk transaction"}
+
+
 @app.get("/api/categories/parent")
 async def get_categories_parent():
     print("fetch categories parent")
     return get_parent_categories()
+
 
 
 @app.post("/api/budget/setup")

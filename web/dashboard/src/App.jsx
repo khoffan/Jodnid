@@ -5,6 +5,7 @@ import Dashboard from "./features/transactions/pages/Dashboard";
 import Onboarding from "./features/dashboard/pages/Onboarding";
 import UserCheckingLoading from "./common/components/loading/LoadingCheckUser";
 import { OverviewPage } from "./features/dashboard/pages/OverviewPage";
+import { EditTempPage } from "./features/transactions/pages/EditTempPage";
 
 function App() {
   const [userId, setUserId] = useState(null);
@@ -45,6 +46,8 @@ function App() {
 
       {/* สรุปรายวัน/รายเดือน (ใช้ Dashboard เดียวกันแต่ส่ง Type ไปเช็คข้างใน) */}
       <Route path="/summary/:type" element={<Dashboard userId={userId} />} />
+
+      <Route path="/edit-temp/:tempId" element={<EditTempPage userId={userId}/>} />
 
       {/* Fallback กรณีเข้า Path มั่ว */}
       <Route path="*" element={<Navigate to="/" replace />} />

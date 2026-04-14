@@ -54,7 +54,7 @@ def delete_temp_transaction(temp_id: str):
         return False
 
 # --- 3. ย้ายข้อมูลจาก Temp ไปเป็น Transaction จริง (รองรับ Category และ Attachment) ---
-def confirm_and_save_transaction(temp_id: str):
+def confirm_and_save_transaction(temp_id: str, edit: bool = False, items: List[Dict[str, Any]] = None):
     with Session(engine) as session:
         # 1. ดึงข้อมูลชั่วคราว
         temp = session.get(TempTransactions, temp_id)
@@ -74,8 +74,13 @@ def confirm_and_save_transaction(temp_id: str):
         updated_budgets_info = [] # เก็บข้อมูล Budget ที่ถูกอัปเดต
         processed_parent_ids = set() # ป้องกันการดึง Budget ซ้ำถ้ามีหลายรายการใน Parent เดียวกัน
         now = datetime.now()
+        
+        if edit:
+            raw_data = items
+        else:
+            raw_data = temp.raw_data
 
-        for item in temp.raw_data:
+        for item in raw_data:
             raw_cat_name = str(item.get('category', 'อื่นๆ')).strip()
             
             # 2. ค้นหาใน Mapping Table ก่อน
@@ -177,6 +182,11 @@ def create_attachment_record(user_id: str, file_path: str, file_type: str = "ima
         session.commit()
         session.refresh(new_attachment)
         return new_attachment.id
+    
+def get_temp_transaction_data(temp_id):
+    with Session(engine) as session:
+        statement = select(TempTransactions).where(TempTransactions.id == temp_id)
+        return session.exec(statement).first()
 
 # --- 5. จัดการ Category (เพื่อความง่ายในการเรียกใช้) ---
 def get_all_categories():

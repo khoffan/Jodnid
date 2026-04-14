@@ -203,7 +203,7 @@ def create_dynamic_flex_receipt(transactions: list, temp_id: str):
                     "action": {
                         "type": "uri",
                         "label": "✏️ แก้ไขรายการ",
-                        "uri": f"https://liff.line.me/YOUR_LIFF_ID/edit-temp/{temp_id}"
+                        "uri": f"https://liff.line.me/{os.getenv("LINE_LIFF_ID")}/edit-temp/{temp_id}"
                     }
                 },
                 {

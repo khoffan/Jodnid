@@ -112,6 +112,7 @@ def get_content_line(msg_id: str, line_token:str):
 
 def create_dynamic_flex_receipt(transactions: list, temp_id: str):
     # ป้องกัน total พังถ้าข้อมูลไม่ใช่ตัวเลข
+    line_liff_id = os.getenv("LINE_LIFF_ID")
     try:
         total = sum(float(t.get('amount', 0)) for t in transactions)
     except:
@@ -203,7 +204,7 @@ def create_dynamic_flex_receipt(transactions: list, temp_id: str):
                     "action": {
                         "type": "uri",
                         "label": "✏️ แก้ไขรายการ",
-                        "uri": f"https://liff.line.me/{os.getenv("LINE_LIFF_ID")}/edit-temp/{temp_id}"
+                        "uri": f"https://liff.line.me/{line_liff_id}?path=/edit-temp/{temp_id}"
                     }
                 },
                 {

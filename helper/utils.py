@@ -1,3 +1,4 @@
+from model.db_manament import sync_user_budgets
 import requests
 import os
 import io
@@ -468,6 +469,8 @@ def get_monthly_usage(session: Session, user_id: str):
 def get_user_overview(session: Session, user_id: str):
     today = datetime.now()
     
+    sync_user_budgets(session, user_id, today.month, today.year)
+    
     # 1. ยอดรวมทั้งเดือน และ วันนี้ (เหมือนเดิม)
     monthly_total = get_monthly_usage(session, user_id)
     if monthly_total is None:
@@ -493,7 +496,7 @@ def get_user_overview(session: Session, user_id: str):
     )
     
     budget_results = session.exec(budget_statement).all()
-
+    print(budget_results)
     # จัดรูปแบบข้อมูล Categories สำหรับ Frontend
     # จะมีข้อมูลทั้ง limit, spent และ percentage เพื่อให้ Frontend วาด Progress Bar ได้ทันที
     categories_overview = []

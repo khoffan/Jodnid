@@ -24,11 +24,12 @@ from model.db_manament import create_attachment_record
 
 async def process_webhook_event(event: dict, user_id: str, reply_token: str, line_access_token: str, api_key: str):
     event_type = event.get("type")
+    profile = get_line_profile(user_id=user_id, line_token=line_access_token)
     # ดึงค่า User (หรือสร้างถ้ายังไม่มี)
-    get_or_create_user(line_user_id=user_id, line_access_token=line_access_token)
+    get_or_create_user(line_user_id=user_id, line_access_token=line_access_token, profile=profile)
 
     if event_type == "message":
-        message = event.get("message", {})
+        message = event.get("message", {})  
         msg_type = message.get("type")
 
         # --- กรณีเป็น Text ---

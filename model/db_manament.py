@@ -1,15 +1,13 @@
 from model.models import CategoryMapping
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from sqlmodel import Session, extract, select
-from helper.utils import get_line_profile
 from model.models import UserBudget, engine, Users, Transactions, TempTransactions, Categories, Attachments
 from typing import List, Dict, Any, Optional
 import uuid
 from datetime import datetime
 
 # --- 1. จัดการ User (เหมือนเดิมแต่เพิ่ม Error Handling) ---
-def get_or_create_user(line_user_id: str, line_access_token: str = None):
-    profile = get_line_profile(user_id=line_user_id, line_token=line_access_token)
+def get_or_create_user(line_user_id: str, line_access_token: str = None, profile: Dict = None):        
     display_name = profile["displayName"] if profile else "Unknown User"
     
     with Session(engine) as session:
@@ -306,3 +304,39 @@ def get_parent_categories() -> List[Categories]:
         results = session.exec(statement).all()
         
         return results
+
+def sync_user_budgets(session: Session, user_id: str, month: int, year: int):
+    """
+    ฟังก์ชันสำหรับคำนวณยอดใช้จ่ายจริงจาก Transactions 
+    แล้วนำไปอัปเดตในตาราง UserBudget ให้เป็นปัจจุบันที่สุด
+    """
+    # 1. ดึงยอดรวมการใช้จ่ายแยกตามหมวดหมู่จาก Transactions จริงของเดือนนั้นๆ
+    # สมมติว่า Transaction มีฟิลด์ category_id และ amount
+    spent_statement = select(
+        Transactions.category_id,
+        func.sum(Transactions.amount).label("total_spent")
+    ).where(
+        Transactions.user_id == user_id,
+        func.extract('month', Transactions.transaction_date) == month,
+        func.extract('year', Transactions.transaction_date) == year
+    ).group_by(Transactions.category_id)
+    
+    actual_spent_results = session.exec(spent_statement).all()
+
+    # 2. นำยอดที่ได้ไป Update ใน UserBudget
+    for cat_id, total_spent in actual_spent_results:
+        # หาตารางงบประมาณที่ตรงกับหมวดหมู่และเดือนนั้น
+        budget_record = session.exec(
+            select(UserBudget).where(
+                UserBudget.user_id == user_id,
+                UserBudget.category_id == cat_id,
+                UserBudget.month == month,
+                UserBudget.year == year
+            )
+        ).first()
+
+        if budget_record:
+            budget_record.current_spent = float(total_spent)
+            session.add(budget_record)
+    
+    session.commit() # บันทึกการอัปเดตทั้งหมด

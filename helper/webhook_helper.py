@@ -1,3 +1,4 @@
+from helper.utils import get_config_value
 from typing import (
     Dict, List, Any
 )
@@ -35,12 +36,20 @@ async def process_webhook_event(event: dict, user_id: str, reply_token: str, lin
         # --- กรณีเป็น Text ---
         if msg_type == "text":
             user_text = message.get("text")
+            is_text_active = get_config_value(key="is_text_active")
+            if is_text_active:
+                send_push_notification(user_id, content="ระบบกำลังปรับปรุง กรุณาลองใหม่อีกครั้งในภายหลัง")
+                return
             # Logic: เช็ค Keywords และเรียก AI (ย้ายจาก Webhook มาที่นี่)
             await handle_text_message(user_id, user_text, reply_token, line_access_token, api_key)
 
         # --- กรณีเป็น Image (งานที่หนักที่สุด) ---
         elif msg_type == "image":
             message_id = message.get("id")
+            is_ocr_active = get_config_value(key="is_ocr_active")
+            if is_ocr_active:
+                send_push_notification(user_id, content="ระบบกำลังปรับปรุง กรุณาลองใหม่อีกครั้งในภายหลัง")
+                return
             # ย้าย Logic การทำ OCR และ Extract ไปไว้ในฟังก์ชันย่อย
             await handle_image_message(user_id, message_id, reply_token, line_access_token, api_key)
 
@@ -51,9 +60,9 @@ async def process_webhook_event(event: dict, user_id: str, reply_token: str, lin
 
 
 async def handle_text_message(user_id: str, user_text: str, reply_token: str, line_access_token: str, api_key: str):
-    HELPER_KEYWORDS = ["ช่วยด้วย", "วิธีใช้", "ทำอะไรได้บ้าง", "สอนหน่อย"]
-    GREETING_KEYWORDS = ["สวัสดี", "hello", "hi", "เริ่ม"]
-    SUMMARY_KEYWORDS = ["ขอดูยอด", "สรุปยอด", "ใช้ไปเท่าไหร่"]
+    HELPER_KEYWORDS = ["ช่วยด้วย", "วิธีใช้", "ทำอะไรได้บ้าง", "สอนหน่อย", "help", "how to use", "how to use จดนิด"]
+    GREETING_KEYWORDS = ["สวัสดี", "hello", "hi", "เริ่ม", "start", "start จดนิด"]
+    SUMMARY_KEYWORDS = ["ขอดูยอด", "สรุปยอด", "ใช้ไปเท่าไหร่", "summary", "how much", "how much have i spent", "how much have i spent today"]
     user_text_lower = user_text.lower()
     send_loading_indicator_v3(user_id=user_id, seconds=10)
     is_transaction = is_transaction_message(api_key, user_text)
@@ -101,6 +110,7 @@ async def handle_text_message(user_id: str, user_text: str, reply_token: str, li
 
 async def handle_image_message(user_id: str, message_id: str, reply_token: str, line_access_token: str, api_key: str):
     send_loading_indicator_v3(user_id=user_id, seconds=20)
+    send_line_reply_v3(reply_token, text="จดนิดกำลังวิเคราะห์รายการให้นะครับ... ⏳")
     image_bytes = get_content_line(message_id, line_token=line_access_token)
     processing_image = pre_process_image_file(image_bytes)
     if processing_image is None:
@@ -111,7 +121,6 @@ async def handle_image_message(user_id: str, message_id: str, reply_token: str, 
     # จากนั้นค่อยส่งไฟล์นั้นไปที่ extract_text_from_image
     save_file = save_line_image(user_id=user_id, message_id=message_id, image_bytes=image_bytes)
     if save_file:
-        send_line_reply_v3(reply_token, text="จดนิดกำลังวิเคราะห์รายการให้นะครับ... ⏳")
         attachment_id = create_attachment_record(user_id=user_id, file_path=save_file, file_type="image/jpeg")
         # ตัวอย่าง Flow:
         # image_bytes = download_line_image(message_id)
@@ -119,7 +128,7 @@ async def handle_image_message(user_id: str, message_id: str, reply_token: str, 
         status = ocr_json.get("success")
         if not status:
             print(f"OCR failed: {ocr_json.get('error')}")
-            send_line_reply_v3(reply_token, text="ขออภัยครับ ระบบไม่สามารถอ่านข้อมูลจากรูปนี้ได้ กรุณาลองใหม่อีกครั้งด้วยรูปที่ชัดเจนขึ้นครับ")
+            send_push_notification(user_id, content="ขออภัยครับ ระบบไม่สามารถอ่านข้อมูลจากรูปนี้ได้ กรุณาลองใหม่อีกครั้งด้วยรูปที่ชัดเจนขึ้นครับ")
             return
         ocr_result = ocr_json["text"]
         final_transactions = ocr_result
@@ -128,6 +137,7 @@ async def handle_image_message(user_id: str, message_id: str, reply_token: str, 
         flex_msg = create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
         send_push_notification(user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ")
     else:
+        send_push_notification(user_id, content="ขออภัยครับ ระบบไม่สามารถอ่านข้อมูลจากรูปนี้ได้ กรุณาลองใหม่อีกครั้งด้วยรูปที่ชัดเจนขึ้นครับ")
         print("Failed to save image")
 
 async def handle_postback(postback_data: str, user_id: str):

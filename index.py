@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any
 from dotenv import load_dotenv
 import os
+from core.config_settings import settings
 
 # function
 from helper.utils import (
@@ -57,20 +58,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 # Usage
-api_key = os.getenv("TYPHOON_API_KEY")
-is_test_mode = os.getenv("TEST_MODE")
+api_key = settings.TYPHOON_API_KEY
+is_test_mode = settings.TEST_MODE
 line_access_token = ""
 if is_test_mode:
-    line_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN_TEST")
+    line_access_token = settings.LINE_CHANNEL_ACCESS_TOKEN_TEST
 else:
-    line_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+    line_access_token = settings.LINE_CHANNEL_ACCESS_TOKEN
     
 print(f"DEBUG: Using Token prefix: {line_access_token[:5]}... (Length: {len(line_access_token) if line_access_token else 0})")
 print(f"DEBUG: TEST_MODE is: {is_test_mode}")
 header_scheme = APIKeyHeader(name="X-Cron-Token", auto_error=False)
 
 def verify_cron_token(token: str = Security(header_scheme)):
-    expected_token = os.getenv("CRON_SECRET_TOKEN")
+    expected_token = settings.CRON_SECRET_TOKEN
     if not token or token != expected_token:
         raise HTTPException(
             status_code=403, 

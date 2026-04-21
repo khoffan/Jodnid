@@ -5,10 +5,11 @@ class Settings(BaseSettings):
     # กำหนดค่าตัวแปรและ Type (ถ้าใน .env ไม่มี จะใช้ค่า Default ที่ใส่ไว้)
     TYPHOON_API_KEY: str
     PORT: int
+    DEBUG: bool
     LINE_CHANNEL_ACCESS_TOKEN: str
     LINE_CHANNEL_ACCESS_TOKEN_TEST: str
-    LINE_CHANNEL_SECRET: str
     LINE_DATA_API: str
+    LINE_API: str
     LINE_LIFF_ID: str
     LINE_LIFF_ID_TEST: str
     FRONTEND_URL: str
@@ -18,7 +19,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     TEST_MODE: bool
     # Cloudinary
-    CLOUDINARY_CLOUD_NAME: str
+    CLOUNDIARY_NAME: str
     CLOUDINARY_API_KEY: str
     CLOUDINARY_API_SECRET: str
 

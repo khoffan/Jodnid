@@ -64,6 +64,9 @@ if is_test_mode:
     line_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN_TEST")
 else:
     line_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+    
+print(f"DEBUG: Using Token prefix: {line_access_token[:5]}... (Length: {len(line_access_token) if line_access_token else 0})")
+print(f"DEBUG: TEST_MODE is: {is_test_mode}")
 header_scheme = APIKeyHeader(name="X-Cron-Token", auto_error=False)
 
 def verify_cron_token(token: str = Security(header_scheme)):

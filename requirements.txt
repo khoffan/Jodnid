@@ -9,3 +9,5 @@ python-dotenv
 psycopg2-binary
 line-bot-sdk
 Pillow
+cloudinary
+pydantic-settings

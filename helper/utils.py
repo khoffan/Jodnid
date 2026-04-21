@@ -1,11 +1,15 @@
+from io import BytesIO
+from functools import lru_cache
 from model.db_manament import sync_user_budgets
+import cloudinary.uploader
+from core.config_settings import settings
 import requests
 import os
 import io
 from PIL import Image, ImageEnhance
 from datetime import datetime
 from sqlmodel import Session, select, func, extract
-from model.models import Categories, Transactions, UserBudget, Users
+from model.models import Categories, Transactions, UserBudget, Users, SystemConfiguration, engine
 from dotenv import load_dotenv
 from linebot.v3.messaging import (
     Configuration,
@@ -28,36 +32,57 @@ else:
     line_access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 configuration = Configuration(access_token=line_access_token)
 
-# file system
+# ตั้งค่า Cloudinary (เรียกใช้จาก settings ได้เลย)
+cloudinary.config( 
+    cloud_name = settings.CLOUDINARY_CLOUD_NAME, 
+    api_key = settings.CLOUDINARY_API_KEY, 
+    api_secret = settings.CLOUDINARY_API_SECRET,
+    secure=True
+)
+
 def save_line_image(user_id: str, message_id: str, image_bytes: bytes):
     """
-    จัดการสร้าง Folder และบันทึกไฟล์รูปภาพ
-    โครงสร้าง: uploads/{user_id}/{YYYY-MM-DD}/{message_id}.jpg
+    จัดการบันทึกรูปภาพ:
+    - ถ้าเป็น PROD: อัปโหลดขึ้น Cloudinary (ไม่ต้องสร้าง folder ในเครื่อง)
+    - ถ้าไม่ใช่ PROD: บันทึกลง local 'uploads/'
     """
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    
     try:
-        # 1. เตรียมข้อมูล Path
-        base_dir = "uploads"
-        current_date = datetime.now().strftime("%Y-%m-%d")
-        target_dir = os.path.join(base_dir, user_id, current_date)
-        
-        # 2. สร้าง Folder ถ้ายังไม่มี (makedirs จะสร้าง folder ย่อยให้ครบทุกระดับ)
-        if not os.path.exists(target_dir):
-            os.makedirs(target_dir, exist_ok=True)
+        if settings.TEST_MODE == True:
+            # --- PRODUCTION MODE (Cloudinary) ---
+            # ใช้ BytesIO เพื่อส่ง bytes เข้าไปใน uploader โดยตรง
+            image_stream = BytesIO(image_bytes)
             
-        # 3. กำหนดชื่อไฟล์และ Path เต็ม
-        # แนะนำให้ใช้ .jpg เป็นค่าเริ่มต้นสำหรับรูปจาก LINE
-        file_name = f"{message_id}.jpg"
-        file_path = os.path.join(target_dir, file_name)
-        
-        # 4. บันทึกไฟล์
-        with open(file_path, "wb") as f:
-            f.write(image_bytes)
+            upload_result = cloudinary.uploader.upload(
+                image_stream,
+                public_id=message_id, # ใช้ message_id เป็นชื่อไฟล์บน Cloud
+                folder=f"jodnid/{user_id}/{current_date}", # แยก folder บน cloud ให้เป็นระเบียบ
+                resource_type="image"
+            )
             
-        print(f"Successfully saved image: {file_path}")
-        return file_path  # คืนค่า path เพื่อเอาไปเก็บใน DB
-        
+            print(f"Successfully uploaded to Cloudinary: {upload_result['secure_url']}")
+            return upload_result["secure_url"] # คืนค่า URL เพื่อเก็บลง Database
+
+        else:
+            # --- DEVELOPMENT MODE (Local Storage) ---
+            base_dir = "uploads"
+            target_dir = os.path.join(base_dir, user_id, current_date)
+            
+            if not os.path.exists(target_dir):
+                os.makedirs(target_dir, exist_ok=True)
+                
+            file_name = f"{message_id}.jpg"
+            file_path = os.path.join(target_dir, file_name)
+            
+            with open(file_path, "wb") as f:
+                f.write(image_bytes)
+                
+            print(f"Successfully saved image locally: {file_path}")
+            return file_path
+            
     except Exception as e:
-        print(f"Error saving image: {str(e)}")
+        print(f"Error handling image: {str(e)}")
         return None
 
 
@@ -583,4 +608,35 @@ def pre_process_image_file(image_data):
         print(f"Image Preprocessing Error: {e}")
         return image_data
 
+# @lru_cache(maxsize=128)
+# def get_config_value(key: str, default=None):
+#     with Session(engine) as session:
+#         statement = select(SystemConfiguration).where(SystemConfiguration.key == key)
+#         config = session.exec(statement).first()
+        
+#         if not config:
+#             return default
+            
+#         # แปลง Type ตามที่ระบุใน DB
+#         val = config.value
+#         if config.value_type == "boolean":
+#             return val.lower() == "true"
+#         elif config.value_type == "int":
+#             return int(val)
+#         elif config.value_type == "json":
+#             import json
+#             try:
+#                 return json.loads(val)
+#             except:
+#                 return val
+                
+#         return val
+
+# def clear_config_cache():
+#     """
+#     เรียกฟังก์ชันนี้เมื่อมีการ Update หรือ Create Config ใหม่ใน Admin
+#     เพื่อให้ระบบไปดึงค่าล่าสุดจาก DB
+#     """
+#     get_config_value.cache_clear()
+    
 

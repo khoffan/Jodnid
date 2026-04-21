@@ -8,7 +8,14 @@ import io
 from PIL import Image, ImageEnhance
 from datetime import datetime
 from sqlmodel import Session, select, func, extract
-from model.models import Categories, Transactions, UserBudget, Users, SystemConfiguration, engine
+from model.models import (
+    Categories,
+    Transactions,
+    UserBudget,
+    Users,
+    # SystemConfiguration,
+    engine
+)
 from linebot.v3.messaging import (
     Configuration,
     ApiClient,

@@ -5,6 +5,7 @@ import cloudinary.uploader
 from core.config_settings import settings
 import requests
 import io
+import os
 from PIL import Image, ImageEnhance
 from datetime import datetime
 from sqlmodel import Session, select, func, extract
@@ -13,7 +14,7 @@ from model.models import (
     Transactions,
     UserBudget,
     Users,
-    # SystemConfiguration,
+    SystemConfiguration,
     engine
 )
 from linebot.v3.messaging import (
@@ -34,6 +35,10 @@ if is_test_mode:
     line_access_token = settings.LINE_CHANNEL_ACCESS_TOKEN_TEST
 else:
     line_access_token = settings.LINE_CHANNEL_ACCESS_TOKEN
+
+print(f"DEBUG: Using Token prefix: {line_access_token[:5]}... (Length: {len(line_access_token) if line_access_token else 0})")
+print(f"DEBUG: TEST_MODE is: {settings.TEST_MODE}")
+
 configuration = Configuration(access_token=line_access_token)
 
 # ตั้งค่า Cloudinary (เรียกใช้จาก settings ได้เลย)
@@ -53,7 +58,7 @@ def save_line_image(user_id: str, message_id: str, image_bytes: bytes):
     current_date = datetime.now().strftime("%Y-%m-%d")
     
     try:
-        if settings.TEST_MODE == False:
+        if not is_test_mode:
             # --- PRODUCTION MODE (Cloudinary) ---
             # ใช้ BytesIO เพื่อส่ง bytes เข้าไปใน uploader โดยตรง
             image_stream = BytesIO(image_bytes)
@@ -612,35 +617,35 @@ def pre_process_image_file(image_data):
         print(f"Image Preprocessing Error: {e}")
         return image_data
 
-# @lru_cache(maxsize=128)
-# def get_config_value(key: str, default=None):
-#     with Session(engine) as session:
-#         statement = select(SystemConfiguration).where(SystemConfiguration.key == key)
-#         config = session.exec(statement).first()
+@lru_cache(maxsize=128)
+def get_config_value(key: str, default=None):
+    with Session(engine) as session:
+        statement = select(SystemConfiguration).where(SystemConfiguration.key == key)
+        config = session.exec(statement).first()
         
-#         if not config:
-#             return default
+        if not config:
+            return default
             
-#         # แปลง Type ตามที่ระบุใน DB
-#         val = config.value
-#         if config.value_type == "boolean":
-#             return val.lower() == "true"
-#         elif config.value_type == "int":
-#             return int(val)
-#         elif config.value_type == "json":
-#             import json
-#             try:
-#                 return json.loads(val)
-#             except:
-#                 return val
+        # แปลง Type ตามที่ระบุใน DB
+        val = config.value
+        if config.value_type == "boolean":
+            return val.lower() == "true"
+        elif config.value_type == "int":
+            return int(val)
+        elif config.value_type == "json":
+            import json
+            try:
+                return json.loads(val)
+            except:
+                return val
                 
-#         return val
+        return val
 
-# def clear_config_cache():
-#     """
-#     เรียกฟังก์ชันนี้เมื่อมีการ Update หรือ Create Config ใหม่ใน Admin
-#     เพื่อให้ระบบไปดึงค่าล่าสุดจาก DB
-#     """
-#     get_config_value.cache_clear()
+def clear_config_cache():
+    """
+    เรียกฟังก์ชันนี้เมื่อมีการ Update หรือ Create Config ใหม่ใน Admin
+    เพื่อให้ระบบไปดึงค่าล่าสุดจาก DB
+    """
+    get_config_value.cache_clear()
     
 

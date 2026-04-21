@@ -1,8 +1,11 @@
-from helper.utils import create_summary_flex
+from helper.utils import get_config_value, create_summary_flex, clear_config_cache
 from model.db_manament import (
     get_parent_categories,
     get_temp_transaction_data,
-    get_temp_transaction_data
+    get_temp_transaction_data,
+    create_system_config,
+    get_system_config_data,
+    update_system_config
 )
 from helper.webhook_helper import (
     process_webhook_event,
@@ -42,6 +45,7 @@ app = FastAPI()
 
 origins = [
     os.getenv("FRONTEND_URL"),
+    os.getenv("ADMIN_URL"),
     "https://jodnid.vercel.app",
 ]
 
@@ -85,11 +89,14 @@ async def root():
 
 @app.post("/webhook")
 async def line_webhook(data: LineWebhook, background_tasks: BackgroundTasks):
+    is_maintenance_mode = get_config_value(key="is_maintenance_mode",default=False)    
     for event in data.events:
         # 1. ดึง UID และประเภทของ Event
         user_id = event.get("source", {}).get("userId")
         reply_token = event.get("replyToken")
-        
+        if is_maintenance_mode:
+            send_push_notification(user_id=user_id, content="ระบบกำลังปรับปรุง กรุณาลองใหม่อีกครั้งภายหลัง", alt_text="ระบบกำลังปรับปรุง")
+            continue
         background_tasks.add_task(process_webhook_event, event, user_id, reply_token, line_access_token, api_key)
         
     return {"status": "ok"}
@@ -210,6 +217,43 @@ async def overview_stat(data: dict, db: Session = Depends(get_session)):
         "data": data
     }
 
+@app.post("/api/administrator/config/create")
+async def create_system_configuration(data: dict, db: Session = Depends(get_session)):
+    name = data.get("name")
+    key = data.get("key")
+    value = data.get("value")
+    value_type = data.get("value_type")
+    description = data.get("description")
+    if not name or not key or not value or not value_type:
+        return {"success": False, "message": "Missing name or key or value or value_type"}
+    
+    return create_system_config(db, name, key, value, value_type, description)
+
+
+@app.get("/api/administrator/all")
+def get_all_system_configuration(db: Session = Depends(get_session)):
+    return get_system_config_data(db)
+
+
+@app.patch("/api/administrator/config/update")
+def update_system_configuration(data: dict, db: Session = Depends(get_session)):
+    key = data.get("key")
+    value = data.get("value")
+    value_type = data.get("value_type")
+    description = data.get("description")
+    if not key or not value:
+        return {"success": False, "message": "Missing key or value"}
+    clear_config_cache()
+    return update_system_config(db, key, value, value_type, description)
+
+@app.patch("/api/administrator/config/toggle")
+def toggle_system_configuration(data: dict, db: Session = Depends(get_session)):
+    key = data.get("key")
+    value = data.get("value")
+    if not key or not value:
+        return {"success": False, "message": "Missing key or value"}
+    clear_config_cache()
+    return update_system_config(db, key, value)
 
 if __name__ == "__main__":
     create_db_and_tables()

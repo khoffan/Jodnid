@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
@@ -7,11 +8,11 @@ class Settings(BaseSettings):
     PORT: int
     DEBUG: bool
     LINE_CHANNEL_ACCESS_TOKEN: str
-    LINE_CHANNEL_ACCESS_TOKEN_TEST: str
+    LINE_CHANNEL_ACCESS_TOKEN_TEST: Optional[str] = None
     LINE_DATA_API: str
     LINE_API: str
     LINE_LIFF_ID: str
-    LINE_LIFF_ID_TEST: str
+    LINE_LIFF_ID_TEST: Optional[str] = None
     FRONTEND_URL: str
     ADMIN_URL: str
     CRON_SECRET_TOKEN: str

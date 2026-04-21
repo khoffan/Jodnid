@@ -58,7 +58,7 @@ def save_line_image(user_id: str, message_id: str, image_bytes: bytes):
     current_date = datetime.now().strftime("%Y-%m-%d")
     
     try:
-        if is_test_mode:
+        if not is_test_mode:
             # --- PRODUCTION MODE (Cloudinary) ---
             # ใช้ BytesIO เพื่อส่ง bytes เข้าไปใน uploader โดยตรง
             image_stream = BytesIO(image_bytes)

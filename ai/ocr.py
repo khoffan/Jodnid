@@ -5,19 +5,18 @@ import re
 from ai.text_nlp import extract_transactions
 
 def is_financial_document(api_key: str, ocr_text: str) -> bool:
-    """
-    ตรวจสอบว่าข้อความจาก OCR เข้าข่ายเป็นสลิปธนาคารหรือใบเสร็จรับเงินหรือไม่
-    """
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://api.opentyphoon.ai/v1"
-    )
+    client = OpenAI(api_key=api_key, base_url="https://api.opentyphoon.ai/v1")
 
-    # Prompt เน้นประหยัด token และตอบแค่ true/false
+    # ปรับ Prompt ให้ยอมรับ Shopping Receipt มากขึ้น
     system_prompt = (
-        "Analyze if this text is from a Bank Slip or Shopping Receipt.\n"
-        "Return 'true' if it contains: Bank Name, Transaction Date, Amount, OR Shop Name.\n"
-        "Return 'false' otherwise. Answer ONLY 'true' or 'false'."
+        "You are a financial document classifier.\n"
+        "Analyze if the text is a Bank Slip, POS Receipt, Tax Invoice, or Restaurant Bill.\n"
+        "Criteria for 'true':\n"
+        "- Contains a Total Amount (e.g., Baht, THB, Total, Amount Due).\n"
+        "- Contains a Transaction Date.\n"
+        "- Contains either a Shop Name, Merchant Name, or Bank Name.\n"
+        "Return 'true' if it looks like a record of spending money. Return 'false' otherwise.\n"
+        "Answer ONLY 'true' or 'false'."
     )
 
     try:
@@ -25,17 +24,16 @@ def is_financial_document(api_key: str, ocr_text: str) -> bool:
             model="typhoon-v2.5-30b-a3b-instruct",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": ocr_text[:1000]} # ส่งแค่ 1000 ตัวอักษรแรกเพื่อประหยัด token
+                {"role": "user", "content": ocr_text[:1500]} # เพิ่มเป็น 1500 เผื่อหัวใบเสร็จยาว
             ],
             temperature=0,
-            max_tokens=1000, 
-            top_p=1
+            max_tokens=600,
         )
         result = response.choices[0].message.content.strip().lower()
         return "true" in result
     except Exception as e:
         print(f"Image Validation Error: {e}")
-        return True # Fallback ให้ผ่านไปก่อนถ้า AI พัง
+        return True
 
 def extract_text_from_image(image_path,filename,api_key):
     url = "https://api.opentyphoon.ai/v1/ocr"
@@ -65,7 +63,8 @@ def extract_text_from_image(image_path,filename,api_key):
     }
 
     response = requests.post(url, files=files, data=data, headers=headers)
-
+    
+    print("response ocr", response.json())
     if response.status_code == 200:
         result = response.json()
 
@@ -89,6 +88,7 @@ def extract_text_from_image(image_path,filename,api_key):
             return {"success": False, "error": "Not a financial document"}
 
         response = extract_transactions(api_key, full_text)
+        print("response after extract", response)
         return {"success": True, "text": response}
     else:
         return {"success": False, "error": response.text}

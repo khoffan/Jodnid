@@ -1,4 +1,4 @@
-from helper.utils import get_config_value
+# from helper.utils import get_config_value
 from typing import (
     Dict, List, Any
 )
@@ -36,20 +36,20 @@ async def process_webhook_event(event: dict, user_id: str, reply_token: str, lin
         # --- กรณีเป็น Text ---
         if msg_type == "text":
             user_text = message.get("text")
-            is_text_active = get_config_value(key="is_text_active")
-            if is_text_active:
-                send_push_notification(user_id, content="ระบบกำลังปรับปรุง กรุณาลองใหม่อีกครั้งในภายหลัง")
-                return
+            # is_text_active = get_config_value(key="is_text_active")
+            # if is_text_active:
+            #     send_push_notification(user_id, content="ระบบกำลังปรับปรุง กรุณาลองใหม่อีกครั้งในภายหลัง")
+            #     return
             # Logic: เช็ค Keywords และเรียก AI (ย้ายจาก Webhook มาที่นี่)
             await handle_text_message(user_id, user_text, reply_token, line_access_token, api_key)
 
         # --- กรณีเป็น Image (งานที่หนักที่สุด) ---
         elif msg_type == "image":
             message_id = message.get("id")
-            is_ocr_active = get_config_value(key="is_ocr_active")
-            if is_ocr_active:
-                send_push_notification(user_id, content="ระบบกำลังปรับปรุง กรุณาลองใหม่อีกครั้งในภายหลัง")
-                return
+            # is_ocr_active = get_config_value(key="is_ocr_active")
+            # if is_ocr_active:
+            #     send_push_notification(user_id, content="ระบบกำลังปรับปรุง กรุณาลองใหม่อีกครั้งในภายหลัง")
+            #     return
             # ย้าย Logic การทำ OCR และ Extract ไปไว้ในฟังก์ชันย่อย
             await handle_image_message(user_id, message_id, reply_token, line_access_token, api_key)
 

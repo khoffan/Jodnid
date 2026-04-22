@@ -149,7 +149,7 @@ def create_dynamic_flex_receipt(transactions: list, temp_id: str):
     # ป้องกัน total พังถ้าข้อมูลไม่ใช่ตัวเลข
     line_liff_id = settings.LINE_LIFF_ID
     try:
-        total = sum(float(t.get('amount', 0)) for t in transactions)
+        total = sum(float(t.get('amount', 0)) for t in transactions if t.get('is_actual_item', True))
     except:
         total = 0.0
     
@@ -167,6 +167,8 @@ def create_dynamic_flex_receipt(transactions: list, temp_id: str):
 
     item_rows = []
     for t in transactions:
+        if not t.get('is_actual_item', True):
+            continue
         name = str(t.get('item') or t.get('receiver') or 'ไม่ระบุ')
         amount = float(t.get('amount', 0))
         # ดึงหมวดหมู่ที่ AI วิเคราะห์มาให้ (ถ้าไม่มีให้เป็น other)

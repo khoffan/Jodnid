@@ -14,19 +14,38 @@ const ChatMockup: React.FC = () => {
         <div className="flex justify-end">
           <div className="w-28 h-36 bg-white/20 rounded-2xl border-2 border-white/40 flex items-center justify-center text-[10px] text-white">📷 Slip Image</div>
         </div>
-        
+
         <div className="flex justify-start">
           <div className="bg-white rounded-2xl rounded-tl-none p-4 shadow-sm">
             <p className="text-[11px] font-black text-green-600 mb-2 italic">✨ วิเคราะห์สลิปสำเร็จ!</p>
             <div className="text-[10px] text-slate-700 space-y-1">
               <p>💰 ยอดอาหาร: ฿180.00</p>
-              <p>🧾 VAT (7%): ฿12.60</p>
+              <p>💰 ยอดกสนเดินทาง: ฿60.00</p>
               <hr className="my-1 border-slate-100" />
-              <p className="font-black text-slate-900">รวมทั้งสิ้น: ฿192.60</p>
+              <p className="font-black text-slate-900">รวมทั้งสิ้น: ฿240.00</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <span className="w-45 p-2 bg-green-500 rounded-2xl border-2 font-normal text-xs">
+            ค่าอาหาร 180 บาท ค่าเดินทาง 60 บาท
+          </span>
+        </div>
+
+        <div className="flex justify-start">
+          <div className="bg-white rounded-2xl rounded-tl-none p-4 shadow-sm">
+            <p className="text-[11px] font-black text-green-600 mb-2 italic">✨ วิเคราะห์ข้อความ!</p>
+            <div className="text-[10px] text-slate-700 space-y-1">
+              <p>💰 ค่าอาหาร: ฿180.00</p>
+              <p>💰 ค่าเดินทาง: ฿60.00</p>
+              <hr className="my-1 border-slate-100" />
+              <p className="font-black text-slate-900">รวมทั้งสิ้น: ฿240.00</p>
             </div>
           </div>
         </div>
       </div>
+
     </div>
   );
 };

@@ -64,7 +64,7 @@ def extract_text_from_image(image_path,filename,api_key):
 
     response = requests.post(url, files=files, data=data, headers=headers)
     
-    print("response ocr", response.json())
+    print("response ocr", response.json().get("results", []))
     if response.status_code == 200:
         result = response.json()
 

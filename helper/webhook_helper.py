@@ -2,6 +2,7 @@
 from typing import (
     Dict, List, Any
 )
+import re
 from helper.utils import send_push_notification
 from model.db_manament import delete_temp_transaction
 from model.db_manament import confirm_and_save_transaction
@@ -36,6 +37,7 @@ async def process_webhook_event(event: dict, user_id: str, reply_token: str, lin
         # --- กรณีเป็น Text ---
         if msg_type == "text":
             user_text = message.get("text")
+            print(f"handle text message: {user_text}")
             # is_text_active = get_config_value(key="is_text_active")
             # if is_text_active:
             #     send_push_notification(user_id, content="ระบบกำลังปรับปรุง กรุณาลองใหม่อีกครั้งในภายหลัง")
@@ -60,53 +62,73 @@ async def process_webhook_event(event: dict, user_id: str, reply_token: str, lin
 
 
 async def handle_text_message(user_id: str, user_text: str, reply_token: str, line_access_token: str, api_key: str):
-    HELPER_KEYWORDS = ["ช่วยด้วย", "วิธีใช้", "ทำอะไรได้บ้าง", "สอนหน่อย", "help", "how to use", "how to use จดนิด"]
-    GREETING_KEYWORDS = ["สวัสดี", "hello", "hi", "เริ่ม", "start", "start จดนิด"]
-    SUMMARY_KEYWORDS = ["ขอดูยอด", "สรุปยอด", "ใช้ไปเท่าไหร่", "summary", "how much", "how much have i spent", "how much have i spent today"]
-    user_text_lower = user_text.lower()
-    send_loading_indicator_v3(user_id=user_id, seconds=10)
-    is_transaction = is_transaction_message(api_key, user_text)
-    print(f"Is Transaction: {is_transaction}")
+    try:
+        HELPER_KEYWORDS = ["ช่วยด้วย", "วิธีใช้", "ทำอะไรได้บ้าง", "สอนหน่อย", "help", "how to use", "how to use จดนิด"]
+        GREETING_KEYWORDS = ["สวัสดี", "hello", "hi", "เริ่ม", "start", "start จดนิด"]
+        SUMMARY_KEYWORDS = ["ขอดูยอด", "สรุปยอด", "ใช้ไปเท่าไหร่", "summary", "how much", "how much have i spent", "how much have i spent today"]
+        user_text_lower = user_text.lower().strip()
+        print("processing text message")
 
-    # --- 1. คำสั่งช่วยเหลือ (Help/Guidance) ---
-    if any(k in user_text_lower for k in HELPER_KEYWORDS):
-        send_push_notification(user_id, alt_text="คําแนะนำ",  content=get_instruction_flex()) # ส่ง Flex คำแนะนำที่เราคุยกัน
-    
-    # --- 2. คำทักทาย (Greetings) ---
-    elif any(k in user_text_lower for k in GREETING_KEYWORDS):
-        profile = get_line_profile(user_id=user_id, line_token=line_access_token)
-        user_name = profile.get("displayName", "คุณ")
-        greeting_text = (
-            f"สวัสดีครับคุณ {user_name}! 🙏\n"
-            "ผม 'จดนิด' พร้อมช่วยบันทึกรายจ่ายให้คุณแล้ว\n"
-            "ลองพิมพ์ 'ค่าข้าว 60' หรือส่งรูปสลิปมาได้เลยครับ"
-        )
-        send_push_notification(user_id, content=greeting_text, alt_text="สวัสดีครับ")
-
-    elif is_transaction:
-        send_line_reply_v3(reply_token, text="จดนิดกำลังวิเคราะห์รายการให้นะครับ... ⏳")
-        # ส่งไปให้ Typhoon วิเคราะห์รายการ
-        final_transactions = extract_transactions(api_key, user_text)
-        print(f"Extracted Transactions: {final_transactions}")
-        temp_id = save_temp_transaction(user_id, final_transactions)
+        # --- 1. คำสั่งช่วยเหลือ (Help/Guidance) ---
+        if any(k in user_text_lower for k in HELPER_KEYWORDS):
+            print("processing helper keywords")
+            send_push_notification(user_id, alt_text="คําแนะนำ",  content=get_instruction_flex()) # ส่ง Flex คำแนะนำที่เราคุยกัน
         
-        flex_msg = create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
-        send_push_notification(user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ")
-    else:
-        print("Not a transaction message.")
-        guidance_text = (
-            "🤖 จดนิด ยังไม่เข้าใจรายการนี้ครับ\n\n"
-            "💡 วิธีจดที่ถูกต้อง:\n"
-            "• พิมพ์ [รายการ] [จำนวนเงิน]\n"
-            "  เช่น 'ค่าข้าว 60' หรือ 'ได้เงินเดือน 30000'\n"
-            "• ส่งรูป 'สลิปโอนเงิน' ได้เลย\n\n"
-            "⚠️ สิ่งที่จดไม่ได้:\n"
-            "• ข้อความทักทายหรือคุยเล่น\n"
-            "• ข้อความที่ไม่มีตัวเลขจำนวนเงิน"
-        )
-        # (Option) คุณอาจจะส่งข้อความกลับไปบอก User ว่าไม่พบรายการในข้อความนี้ก็ได้
-        send_push_notification(user_id, content=guidance_text, alt_text="จดนิดยังไม่เข้าใจรายการนี้ครับ")
+        # --- 2. คำทักทาย (Greetings) ---
+        elif any(k in user_text_lower for k in GREETING_KEYWORDS):
+            print("processing greeting keywords")
+            profile = get_line_profile(user_id=user_id, line_token=line_access_token)
+            user_name = profile.get("displayName", "คุณ")
+            greeting_text = (
+                f"สวัสดีครับคุณ {user_name}! 🙏\n"
+                "ผม 'จดนิด' พร้อมช่วยบันทึกรายจ่ายให้คุณแล้ว\n"
+                "ลองพิมพ์ 'ค่าข้าว 60' หรือส่งรูปสลิปมาได้เลยครับ"
+            )
+            send_push_notification(user_id, content=greeting_text, alt_text="สวัสดีครับ")
 
+        # --- STEP B: ดักจับรูปแบบยอดฮิตด้วย Regex (เร็วมาก - 0ms) ---
+        # Pattern: [ข้อความ] ตามด้วย [ตัวเลข] เช่น "กะเพรา 50" หรือ "โอน 100"
+        is_simple_format = re.search(r".+\s+\d+", user_text)
+
+        # --- STEP C: ถ้าไม่เข้าเงื่อนไขง่ายๆ ค่อยใช้ AI เช็ค (ช้า - 1-2s) ---
+        # เราจะเรียก AI ก็ต่อเมื่อมีตัวเลขในข้อความเท่านั้น เพื่อประหยัดเวลา
+        has_number = any(char.isdigit() for char in user_text)
+        
+        is_transaction = False
+        if is_simple_format:
+            is_transaction = True
+        elif has_number:
+            # ส่ง loading indicator เฉพาะตอนที่ต้องรอ AI นานๆ
+            send_loading_indicator_v3(user_id=user_id, seconds=5)
+            is_transaction = is_transaction_message(api_key, user_text)
+        
+        if is_transaction:
+            print("processing transaction message")
+            send_line_reply_v3(reply_token, text="จดนิดกำลังวิเคราะห์รายการให้นะครับ... ⏳")
+            # ส่งไปให้ Typhoon วิเคราะห์รายการ
+            final_transactions = extract_transactions(api_key, user_text)
+            print(f"Extracted Transactions: {final_transactions}")
+            temp_id = save_temp_transaction(user_id, final_transactions)
+            
+            flex_msg = create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
+            send_push_notification(user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ")
+        else:
+            print("Not a transaction message.")
+            guidance_text = (
+                "🤖 จดนิด ยังไม่เข้าใจรายการนี้ครับ\n\n"
+                "💡 วิธีจดที่ถูกต้อง:\n"
+                "• พิมพ์ [รายการ] [จำนวนเงิน]\n"
+                "  เช่น 'ค่าข้าว 60' หรือ 'ได้เงินเดือน 30000'\n"
+                "• ส่งรูป 'สลิปโอนเงิน' ได้เลย\n\n"
+                "⚠️ สิ่งที่จดไม่ได้:\n"
+                "• ข้อความทักทายหรือคุยเล่น\n"
+                "• ข้อความที่ไม่มีตัวเลขจำนวนเงิน"
+            )
+            # (Option) คุณอาจจะส่งข้อความกลับไปบอก User ว่าไม่พบรายการในข้อความนี้ก็ได้
+            send_push_notification(user_id, content=guidance_text, alt_text="จดนิดยังไม่เข้าใจรายการนี้ครับ")
+    except Exception as e:
+        print(f"Error handling text message: {str(e)}")
+        send_push_notification(user_id, content="เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง")
 
 async def handle_image_message(user_id: str, message_id: str, reply_token: str, line_access_token: str, api_key: str):
     send_loading_indicator_v3(user_id=user_id, seconds=20)

@@ -95,7 +95,7 @@ def is_transaction_message(api_key: str, user_prompt: str) -> bool:
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0, # ต้องการความแม่นยำสูงสุด
-            max_tokens=50  # ใช้ token น้อยมากเพราะตอบแค่คำเดียว
+            max_tokens=200  # ใช้ token น้อยมากเพราะตอบแค่คำเดียว
         )
 
         result = response.choices[0].message.content.strip().lower()

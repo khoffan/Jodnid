@@ -70,7 +70,7 @@ async def handle_text_message(user_id: str, user_text: str, reply_token: str, li
 
     # --- 1. คำสั่งช่วยเหลือ (Help/Guidance) ---
     if any(k in user_text_lower for k in HELPER_KEYWORDS):
-        send_line_reply_v3(reply_token, alt_text="คําแนะนำ",  flex_json=get_instruction_flex()) # ส่ง Flex คำแนะนำที่เราคุยกัน
+        send_push_notification(user_id, alt_text="คําแนะนำ",  content=get_instruction_flex()) # ส่ง Flex คำแนะนำที่เราคุยกัน
     
     # --- 2. คำทักทาย (Greetings) ---
     elif any(k in user_text_lower for k in GREETING_KEYWORDS):
@@ -81,7 +81,7 @@ async def handle_text_message(user_id: str, user_text: str, reply_token: str, li
             "ผม 'จดนิด' พร้อมช่วยบันทึกรายจ่ายให้คุณแล้ว\n"
             "ลองพิมพ์ 'ค่าข้าว 60' หรือส่งรูปสลิปมาได้เลยครับ"
         )
-        send_line_reply_v3(reply_token, text=greeting_text)
+        send_push_notification(user_id, content=greeting_text, alt_text="สวัสดีครับ")
 
     elif is_transaction:
         send_line_reply_v3(reply_token, text="จดนิดกำลังวิเคราะห์รายการให้นะครับ... ⏳")
@@ -105,7 +105,7 @@ async def handle_text_message(user_id: str, user_text: str, reply_token: str, li
             "• ข้อความที่ไม่มีตัวเลขจำนวนเงิน"
         )
         # (Option) คุณอาจจะส่งข้อความกลับไปบอก User ว่าไม่พบรายการในข้อความนี้ก็ได้
-        send_line_reply_v3(reply_token, text=guidance_text)
+        send_push_notification(user_id, content=guidance_text, alt_text="จดนิดยังไม่เข้าใจรายการนี้ครับ")
 
 
 async def handle_image_message(user_id: str, message_id: str, reply_token: str, line_access_token: str, api_key: str):

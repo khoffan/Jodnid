@@ -7,12 +7,16 @@ export const EditTempPage = ({ userId }) => {
   const { tempId } = useParams();
   const navigate = useNavigate();
   const [items, setItems] = useState([]); // เก็บ array จาก raw_data
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api.get(`/api/temp-transaction/${tempId}`).then((res) => {
       setItems(res.data.raw_data || []);
       setLoading(false);
+    });
+    api.get(`/api/categories/parent`).then((res) => {
+      setCategories(res.data);
     });
   }, [tempId]);
 
@@ -101,9 +105,11 @@ export const EditTempPage = ({ userId }) => {
                     updateItem(index, "category", e.target.value)
                   }
                 >
-                  <option value="อาหาร">🍔 อาหาร</option>
-                  <option value="เดินทาง">🚗 เดินทาง</option>
-                  <option value="ของใช้">📦 ของใช้</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.name}>
+                      {cat.emoji} {cat.name}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

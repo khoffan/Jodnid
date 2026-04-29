@@ -63,8 +63,6 @@ def extract_text_from_image(image_path,filename,api_key):
     }
 
     response = requests.post(url, files=files, data=data, headers=headers)
-    
-    print("response ocr", response.json().get("results", []))
     if response.status_code == 200:
         result = response.json()
 
@@ -88,7 +86,6 @@ def extract_text_from_image(image_path,filename,api_key):
             return {"success": False, "error": "Not a financial document"}
 
         response = extract_transactions(api_key, full_text)
-        print("response after extract", response)
         return {"success": True, "text": response}
     else:
         return {"success": False, "error": response.text}

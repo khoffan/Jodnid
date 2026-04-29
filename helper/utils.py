@@ -145,11 +145,17 @@ def get_content_line(msg_id: str, line_token:str):
         return None
 
 
-def create_dynamic_flex_receipt(transactions: list, temp_id: str):
-    # ป้องกัน total พังถ้าข้อมูลไม่ใช่ตัวเลข
+def create_dynamic_flex_receipt(data: dict, temp_id: str):
+    grand_total = data.get("grand_total", 0)
+    transactions = data.get("transactions")
     line_liff_id = settings.LINE_LIFF_ID
     try:
-        total = sum(float(t.get('amount', 0)) for t in transactions if t.get('is_actual_item', True))
+        total = sum(float(t.get('amount', 0)) for t in transactions if t.get('is_actual_item', True) or t.get("priority", True))
+        print(f"total: {total}")
+        diff = total - grand_total
+        print(f"diff: {diff}")
+        if diff > 0:
+            total = total - diff
     except:
         total = 0.0
     
@@ -164,6 +170,14 @@ def create_dynamic_flex_receipt(transactions: list, temp_id: str):
         "other": "✨ อื่นๆ",
         "อื่นๆ": "✨ อื่นๆ"
     }
+    
+    cat_icon = {
+        "อาหารและเครื่องดื่ม": "🍔",
+        "การเดินทาง": "🚗",
+        "ช้อปปิ้งและบันเทิง": "🛍️",
+        "ที่อยู่อาศัยและของใช้": "🏠",
+        "อื่นๆ": "✨"
+    }
 
     item_rows = []
     for t in transactions:
@@ -173,7 +187,7 @@ def create_dynamic_flex_receipt(transactions: list, temp_id: str):
         amount = float(t.get('amount', 0))
         # ดึงหมวดหมู่ที่ AI วิเคราะห์มาให้ (ถ้าไม่มีให้เป็น other)
         cat_code = t.get('category', 'other')
-        cat_display = cat_map.get(cat_code, f"✨ {cat_code}")
+        cat_display = cat_map.get(cat_code, f"{cat_icon.get(cat_code, '')} {cat_code}")
 
         # แถวรายการสินค้า
         item_rows.append({
@@ -581,7 +595,6 @@ def get_line_profile(user_id: str, line_token: str):
     result = requests.get(url, headers=headers)
     if result.status_code == 200:
         data = result.json()  # คืนค่าเป็น dict ที่มี displayName, pictureUrl, statusMessage
-        print(data)
         return data
     else:
         print(f"Error fetching profile: {result.status_code} - {result.text}")

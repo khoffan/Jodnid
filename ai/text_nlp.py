@@ -24,17 +24,19 @@ def extract_transactions(api_key: str, user_prompt: str):
         "5. 'อื่นๆ': รายการที่ไม่เข้าพวกข้างต้น หรือยอดปรับสมดุล\n\n"
 
         "⚠️ กฎเหล็ก (Strict Rules):\n"
-        "1. ตอบเป็น JSON รูปแบบ: {\"transactions\": [...]} เท่านั้น\n"
-        "2. ราคา (Amount): ดึงยอดเงินตามที่ปรากฏจริงหลังชื่อสินค้า (Face Value) ห้ามคำนวณ VAT เอง\n"
-        "3. การระบุรายการจริง (is_actual_item):\n"
-        "   - set เป็น true: สำหรับสินค้าหรือบริการที่ต้องนำไปรวมให้เท่ากับยอดชำระจริง\n"
-        "   - set เป็น false: สำหรับยอดที่ถูกรวมไปแล้วในรายการอื่น เพื่อป้องกันการนับซ้ำ\n"
-        "4. ลำดับความสำคัญและการคำนวณ (priority):\n"
-        "   - true: สำหรับรายการที่ 'ต้องบวกเพิ่ม' เข้าไปในยอดรวมเสมอ (เช่น VAT หรือ Service Charge ที่ร้านไม่ได้รวมมาในราคาสินค้าแต่แรก)\n"
-        "   - false: สำหรับรายการทั่วไป หรือรายการที่ราคารวมทุกอย่างไว้แล้ว\n"
-        "5. ความถูกต้อง: ผลรวมของรายการ (is_actual_item=true) + รายการ (priority='high') ต้องเท่ากับยอดชำระสุทธิ (Grand Total) เสมอ\n\n"
+        "1. ตอบเป็น JSON รูปแบบ: {\"grand_total\": float, \"transactions\": [...]} เท่านั้น\n"
+        "2. ยอดสุทธิ (grand_total): คือยอดเงินรวมทั้งหมดที่ต้องจ่ายจริงตามสลิป หากไม่พบให้ใส่ null\n"
+        "3. ราคา (Amount): ดึงยอดเงินตามที่ปรากฏจริงหลังชื่อสินค้า (Face Value) ห้ามคำนวณ VAT เอง\n"
+        "4. การระบุรายการจริง (is_actual_item):\n"
+        "   - set เป็น true: สำหรับสินค้าหรือบริการหลักที่ต้องนำไปรวมให้เท่ากับยอดชำระจริง\n"
+        "   - set เป็น false: สำหรับยอดที่ถูกรวมไปแล้วในรายการอื่น หรือยอด Subtotal เพื่อป้องกันการนับซ้ำ\n"
+        "5. ลำดับความสำคัญและการคำนวณ (priority):\n"
+        "   - true: สำหรับรายการเสริมที่ 'ต้องบวกเพิ่ม' เข้าไป (เช่น VAT หรือ Service Charge ที่ร้านแยกบรรทัดมาและยังไม่ได้รวมในราคาสินค้าด้านบน)\n"
+        "   - false: สำหรับรายการสินค้าทั่วไป หรือรายการที่รวมทุกอย่างไว้แล้ว\n"
+        "6. ความถูกต้อง: ผลรวมของรายการ (is_actual_item=true) + รายการ (priority=true) ต้องเท่ากับ grand_total เสมอ\n\n"
 
         "🔍 ฟิลด์ข้อมูลที่บังคับ:\n"
+        "- grand_total: ยอดรวมสุทธิ (float หรือ null)\n"
         "- item: ชื่อสินค้า หรือ 'ภาษีมูลค่าเพิ่ม (VAT)'\n"
         "- amount: จำนวนเงิน (float)\n"
         "- category: ชื่อหมวดหมู่ (ต้องตรงกับ 5 ชื่อข้างต้นเท่านั้น)\n"
@@ -52,22 +54,21 @@ def extract_transactions(api_key: str, user_prompt: str):
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.1, # ปรับให้ต่ำลงเพื่อให้ผลลัพธ์คงที่ (Deterministic)
-            max_tokens=2000,
+            max_tokens=3000,
             top_p=0.9,
             response_format={"type": "json_object"} # บังคับให้ตอบเป็น JSON
         )
 
         # ดึงเนื้อหาออกมา
         content = response.choices[0].message.content
-        
         # แปลง String JSON เป็น Python List/Dict
-        transactions = json.loads(content)
+        data = json.loads(content)
         
         # ปรับ format เล็กน้อยเผื่อ LLM คืนค่ามาเป็น Dict ที่มี Key ครอบอีกที
-        if isinstance(transactions, dict) and "transactions" in transactions:
-            return transactions["transactions"]
+        if isinstance(data["transactions"], dict) and "transactions" in data:
+            return data
         
-        return transactions
+        return data
 
     except Exception as e:
         print(f"Error extracting transactions: {e}")

@@ -1,4 +1,4 @@
-# from model.models import Administrator
+from model.models import Administrator
 from model.models import CategoryMapping, SystemConfiguration
 from sqlmodel import Session, extract, select, and_, func, desc
 from model.models import UserBudget, engine, Users, Transactions, TempTransactions, Categories, Attachments
@@ -342,21 +342,21 @@ def sync_user_budgets(session: Session, user_id: str, month: int, year: int):
     session.commit() # บันทึกการอัปเดตทั้งหมด
 
 # administrator db menament
-# def update_administrator_data_system(session: Session ,uid: str, email: str):
-#     admin = session.exec(select(Administrator).where(Administrator.uid == uid)).first()
-#     if admin:
-#         admin.email = email
-#         session.add(admin)
-#         session.commit()
-#     else:
-#         admin = Administrator(
-#             uid=uid,
-#             email=email,
-#         )
-#         session.add(admin)
-#         session.commit()
-#     session.refresh(admin)
-#     return {"success": True, "data": admin.dict()}
+def update_administrator_data_system(session: Session ,uid: str, email: str):
+    admin = session.exec(select(Administrator).where(Administrator.uid == uid)).first()
+    if admin:
+        admin.email = email
+        session.add(admin)
+        session.commit()
+    else:
+        admin = Administrator(
+            uid=uid,
+            email=email,
+        )
+        session.add(admin)
+        session.commit()
+    session.refresh(admin)
+    return {"success": True, "data": admin.dict()}
     
 def create_system_config(session: Session ,name: str, key: str, value: str, value_type: str, description: str):
     system_configuration = SystemConfiguration(

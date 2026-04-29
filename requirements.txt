@@ -11,3 +11,4 @@ line-bot-sdk
 Pillow
 cloudinary
 pydantic-settings
+firebase-admin

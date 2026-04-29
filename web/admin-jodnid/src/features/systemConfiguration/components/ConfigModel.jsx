@@ -1,5 +1,6 @@
 import { Save, Info, X } from "lucide-react";
 import { useState, useEffect } from "react";
+import Switch from "../../../common/components/Switch";
 
 export const ConfigModal = ({
   isOpen,
@@ -10,6 +11,7 @@ export const ConfigModal = ({
   const [localName, setLocalName] = useState("");
   const [localValue, setLocalValue] = useState("");
   const [localDesc, setLocalDesc] = useState("");
+  const [useTextArea, setUseTextArea] = useState(false);
 
   useEffect(() => {
     if (selectedConfig) {
@@ -17,6 +19,9 @@ export const ConfigModal = ({
       setLocalName(selectedConfig.name || "");
       setLocalValue(selectedConfig.value || "");
       setLocalDesc(selectedConfig.description || "");
+      if (selectedConfig.value.includes("\n")) {
+        setUseTextArea(true);
+      }
     }
   }, [selectedConfig]);
 
@@ -115,14 +120,31 @@ export const ConfigModal = ({
             </div>
           ) : (
             <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">Value</label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
-                placeholder="กรอกค่าการตั้งค่า..."
-                value={localValue}
-                onChange={(e) => setLocalValue(e.target.value)}
-              />
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-700">
+                  Value
+                </label>
+                <Switch
+                  value={useTextArea}
+                  onChange={(value) => setUseTextArea(value)}
+                />
+              </div>
+              {useTextArea ? (
+                <textarea
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                  placeholder="กรอกค่าการตั้งค่า..."
+                  value={localValue}
+                  onChange={(e) => setLocalValue(e.target.value)}
+                />
+              ) : (
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                  placeholder="กรอกค่าการตั้งค่า..."
+                  value={localValue}
+                  onChange={(e) => setLocalValue(e.target.value)}
+                />
+              )}
             </div>
           )}
 

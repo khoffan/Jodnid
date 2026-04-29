@@ -134,6 +134,37 @@ class SystemConfiguration(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
+class SystemLog(SQLModel, table=True):
+    # ข้อมูลพื้นฐาน
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    timestamp: datetime = Field(default_factory=datetime.now, index=True)
+    level: str = Field(index=True)  # INFO, WARNING, ERROR, CRITICAL
+    
+    # ระบุจุดที่เกิด
+    module: str = Field(index=True) # เช่น 'OCR_PROCESSOR', 'LINE_BOT_WEBHOOK'
+    message: str # ข้อความอธิบายสั้นๆ
+    
+    # ข้อมูลเชิงลึกสำหรับ Debug
+    user_id: Optional[str] = Field(default=None, index=True)
+    payload: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON)) # เก็บ JSON Data ต้นทาง
+    stack_trace: Optional[str] = Field(default=None) # เก็บ Traceback ยาวๆ เมื่อพัง
+    
+    # บริบทอื่นๆ
+    environment: str = Field(default="production") # dev / prod
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class Administrator(SQLModel, table=True):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    uid: str = Field(index=True, unique=True)
+    email: str = Field(index=True, unique=True)
+    name: Optional[str] = Field(default=None)
+    phone: Optional[str] = Field(default=None)
+    profile: Optional[str] = Field(default=None)
+    is_active: bool = Field(default=True)
+    role: str = Field(default="admin")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
 # --- Database Connection ---
 raw_url_db = os.getenv("DATABASE_URL")
 engine = create_engine(raw_url_db)

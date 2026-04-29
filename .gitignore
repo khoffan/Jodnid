@@ -19,3 +19,4 @@ static/webpack-bundle.js.map
 static/webpack-vendors.js
 static/webpack-vendors.js.map
 *.db
+service-account-key.json

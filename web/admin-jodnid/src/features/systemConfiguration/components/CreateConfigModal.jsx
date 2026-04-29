@@ -1,14 +1,23 @@
 import { useState } from "react";
 import { Plus, Save, X } from "lucide-react";
 import useConfigStore from "../store/system-config.store";
+import Switch from "../../../common/components/Switch";
 
 export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
   const createConfig = useConfigStore((state) => state.createConfig);
+  const [useTextArea, setUseTextArea] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     key: "",
     value: "",
     value_type: "string",
+    description: "",
+  });
+  const [formError, setFormError] = useState({
+    name: "",
+    key: "",
+    value: "",
+    value_type: "",
     description: "",
   });
 
@@ -18,8 +27,42 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
 
   const handleSubmit = async () => {
     const keyRegex = /^[a-z0-9_]+$/;
+    if (!formData.name) {
+      setFormError({
+        ...formError,
+        name: "Display Name is required",
+      });
+      return;
+    }
     if (!keyRegex.test(formData.key)) {
-      alert("Key ต้องเป็นตัวเล็กและใช้ _ เท่านั้น (snake_case)");
+      setFormError({
+        ...formError,
+        key: "Key ต้องเป็นตัวเล็กและใช้ _ เท่านั้น (snake_case)",
+      });
+      return;
+    }
+
+    if (!formData.value) {
+      setFormError({
+        ...formError,
+        value: "Value is required",
+      });
+      return;
+    }
+
+    if (!formData.value_type) {
+      setFormError({
+        ...formError,
+        value_type: "Value type is required",
+      });
+      return;
+    }
+
+    if (!formData.description) {
+      setFormError({
+        ...formError,
+        description: "Description is required",
+      });
       return;
     }
 
@@ -40,7 +83,7 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div 
+      <div
         className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
@@ -49,12 +92,15 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2 text-blue-500">
             <Plus size={20} />
-            <h2 id="create-config-modal-title" className="font-bold text-xl text-gray-800">
+            <h2
+              id="create-config-modal-title"
+              className="font-bold text-xl text-gray-800"
+            >
               สร้าง Configuration ใหม่
             </h2>
           </div>
-          <button 
-            onClick={close} 
+          <button
+            onClick={close}
             className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
           >
             <X size={20} />
@@ -63,25 +109,39 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
 
         <div className="p-6 space-y-4">
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Display Name</label>
+            <label className="text-sm font-medium text-gray-700">
+              Display Name
+            </label>
             <input
               type="text"
               placeholder="เช่น เปิดปิดระบบ OCR"
               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
             />
+            {formError.name && (
+              <p className="text-red-500 text-sm">{formError.name}</p>
+            )}
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">System Key (snake_case)</label>
+            <label className="text-sm font-medium text-gray-700">
+              System Key (snake_case)
+            </label>
             <input
               type="text"
               placeholder="เช่น is_ocr_active"
               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
               value={formData.key}
-              onChange={(e) => setFormData({ ...formData, key: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, key: e.target.value })
+              }
             />
+            {formError.key && (
+              <p className="text-red-500 text-sm">{formError.key}</p>
+            )}
           </div>
 
           <div className="flex gap-3">
@@ -90,40 +150,102 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
               <select
                 className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
                 value={formData.value_type}
-                onChange={(e) => setFormData({ ...formData, value_type: e.target.value })}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    value_type: e.target.value,
+                    value: "",
+                  })
+                }
               >
                 <option value="string">String</option>
                 <option value="boolean">Boolean</option>
                 <option value="int">Integer</option>
                 <option value="json">JSON</option>
               </select>
+              {formError.value_type && (
+                <p className="text-red-500 text-sm">{formError.value_type}</p>
+              )}
             </div>
-            
+
             <div className="space-y-1 flex-1">
-              <label className="text-sm font-medium text-gray-700">Value</label>
-              <input
-                type="text"
-                placeholder="ค่าเริ่มต้น"
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
-                value={formData.value}
-                onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-              />
+              <div className="flex items-center gap-3">
+                {/* Label บอกสถานะปัจจุบัน */}
+                <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  {useTextArea ? "Textarea" : "Input"}
+                </span>
+
+                {/* Switch Container */}
+                {!["int", "boolean"].includes(formData.value_type) && (
+                  <Switch onChange={setUseTextArea} value={useTextArea} />
+                )}
+              </div>
+              {formData.value_type === "boolean" && (
+                <select
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                  value={formData.value}
+                  onChange={(e) =>
+                    setFormData({ ...formData, value: e.target.value })
+                  }
+                >
+                  <option value="true">True</option>
+                  <option value="false">False</option>
+                </select>
+              )}
+              {formData.value_type === "json" && (
+                <textarea
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                  value={formData.value}
+                  onChange={(e) =>
+                    setFormData({ ...formData, value: e.target.value })
+                  }
+                />
+              )}
+              {useTextArea && formData.value_type === "string" ? (
+                <textarea
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                  value={formData.value}
+                  onChange={(e) =>
+                    setFormData({ ...formData, value: e.target.value })
+                  }
+                />
+              ) : (
+                <input
+                  type="text"
+                  placeholder="ค่าเริ่มต้น"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                  value={formData.value}
+                  onChange={(e) =>
+                    setFormData({ ...formData, value: e.target.value })
+                  }
+                />
+              )}
+              {formError.value && (
+                <p className="text-red-500 text-sm">{formError.value}</p>
+              )}
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">Description</label>
+            <label className="text-sm font-medium text-gray-700">
+              Description
+            </label>
             <textarea
               placeholder="คำอธิบายการใช้งาน..."
               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm min-h-[80px]"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
             />
+            {formError.description && (
+              <p className="text-red-500 text-sm">{formError.description}</p>
+            )}
           </div>
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-2 bg-gray-50/50">
-          <button 
+          <button
             onClick={close}
             className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >

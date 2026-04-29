@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     CLOUNDIARY_NAME: str
     CLOUDINARY_API_KEY: str
     CLOUDINARY_API_SECRET: str
+    # Firebase
+    FIREBASE_ACCOUNT_KEY: str
 
     # ตั้งค่าการโหลดไฟล์ .env
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

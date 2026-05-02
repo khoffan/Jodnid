@@ -11,6 +11,8 @@ load_dotenv()
 class Users(SQLModel, table=True):
     line_user_id: str = Field(primary_key=True, index=True)
     display_name: Optional[str] = None
+    email: Optional[str] = None
+    picture_url: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships

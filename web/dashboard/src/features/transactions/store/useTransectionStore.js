@@ -21,9 +21,17 @@ const useTransactionStore = create((set) => ({
         year: year || now.getFullYear(),
       };
 
-      const response = await api.get(`/api/dashboard/${userId}`, {
-        params: queryParams,
-      });
+      const response = await api.get(
+        `/api/dashboard/${userId}`,
+        {
+          params: queryParams,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${sessionStorage.getItem("id_token")}`,
+          },
+        },
+      );
 
       // ตรวจสอบว่า API คืนค่า success หรือไม่ (ถ้ามี)
       // หรือตรวจสอบโครงสร้างข้อมูลที่ได้รับ

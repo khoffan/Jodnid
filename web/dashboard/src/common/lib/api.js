@@ -10,4 +10,25 @@ const api = axios.create({
   },
 });
 
+api.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem("id_token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    if (error.response.status === 401) {
+      sessionStorage.removeItem("id_token");
+      window.location.href = "/";
+    }
+    return Promise.reject(error);
+  },
+);
+
 export default api;

@@ -1,4 +1,4 @@
-export default function UserCheckingLoading() {
+export default function LoadingCheckUser() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] p-10 space-y-4">
       {/* Spinner หรือ Icon สวยๆ */}

@@ -42,15 +42,6 @@ class CronAPis:
     def setup_router(self):
         router = self.router
         logger = self.logger
-        users = get_all_users(self.db)
-        db = self.db
-        user_id = None
-        for user in users:
-            profile = get_line_profile(user_id=user.line_user_id, line_token=self.line_access_token)
-            user_id=profile.get("userId")
-        
-
-
         # cron job service
         @router.post("/remind-to-record")
         async def remind_logic(db: Session = Depends(get_session)):

@@ -11,8 +11,13 @@ class Settings(BaseSettings):
     LINE_CHANNEL_ACCESS_TOKEN_TEST: Optional[str] = None
     LINE_DATA_API: str
     LINE_API: str
+    LINE_VERIFY_URL: str
     LINE_LIFF_ID: str
     LINE_LIFF_ID_TEST: Optional[str] = None
+    LINE_CHANNEL_ID_TEST: Optional[str] = None
+    LINE_CHANNEL_SECRET_TEST: Optional[str] = None
+    LINE_CHANNEL_ID: Optional[str] = None
+    LINE_CHANNEL_SECRET: Optional[str] = None
     FRONTEND_URL: str
     ADMIN_URL: str
     CRON_SECRET_TOKEN: str

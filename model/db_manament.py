@@ -7,8 +7,8 @@ import uuid
 from datetime import datetime
 
 # --- 1. จัดการ User (เหมือนเดิมแต่เพิ่ม Error Handling) ---
-def get_or_create_user(line_user_id: str, line_access_token: str = None, profile: Dict = None):        
-    display_name = profile["displayName"] if profile else "Unknown User"
+def get_or_create_user(line_user_id: str, profile: Dict = None):        
+    display_name = profile["display_name"] if profile else "Unknown User"
     
     with Session(engine) as session:
         user = session.get(Users, line_user_id)
@@ -21,7 +21,11 @@ def get_or_create_user(line_user_id: str, line_access_token: str = None, profile
             # กรณี User เก่า: เช็คว่าต้องอัปเดตชื่อไหม (ป้องกันค่า null หรือชื่อเก่า)
             if user.display_name != display_name:
                 user.display_name = display_name
-                # หากมีฟิลด์รูปโปรไฟล์ (pictureUrl) ก็อัปเดตตรงนี้ได้เลย
+            if profile.get("email") and user.email != profile.get("email"):
+                user.email = profile.get("email")
+            if profile.get("picture_url") and user.picture_url != profile.get("picture_url"):
+                user.picture_url = profile.get("picture_url")
+            # หากมีฟิลด์รูปโปรไฟล์ (pictureUrl) ก็อัปเดตตรงนี้ได้เลย
         
         session.commit()
         session.refresh(user)

@@ -68,6 +68,11 @@ liff_api = LiffApi(logger=logger, line_access_token=line_access_token)
 cron_apis = CronAPis(logger=logger, line_access_token=line_access_token)
 administrator_api = AdministratorAPIs(logger=logger, line_access_token=line_access_token)
 
+# start service
+liff_api.setup_router()
+cron_apis.setup_router()
+administrator_api.setup_router()
+
 app.include_router(liff_api.router)
 app.include_router(cron_apis.router)
 app.include_router(administrator_api.router)

@@ -7,6 +7,7 @@ from model.db_manament import (
     get_temp_transaction_data,
     get_dashboard_data,
     setup_user_budget,
+    get_or_create_user
 )
 
 from helper.webhook_helper import (
@@ -14,6 +15,9 @@ from helper.webhook_helper import (
 )
 from helper.logger import JodNidLogger
 from model.models import get_session
+from middleware.line_auth import get_current_user_line
+
+
 
 class LiffApi:
     def __init__(self, logger: JodNidLogger, line_access_token: str):
@@ -31,9 +35,30 @@ class LiffApi:
         for user in users:
             profile = get_line_profile(user_id=user.line_user_id, line_token=self.line_access_token)
             user_id=profile.get("userId")
+        
+        @router.post("/user")
+        async def update_user_profile(user: dict=Depends(get_current_user_line)):
+            print("user:", user)
+            user_id = user.get("sub")
+            if not user_id:
+                return {"success": False, "message": "Missing user_id"}
+            email = user.get("email")
+            if not email:
+                return {"success": False, "message": "Missing email"}
+            logger.info(module="api user update", message=f"update user profile for user_id: {user_id}", user_id=user_id)
+            data = get_or_create_user(user_id, profile={
+                "email": email,
+                "display_name": user.get("name"),
+                "picture_url": user.get("picture"),
+            })
+            logger.info(module="api user update", message=f"update user profile for user_id: {user_id}", user_id=user_id)
+            return {
+                "success": True,
+                "data": data
+            }
     
         @router.get("/dashboard/{user_id}")
-        async def get_dashboard(user_id: str, type: str = "monthly",day: int = None, month: int = None, year: int = None):
+        async def get_dashboard(user_id: str, type: str = "monthly",day: int = None, month: int = None, year: int = None, ):
             logger.info(module="dashboard", message=f"User ID: {user_id}, Type: {type}, Month: {month}, Year: {year}", user_id=user_id)
             # ส่ง type เข้าไปในฟังก์ชันจัดการข้อมูล
             return get_dashboard_data(user_id, type, day, month, year)

@@ -1,63 +1,19 @@
-import { useState, useEffect } from "react";
-import liff from "@line/liff";
-import { Routes, Route, Navigate, useNavigate } from "react-router";
-import Dashboard from "./features/transactions/pages/Dashboard";
-import Onboarding from "./features/dashboard/pages/Onboarding";
-import UserCheckingLoading from "./common/components/loading/LoadingCheckUser";
-import { OverviewPage } from "./features/dashboard/pages/OverviewPage";
-import { EditTempPage } from "./features/transactions/pages/EditTempPage";
+import { useEffect } from "react";
+import { useNavigate } from "react-router";
+import WebPage from "./pages/webPage";
+import LiffPage from "./pages/LiffPage";
+import { useWebAuthStore } from "./features/webapp/auth/store/web_auth.store";
 
 function App() {
-  const [userId, setUserId] = useState(null);
+  const { initApp, isWebApp, userId } = useWebAuthStore();
   const navigate = useNavigate();
 
   useEffect(() => {
-    const testMode = import.meta.env.VITE_TEST_MODE;
-    let line_liff_id = "";
-    if (testMode) {
-      line_liff_id = import.meta.env.VITE_LINE_LIFF_ID_TEST;
-    } else {
-      line_liff_id = import.meta.env.VITE_LINE_LIFF_ID;
-    }
-    liff.init({ liffId: line_liff_id }).then(() => {
-      if (liff.isLoggedIn()) {
-        const context = liff.getContext();
-        setUserId(context.userId);
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const targetPath = urlParams.get("path");
-
-        if (targetPath) {
-          navigate(targetPath);
-        }
-      } else {
-        liff.login();
-      }
-    });
-  }, [navigate]);
-
-  const element = (
-    <Routes>
-      {/* ถ้ามี userId ให้ไป Dashboard ถ้าไม่มี (หรือยังไม่ Login) ให้กลับไปหน้าหลัก */}
-      <Route path="/" element={<OverviewPage userId={userId} />} />
-
-      {/* หน้า Onboarding สำหรับตั้งค่า Budget ครั้งแรก */}
-      <Route path="/setup" element={<Onboarding userId={userId} />} />
-
-      {/* สรุปรายวัน/รายเดือน (ใช้ Dashboard เดียวกันแต่ส่ง Type ไปเช็คข้างใน) */}
-      <Route path="/summary/:type" element={<Dashboard userId={userId} />} />
-
-      <Route path="/edit-temp/:tempId" element={<EditTempPage userId={userId}/>} />
-
-      {/* Fallback กรณีเข้า Path มั่ว */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
+    initApp(navigate);
+  }, [initApp, navigate]);
 
   return (
-    <div className="max-w-md mx-auto min-h-screen shadow-2xl bg-white p-5 pt-10 pb-20 rounded-3xl">
-      {!userId ? <UserCheckingLoading /> : element}
-    </div>
+    <>{isWebApp ? <WebPage userId={userId} /> : <LiffPage userId={userId} />}</>
   );
 }
 

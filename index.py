@@ -41,15 +41,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# Usage
-api_key = settings.TYPHOON_API_KEY
-is_test_mode = settings.TEST_MODE
-line_access_token = ""
-if is_test_mode:
-    line_access_token = settings.LINE_CHANNEL_ACCESS_TOKEN_TEST
-else:
-    line_access_token = settings.LINE_CHANNEL_ACCESS_TOKEN
-
 
 
 class UserMessage(BaseModel):
@@ -62,6 +53,14 @@ class LineWebhook(BaseModel):
 
 db_session = next(get_session())
 logger = JodNidLogger(db=db_session)
+# Usage
+api_key = settings.TYPHOON_API_KEY
+is_test_mode = settings.TEST_MODE
+line_access_token = ""
+if is_test_mode:
+    line_access_token = settings.LINE_CHANNEL_ACCESS_TOKEN_TEST
+else:
+    line_access_token = settings.LINE_CHANNEL_ACCESS_TOKEN
 
 
 liff_api = LiffApi(logger=logger, line_access_token=line_access_token)

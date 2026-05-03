@@ -27,8 +27,11 @@ from helper.logger import JodNidLogger
 async def process_webhook_event(event: dict, user_id: str, reply_token: str, line_access_token: str, api_key: str, logger: JodNidLogger):
     event_type = event.get("type")
     profile = get_line_profile(user_id=user_id, line_token=line_access_token)
+
     # ดึงค่า User (หรือสร้างถ้ายังไม่มี)
-    get_or_create_user(line_user_id=user_id, line_access_token=line_access_token, profile=profile)
+    get_or_create_user(line_user_id=user_id, profile={
+        "display_name": profile.get("displayName"),
+    })
 
     if event_type == "message":
         message = event.get("message", {})  

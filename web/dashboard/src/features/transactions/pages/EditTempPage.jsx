@@ -17,8 +17,6 @@ export const EditTempPage = ({ userId }) => {
           api.get(`/api/temp-transaction/${tempId}`),
           api.get(`/api/categories/parent`),
         ])
-        console.log("Raw Data Temp:", tempRes);
-        console.log("Raw Data Category:", categoryRes);
         setItems(tempRes.data.raw_data.transactions || []);
         setCategories(categoryRes.data);
         setLoading(false);

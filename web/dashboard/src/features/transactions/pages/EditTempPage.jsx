@@ -11,13 +11,21 @@ export const EditTempPage = ({ userId }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get(`/api/temp-transaction/${tempId}`).then((res) => {
-      setItems(res.data.raw_data || []);
-      setLoading(false);
-    });
-    api.get(`/api/categories/parent`).then((res) => {
-      setCategories(res.data);
-    });
+    const fetchData = async () => {
+      try {
+        const [tempRes, categoryRes] = await Promise.all([
+          api.get(`/api/temp-transaction/${tempId}`),
+          api.get(`/api/categories/parent`),
+        ])
+        setItems(tempRes.data.raw_data.transactions || []);
+        setCategories(categoryRes.data);
+        setLoading(false);
+      } catch (e){
+        console.error(e);
+        alert("ไม่สามารถโหลดข้อมูลได้");
+      }
+    }
+    fetchData();
   }, [tempId]);
 
   // ฟังก์ชันแก้ไขค่าในแต่ละ Row

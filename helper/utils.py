@@ -149,15 +149,17 @@ def create_dynamic_flex_receipt(data: dict, temp_id: str):
     grand_total = data.get("grand_total", 0)
     transactions = data.get("transactions")
     line_liff_id = settings.LINE_LIFF_ID
+
     try:
         total = sum(float(t.get('amount', 0)) for t in transactions if t.get('is_actual_item', True) or t.get("priority", True))
-        print(f"total: {total}")
-        diff = total - grand_total
-        print(f"diff: {diff}")
-        if diff > 0:
-            total = total - diff
+        if grand_total != None and grand_total > 0:
+            diff = total - grand_total
+            if diff > 0:
+                total = total - diff
     except:
+        print("Error calculating total from transactions")
         total = 0.0
+    
     
     cat_map = {
         "food": "🍔 อาหาร",

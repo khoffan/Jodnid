@@ -3,15 +3,15 @@ import { useEffect } from "react";
 import { useNavigate, Outlet, Navigate } from "react-router";
 
 export default function AuthGuard() {
-  const { isAuth, isLoading } = useWebAuthStore();
+  const { isLoading, user } = useWebAuthStore();
   const navigate = useNavigate();
 
   useEffect(() => {
     // ถ้าโหลดสถานะเสร็จแล้ว และไม่มี user ให้เด้งไปหน้า login
-    if (!isLoading && !isAuth) {
+    if (!isLoading && !user) {
       navigate("/login", { replace: true });
     }
-  }, [isAuth, isLoading, navigate]);
+  }, [user, isLoading, navigate]);
 
   // 1. ระหว่างที่ Firebase กำลังเช็คสถานะ (isLoading) ให้โชว์หน้าโหลดนวลๆ
   if (isLoading) {
@@ -27,5 +27,5 @@ export default function AuthGuard() {
 
   // 2. ถ้ามี User แล้ว ให้แสดงเนื้อหาข้างใน (children)
   // 3. ถ้าไม่มี User ตัว useEffect ข้างบนจะทำงานเพื่อเปลี่ยนหน้า
-  return isAuth ? <Outlet /> : <Navigate to="/login" replace />;
+  return user ? <Outlet /> : <Navigate to="/login" replace />;
 }

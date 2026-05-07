@@ -4,8 +4,7 @@ from typing import (
 )
 import re
 from helper.utils import send_push_notification
-from model.db_manament import delete_temp_transaction
-from model.db_manament import confirm_and_save_transaction
+from model.db_manament import DBManagerTransactions, DBManagerUsers
 from ai.text_nlp import extract_transactions
 from helper.utils import (
     get_line_profile,
@@ -18,18 +17,18 @@ from helper.utils import (
     send_loading_indicator_v3
 )
 from ai.text_nlp import is_transaction_message
-from model.db_manament import get_or_create_user
-from model.db_manament import save_temp_transaction
 from ai.ocr import extract_text_from_image
-from model.db_manament import create_attachment_record
 from helper.logger import JodNidLogger
+
+manager_transactions = DBManagerTransactions()
+manager_users = DBManagerUsers()
 
 async def process_webhook_event(event: dict, user_id: str, reply_token: str, line_access_token: str, api_key: str, logger: JodNidLogger):
     event_type = event.get("type")
     profile = get_line_profile(user_id=user_id, line_token=line_access_token)
 
     # ดึงค่า User (หรือสร้างถ้ายังไม่มี)
-    get_or_create_user(line_user_id=user_id, profile={
+    manager_users.get_or_create_user(line_user_id=user_id, profile={
         "display_name": profile.get("displayName"),
     })
 
@@ -114,7 +113,7 @@ async def handle_text_message(user_id: str, user_text: str, reply_token: str, li
             # ส่งไปให้ Typhoon วิเคราะห์รายการ
             final_transactions = extract_transactions(api_key, user_text)
             logger.info(module="webhook_text_ai", message=f"Extracted Transactions: {final_transactions}", user_id=user_id)
-            temp_id = save_temp_transaction(user_id, final_transactions)
+            temp_id = manager_transactions.save_temp_transaction(user_id, final_transactions)
             
             flex_msg = create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
             send_push_notification(user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ")
@@ -149,7 +148,7 @@ async def handle_image_message(user_id: str, message_id: str, reply_token: str, 
     # จากนั้นค่อยส่งไฟล์นั้นไปที่ extract_text_from_image
     save_file = save_line_image(user_id=user_id, message_id=message_id, image_bytes=image_bytes)
     if save_file:
-        attachment_id = create_attachment_record(user_id=user_id, file_path=save_file, file_type="image/jpeg")
+        attachment_id = manager_transactions.create_attachment_record(user_id=user_id, file_path=save_file, file_type="image/jpeg")
         # ตัวอย่าง Flow:
         # image_bytes = download_line_image(message_id)
         ocr_json = extract_text_from_image(processing_image, f"{message_id}.jpg", api_key)
@@ -161,7 +160,7 @@ async def handle_image_message(user_id: str, message_id: str, reply_token: str, 
         ocr_result = ocr_json["text"]
         final_transactions = ocr_result
 
-        temp_id = save_temp_transaction(user_id, final_transactions, attachment_id=attachment_id, source_type="image")
+        temp_id = manager_transactions.save_temp_transaction(user_id, final_transactions, attachment_id=attachment_id, source_type="image")
         flex_msg = create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
         send_push_notification(user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ")
     else:
@@ -179,7 +178,7 @@ async def handle_postback(postback_data: str, user_id: str, logger: JodNidLogger
 
         if action == "confirm":
             # 1. บันทึกลง DB และดึงข้อมูลสรุปงบที่อัปเดต
-            result = confirm_and_save_transaction(temp_id=post_temp_id)
+            result = manager_transactions.confirm_and_save_transaction(temp_id=post_temp_id)
             logger.info(module="webhook_postback", message=f"result: {result}", user_id=user_id)
             
             if result:
@@ -226,7 +225,7 @@ async def handle_postback(postback_data: str, user_id: str, logger: JodNidLogger
 
         elif action == "cancel":
             logger.info(module="webhook_postback", message=f"canceling temp_id: {post_temp_id}", user_id=user_id)
-            delete_temp_transaction(temp_id=post_temp_id)
+            manager_transactions.delete_temp_transaction(temp_id=post_temp_id)
             send_push_notification(user_id=user_id, content="🗑️ ยกเลิกการบันทึกรายการเรียบร้อยครับ", alt_text="ยกเลิกการบันทึก")
     except Exception as e:
         logger.error(module="webhook_postback", message=f"Error handling postback: {str(e)}", user_id=user_id)
@@ -239,7 +238,7 @@ def confirme_data_from_edit(post_temp_id: str, user_id: str, items: List[Dict[st
         
     try:    
         # 1. บันทึกลง DB และดึงข้อมูลสรุปงบที่อัปเดต
-        result = confirm_and_save_transaction(temp_id=post_temp_id, edit=True, items=items)
+        result = manager_transactions.confirm_and_save_transaction(temp_id=post_temp_id, edit=True, items=items)
         logger.info(module="webhook_postback_edit", message=f"result: {result}", user_id=user_id)
         if result:
             count = result.get("count", 0)

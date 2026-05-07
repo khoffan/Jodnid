@@ -2,15 +2,18 @@ import { create } from "zustand";
 import liff from "@line/liff";
 import api from "../../../../common/lib/api";
 
+const testMode = import.meta.env.VITE_TEST_MODE;
+
 export const useWebAuthStore = create((set) => ({
   isAuth: false,
   isWebApp: false,
   user: null,
+  userId: null,
   error: null,
   loading: false,
 
-  setLogin: () => {
-    set({ isAuth: true });
+  setLogin: (user) => {
+    set({ isAuth: true, user, error: null });
   },
   // ฟังก์ชัน Initialize ระบบ
   initApp: async (navigate) => {
@@ -18,13 +21,27 @@ export const useWebAuthStore = create((set) => ({
 
     const urlParams = new URLSearchParams(window.location.search);
     const isWebApp = urlParams.get("webapp") === "true" || !liff.isInClient();
-
+    console.log(
+      "Initializing app - isWebApp:",
+      isWebApp,
+      "LIFF Context:",
+      !liff.isInClient(),
+    );
     // 🔹 กรณีเปิดผ่าน Web Browser / Desktop
     if (isWebApp) {
       console.log("Web App Mode");
+      const user = sessionStorage.getItem("user_info");
+      if (!user) {
+        set({
+          isWebApp: true,
+          error: "กรุณาเข้าสู่ระบบผ่าน LINE ก่อนใช้งาน",
+          loading: false,
+        });
+        return;
+      }
       set({
         isWebApp: true,
-        userId: "mock-webapp-user-id", // เปลี่ยนเป็น Firebase UID หรือ Token ได้ในอนาคต
+        user: user ? JSON.parse(user) : null,
         isAuth: true,
         loading: false,
       });
@@ -32,7 +49,7 @@ export const useWebAuthStore = create((set) => ({
     }
 
     // 🔹 กรณีเปิดผ่าน LINE LIFF Client
-    const testMode = import.meta.env.VITE_TEST_MODE;
+
     let liffId = testMode
       ? import.meta.env.VITE_LINE_LIFF_ID_TEST
       : import.meta.env.VITE_LINE_LIFF_ID;
@@ -82,7 +99,9 @@ export const useWebAuthStore = create((set) => ({
     // 🔹 ตรวจสอบว่าใช้งานผ่าน LIFF หรือไม่
     if (!liff.isInClient()) {
       // 🌐 กรณีใช้ผ่าน Web Browser ทั่วไป ให้ Redirect ไปยังหน้า LINE Login (Web)
-      const clientId = import.meta.env.VITE_LINE_CHANNEL_ID;
+      const clientId = testMode
+        ? import.meta.env.VITE_LINE_CHANNEL_ID_TEST
+        : import.meta.env.VITE_LINE_CHANNEL_ID;
 
       const redirectUri = window.location.origin + "/login/callback";
       const state = Math.random().toString(36).substring(7);
@@ -101,8 +120,18 @@ export const useWebAuthStore = create((set) => ({
   },
 
   logout: async () => {
-    sessionStorage.removeItem("id_token");
-    if (liff.isLoggedIn()) {
+    if (!liff.isInClient()) {
+      sessionStorage.removeItem("id_token");
+      sessionStorage.removeItem("user_info");
+      set({
+        isAuth: false,
+        user: null,
+        userId: null,
+        loading: false,
+        error: null,
+      });
+      return;
+    } else {
       liff.logout();
     }
     set({ isAuth: false, user: null, loading: false, error: null });

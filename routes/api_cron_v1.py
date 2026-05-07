@@ -3,9 +3,7 @@ from fastapi.security import APIKeyHeader
 from model.models import get_session
 from sqlmodel import Session
 from helper.logger import JodNidLogger
-from model.db_manament import (
-    get_dashboard_data,
-)
+from model.db_manament import DBManagerDashboard
 
 # function
 from helper.utils import (
@@ -18,6 +16,9 @@ from helper.utils import (
     get_line_profile
 )
 from core.config_settings import settings
+
+manager_dashboard = DBManagerDashboard()
+
 header_scheme = APIKeyHeader(name="X-Cron-Token", auto_error=False)
 
 async def verify_cron_token(token: str = Security(header_scheme)):
@@ -78,7 +79,7 @@ class CronAPis:
             for user in all_users:
                 user_id = user.line_user_id
                 # ดึงข้อมูลจากฟังก์ชันสรุปที่คุยกันก่อนหน้า
-                data = get_dashboard_data(db, user_id, type="daily") 
+                data = manager_dashboard.get_dashboard_data(db, user_id, type="daily") 
                 
                 if data["total_amount"] > 0:
                     flex_content = create_summary_flex(

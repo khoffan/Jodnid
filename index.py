@@ -29,8 +29,8 @@ load_dotenv()
 app = FastAPI()
 
 origins = [
-    os.getenv("FRONTEND_URL"),
-    os.getenv("ADMIN_URL"),
+    settings.FRONTEND_URL,
+    settings.ADMIN_URL,
     "https://jodnid.vercel.app",
 ]
 

@@ -6,12 +6,9 @@ from model.models import get_session
 from middleware.auth import get_current_user
 from model.models import Administrator
 from helper.utils import clear_config_cache
-from model.db_manament import (
-    create_system_config,
-    get_system_config_data,
-    update_system_config,
-    update_administrator_data_system,
-)
+from model.db_manament import DBManagerAdmin
+
+manager_admin = DBManagerAdmin()
 
 class AdministratorAPIs:
     def __init__(self, logger: JodNidLogger, line_access_token: str):
@@ -38,7 +35,7 @@ class AdministratorAPIs:
             uid = data.get("uid")
             if not email or not uid:
                 return {"success": False, "message": "Missing email or uid or name"}
-            result = update_administrator_data_system(db,uid, email)
+            result = manager_admin.update_administrator_data_system(db, uid, email)
             logger.info(module="administrator", message=f"Data sync for uid: {uid} result: {result}", user_id=uid)
             if result.get("success") == False:
                 logger.info(module="administrator", message=f"Data sync failed for uid: {uid}", user_id=uid)
@@ -59,13 +56,13 @@ class AdministratorAPIs:
                 return {"success": False, "message": "Missing name or key or value or value_type"}
             
             logger.info(module="app", message=f"Creating system configuration for name: {name}, key: {key}, value: {value}, value_type: {value_type}, description: {description}", user_id=user.uid)
-            return create_system_config(db, name, key, value, value_type, description)
+            return manager_admin.create_system_config(db, name, key, value, value_type, description)
 
 
         @router.get("/all")
         def get_all_system_configuration(db: Session = Depends(get_session), user:Administrator = Depends(get_current_user)):
             logger.info(module="app", message="Fetching all system configurations", user_id=user.uid)
-            return get_system_config_data(db)
+            return manager_admin.get_system_config_data(db)
 
 
         @router.patch("/config/update")
@@ -78,7 +75,7 @@ class AdministratorAPIs:
                 return {"success": False, "message": "Missing key or value"}
             clear_config_cache()
             logger.info(module="app", message=f"Updating system configuration for key: {key}, value: {value}, value_type: {value_type}, description: {description}", user_id=user.uid)
-            return update_system_config(db, key, value, value_type, description)
+            return manager_admin.update_system_config(db, key, value, value_type, description)
 
         @router.patch("/config/toggle")
         def toggle_system_configuration(data: dict, db: Session = Depends(get_session), user:Administrator = Depends(get_current_user)):
@@ -88,5 +85,5 @@ class AdministratorAPIs:
                 return {"success": False, "message": "Missing key or value"}
             clear_config_cache()
             logger.info(module="app", message=f"Toggling system configuration for key: {key}, value: {value}", user_id=user.uid)
-            return update_system_config(db, key, value)
+            return manager_admin.update_system_config(db, key, value)
         

@@ -1,6 +1,6 @@
 from io import BytesIO
 from functools import lru_cache
-from model.db_manament import sync_user_budgets
+from model.db_manament import DBManagerBudget
 import cloudinary.uploader
 from core.config_settings import settings
 import requests
@@ -28,6 +28,8 @@ from linebot.v3.messaging import (
     PushMessageRequest,
     TextMessage
 )
+
+manager_budget = DBManagerBudget()
 
 is_test_mode = settings.TEST_MODE
 line_access_token = ""
@@ -521,7 +523,7 @@ def get_monthly_usage(session: Session, user_id: str):
 def get_user_overview(session: Session, user_id: str):
     today = datetime.now()
     
-    sync_user_budgets(session, user_id, today.month, today.year)
+    manager_budget.sync_user_budgets(session, user_id, today.month, today.year)
     
     # 1. ยอดรวมทั้งเดือน และ วันนี้ (เหมือนเดิม)
     monthly_total = get_monthly_usage(session, user_id)

@@ -11,9 +11,9 @@ function App() {
   useEffect(() => {
     initApp(navigate);
   }, [initApp, navigate]);
-
+  console.log("App Rendered - isWebApp:", isWebApp, "userId:", userId);
   return (
-    <>{isWebApp ? <WebPage userId={userId} /> : <LiffPage userId={userId} />}</>
+    <>{isWebApp ? <WebPage /> : <LiffPage userId={userId} />}</>
   );
 }
 

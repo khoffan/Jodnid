@@ -1,24 +1,30 @@
+from pydantic import BaseModel
+
 from helper.utils import get_all_users, get_line_profile, get_user_overview
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
-from model.db_manament import (
-    get_parent_categories,
-    get_temp_transaction_data,
-    get_temp_transaction_data,
-    get_dashboard_data,
-    setup_user_budget,
-    get_or_create_user
-)
+from model.db_manament import DBManagerCategories, DBManagerTransactions, DBManagerBudget, DBManagerDashboard
 
 from helper.webhook_helper import (
     confirme_data_from_edit
 )
 from helper.logger import JodNidLogger
 from model.models import get_session
-from middleware.line_auth import get_current_user_line
+from middleware.line_auth import verify_id_token_with_line, exchange_code_for_tokens, get_current_user
+from core.config_settings import settings
+
+class LineLoginRequest(BaseModel):
+    code: str
 
 
+class LineWebTransactionRequest(BaseModel):
+    total: float
+    items: list[dict]
 
+manager_categories = DBManagerCategories()
+manager_transactions = DBManagerTransactions()
+manager_user_budget = DBManagerBudget()
+manager_dashboard = DBManagerDashboard()
 class LiffApi:
     def __init__(self, logger: JodNidLogger, line_access_token: str):
         self.logger = logger
@@ -37,31 +43,51 @@ class LiffApi:
             user_id=profile.get("userId")
         
         @router.post("/user")
-        async def update_user_profile(user: dict=Depends(get_current_user_line)):
-            print("user:", user)
-            user_id = user.get("sub")
-            if not user_id:
-                return {"success": False, "message": "Missing user_id"}
-            email = user.get("email")
-            if not email:
-                return {"success": False, "message": "Missing email"}
-            logger.info(module="api user update", message=f"update user profile for user_id: {user_id}", user_id=user_id)
-            data = get_or_create_user(user_id, profile={
-                "email": email,
-                "display_name": user.get("name"),
-                "picture_url": user.get("picture"),
-            })
-            logger.info(module="api user update", message=f"update user profile for user_id: {user_id}", user_id=user_id)
+        async def update_user_profile(req: LineLoginRequest):
+            is_test_mode = settings.TEST_MODE
+            token = await exchange_code_for_tokens(req.code, is_test_mode)
+            print("token: ", token)
+            id_token = token.get("id_token")
+
+            if not id_token:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="ID token not found in the response from LINE"
+                )
+            channel_id = settings.LINE_CHANNEL_ID_TEST if is_test_mode else settings.LINE_CHANNEL_ID
+            user_payload = await verify_id_token_with_line(id_token, channel_id)
+            print("user_payload: ", user_payload)
+            # TODO: นำ user_payload (sub, name, picture) ไปทำการ findOrCreate ใน Database ของระบบคุณ
+            # เช่น user = await db.user.upsert(...)
+            
             return {
                 "success": True,
-                "data": data
+                "id_token": id_token, # ส่ง id_token กลับไปให้ React เก็บไว้
+                "user_info": {
+                    "user_id": user_payload.get("sub"),
+                    "name": user_payload.get("name"),
+                    "picture": user_payload.get("picture")
+                }
             }
+
+        @router.post("/web/transaction/add")
+        async def add_transaction(req: LineWebTransactionRequest, user: dict = Depends(get_current_user)):
+            print("req: ", user.get("sub"))
+            user_id = user.get("sub")
+            logger.info(module="transaction_add", message=f"Adding transaction for user_id: {user_id}", user_id=user_id)
+            manager_transactions.confirm_and_save_transaction(temp_id=None, user_id=user_id, edit=False, items=req.items)
+            return HTTPException(status_code=status.HTTP_201_CREATED, detail={"success": True, "message": "Transaction added"})
     
+        @router.get("/web/transactions")
+        async def get_transaction_web(user: dict = Depends(get_current_user)):
+            data = manager_transactions.get_Transactions()
+            return {"success": True, "data": data}
+
         @router.get("/dashboard/{user_id}")
         async def get_dashboard(user_id: str, type: str = "monthly",day: int = None, month: int = None, year: int = None, ):
             logger.info(module="dashboard", message=f"User ID: {user_id}, Type: {type}, Month: {month}, Year: {year}", user_id=user_id)
             # ส่ง type เข้าไปในฟังก์ชันจัดการข้อมูล
-            return get_dashboard_data(user_id, type, day, month, year)
+            return manager_dashboard.get_dashboard_data(user_id, type, day, month, year)
         
         @router.post("/overview/stats")
         async def overview_stat(data: dict, db: Session = Depends(get_session)):
@@ -80,7 +106,7 @@ class LiffApi:
 
         @router.get("/temp-transaction/{temp_id}")
         async def get_temp_transaction(temp_id: str):
-            data = get_temp_transaction_data(temp_id)
+            data = manager_transactions.get_temp_transaction_data(temp_id)
             logger.info(module="transaction_edit", message=f"temp_id: {temp_id}, data: {data}", user_id=user_id)
             return data
 
@@ -97,7 +123,7 @@ class LiffApi:
         @router.get("/categories/parent")
         async def get_categories_parent():
             logger.info(module="categories", message="Fetching categories parent")
-            return get_parent_categories()
+            return manager_categories.get_parent_categories()
 
 
 
@@ -111,5 +137,5 @@ class LiffApi:
                 logger.error(module="budget", message=f"Missing user_id or amount or category_id", user_id=user_id)
                 return {"success": False, "message": "Missing user_id or amount or category_id"}
             
-            return setup_user_budget(user_id, category_id=category_id, amount=amount)
+            return manager_user_budget.setup_user_budget(user_id, category_id=category_id, amount=amount)
         

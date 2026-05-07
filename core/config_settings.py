@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     LINE_CHANNEL_ID: Optional[str] = None
     LINE_CHANNEL_SECRET: Optional[str] = None
     FRONTEND_URL: str
+    LINE_REDIRECT_URI: str
     ADMIN_URL: str
     CRON_SECRET_TOKEN: str
     # Database

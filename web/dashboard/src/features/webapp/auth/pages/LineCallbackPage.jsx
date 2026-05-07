@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { useWebAuthStore } from "../store/web_auth.store";
+import api from "../../../../common/lib/api";
 
 export default function LineCallbackPage() {
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ export default function LineCallbackPage() {
     const handleCallback = async () => {
       const params = new URLSearchParams(location.search);
       const code = params.get("code");
-      const state = params.get("state");
+      // const state = params.get("state");
 
       // ตรวจสอบเบื้องต้นว่ามี code หรือไม่
       if (!code) {
@@ -23,7 +24,15 @@ export default function LineCallbackPage() {
       }
 
       try {
-        setLogin();
+        const res = await api.post("/api/user", {
+          code,
+        })
+        console.log("LINE Login Response:", res.data);
+        const user = res.data.user_info;
+        sessionStorage.setItem("id_token", res.data.id_token);
+        sessionStorage.setItem("user_info", JSON.stringify(user));
+        setStatus("เข้าสู่ระบบสำเร็จ กำลังโหลดข้อมูล...");
+        setLogin(user);
         // TODO: ส่ง code ไปให้ Backend แลก token
         // ตัวอย่างเช่น:
         // const res = await api.post("/api/auth/line-login", { code });
@@ -34,12 +43,9 @@ export default function LineCallbackPage() {
         // navigate("/");
 
         // --- Mock การทำงาน ---
-        setTimeout(() => {
-          setStatus("เข้าสู่ระบบสำเร็จ กำลังนำทางไปยังหน้าหลัก...");
-          setTimeout(() => {
-            navigate("/");
-          }, 1000);
-        }, 1500);
+
+        navigate("/");
+
       } catch (err) {
         console.error("LINE Login Error:", err);
         setError("เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย LINE");

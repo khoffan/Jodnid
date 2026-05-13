@@ -183,7 +183,7 @@ def create_dynamic_flex_receipt(data: dict, temp_id: str):
 
     item_rows = []
     for t in transactions:
-        if not t.get('is_actual_item', True):
+        if not t.get('is_actual_item', True) or t.get("priority", True):
             continue
         name = str(t.get('item') or t.get('receiver') or 'ไม่ระบุ')
         amount = float(t.get('amount', 0))

@@ -84,8 +84,9 @@ class DBManagerTransactions:
             raw_data = items
         else:
             raw_data = temp.raw_data.get("transactions", [])
-
         for item in raw_data:
+            if not item.get('is_actual_item', True) or item.get("priority", True):
+                continue
             raw_cat_name = str(item.get('category', 'อื่นๆ')).strip()
             
             # 2. ค้นหาใน Mapping Table ก่อน

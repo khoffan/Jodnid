@@ -63,11 +63,11 @@ const Features: React.FC = () => {
             <div className="flex gap-4">
               <div className="p-4 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
                 <p className="text-white font-bold mb-1">99.9%</p>
-                <p className="text-slate-500 text-xs text-nowrap">ความแม่นยำของ AI</p>
+                <p className="text-white-300 text-xs text-nowrap">ความแม่นยำของ AI</p>
               </div>
               <div className="p-4 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
                 <p className="text-white font-bold mb-1">&lt; 2 วินาที</p>
-                <p className="text-slate-500 text-xs text-nowrap">ความเร็วในการสแกน</p>
+                <p className="text-white-300 text-xs text-nowrap">ความเร็วในการสแกน</p>
               </div>
             </div>
           </div>

@@ -5,12 +5,12 @@ const Footer: React.FC = () => {
   return (
     <footer className="bg-slate-50 border-t border-slate-100 pt-24 pb-12">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="grid md:grid-cols-4 gap-12 mb-16">
+        <div className="grid md:grid-cols-3 gap-12 mb-16">
           {/* Brand */}
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center gap-2 mb-6">
               <div className="w-8 h-8 bg-green-500 rounded-xl flex items-center justify-center text-white font-bold">J</div>
-              <span className="font-black text-xl tracking-tighter">JodNid</span>
+              <span className="text-black text-xl tracking-tighter">JodNid</span>
             </div>
             <p className="text-slate-500 max-w-xs leading-relaxed">
               ผู้ช่วยบันทึกรายจ่ายส่วนตัวผ่าน LINE ที่ฉลาดที่สุด 
@@ -20,7 +20,7 @@ const Footer: React.FC = () => {
 
           {/* Links */}
           <div>
-            <h4 className="font-black mb-6">เมนู</h4>
+            <h4 className="text-black mb-6">เมนู</h4>
             <ul className="space-y-4 text-sm text-slate-500">
               <li><Link href="#features" className="hover:text-green-600 transition-colors">ฟีเจอร์</Link></li>
               <li><Link href="#how-it-works" className="hover:text-green-600 transition-colors">วิธีใช้งาน</Link></li>
@@ -29,14 +29,14 @@ const Footer: React.FC = () => {
           </div>
 
           {/* Contact */}
-          <div>
-            <h4 className="font-black mb-6">ติดต่อเรา</h4>
+          {/* <div>
+            <h4 className="text-black mb-6">ติดต่อเรา</h4>
             <ul className="space-y-4 text-sm text-slate-500">
               <li>LINE: @jodnid_ai</li>
               <li>Email: hello@jodnid.com</li>
               <li>Facebook: JodNid Project</li>
             </ul>
-          </div>
+          </div> */}
         </div>
 
         <div className="pt-12 border-t border-slate-200 flex flex-col md:flex-row justify-between items-center gap-6">

@@ -3,7 +3,7 @@ import Button from "../ui/Button";
 
 const Hero: React.FC = () => {
   return (
-    <section className="relative pt-20 pb-16 px-6 overflow-hidden bg-linear-to-b from-green-100/50 to-white">
+    <section className="relative pt-20 pb-16 px-6 overflow-hidden bg-linear-to-b from-green-500/90 to-white">
       <div className="max-w-5xl mx-auto text-center relative z-10">
         <div className="inline-block px-4 py-1.5 mt-6 mb-6 rounded-full bg-green-100 text-green-700 text-xs font-bold uppercase tracking-widest">
           The Smartest AI Bookkeeper

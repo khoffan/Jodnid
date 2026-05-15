@@ -8,12 +8,11 @@ import { NavItem } from "@/types/landing";
 const navLinks: NavItem[] = [
   { label: "ฟีเจอร์", href: "#features" },
   { label: "วิธีใช้งาน", href: "#how-it-works" },
-  { label: "ราคา", href: "#pricing" },
 ];
 
 const Navbar: React.FC = () => {
   return (
-    <nav className="fixed top-0 w-full z-50 bg-white/70 backdrop-blur-lg border-b border-gray-100">
+    <nav className="fixed top-0 w-full z-50 bg-white backdrop-blur-lg border-b border-gray-100">
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group">
@@ -26,15 +25,16 @@ const Navbar: React.FC = () => {
         {/* Desktop Links */}
         <div className="hidden md:flex items-center gap-10">
           {navLinks.map((link) => (
-            <Link 
-              key={link.href} 
-              href={link.href} 
+            <Link
+              key={link.href}
+              href={link.href}
               className="text-sm font-bold text-slate-500 hover:text-green-600 transition-colors"
             >
               {link.label}
             </Link>
           ))}
           <Button size="sm" variant="line">เพิ่มเพื่อน</Button>
+          <Button size="sm" variant="web" navigate="https://jodnid.vercel.app" imageSrc="https://www.flaticon.com/free-icon/internet_6803408" >เริ่มเลย</Button>
         </div>
 
         {/* Mobile Button (Simple Version) */}

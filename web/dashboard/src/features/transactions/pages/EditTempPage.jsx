@@ -16,15 +16,15 @@ export const EditTempPage = ({ userId }) => {
         const [tempRes, categoryRes] = await Promise.all([
           api.get(`/api/temp-transaction/${tempId}`),
           api.get(`/api/categories/parent`),
-        ])
+        ]);
         setItems(tempRes.data.raw_data.transactions || []);
         setCategories(categoryRes.data);
         setLoading(false);
-      } catch (e){
+      } catch (e) {
         console.error(e);
         alert("ไม่สามารถโหลดข้อมูลได้");
       }
-    }
+    };
     fetchData();
   }, [tempId]);
 
@@ -55,15 +55,12 @@ export const EditTempPage = ({ userId }) => {
     }
   };
 
-  if (loading)
-    return <div className="p-10 text-center">กำลังโหลดข้อมูลดิบ...</div>;
+  if (loading) return <div className="p-10 text-center">กำลังโหลดข้อมูลดิบ...</div>;
 
   return (
     <div className="p-4 max-w-md mx-auto pb-24">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-black text-slate-800">
-          ตรวจสอบความถูกต้อง
-        </h2>
+        <h2 className="text-xl font-black text-slate-800">ตรวจสอบความถูกต้อง</h2>
         <span className="text-[10px] bg-amber-100 text-amber-600 px-2 py-1 rounded-full font-bold">
           {items.length} รายการ
         </span>
@@ -93,25 +90,30 @@ export const EditTempPage = ({ userId }) => {
 
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <span className="absolute left-3 top-2.5 text-slate-400 text-sm">
-                    ฿
-                  </span>
+                  <span className="absolute left-3 top-2.5 text-slate-400 text-sm">฿</span>
                   <input
-                    type="number"
+                    type="text" // เปลี่ยนเป็น text
+                    inputMode="decimal" // บังคับคีย์บอร์ดตัวเลขบนมือถือ
                     className="w-full pl-7 p-2.5 bg-slate-50 border-none rounded-xl text-sm font-black focus:ring-2 ring-indigo-500"
-                    value={item.amount}
-                    onChange={(e) =>
-                      updateItem(index, "amount", Number(e.target.value))
-                    }
+                    placeholder="0.00"
+                    value={item.amount === 0 ? "" : item.amount} // ถ้าเป็น 0 ให้แสดงเป็นช่องว่าง
+                    onChange={(e) => {
+                      const val = e.target.value;
+
+                      // ตรวจสอบว่าเป็นตัวเลขหรือจุดทศนิยมเท่านั้น (Regex)
+                      if (val === "" || /^[0-9]*\.?[0-9]*$/.test(val)) {
+                        // ส่งค่าไปยัง updateItem (เก็บเป็น string หรือ number ตามที่คุณต้องการ)
+                        // แนะนำให้เก็บเป็น string ใน state ก่อน เพื่อให้พิมพ์จุดทศนิยมได้สะดวก
+                        updateItem(index, "amount", val === "" ? 0 : val);
+                      }
+                    }}
                   />
                 </div>
 
                 <select
                   className="flex-1 p-2.5 bg-slate-50 border-none rounded-xl text-[10px] font-bold focus:ring-2 ring-indigo-500"
                   value={item.category}
-                  onChange={(e) =>
-                    updateItem(index, "category", e.target.value)
-                  }
+                  onChange={(e) => updateItem(index, "category", e.target.value)}
                 >
                   {categories.map((cat) => (
                     <option key={cat.id} value={cat.name}>
@@ -128,10 +130,7 @@ export const EditTempPage = ({ userId }) => {
       {/* ปุ่มเพิ่มแถวใหม่ (เผื่อ AI สกัดมาไม่ครบ) */}
       <button
         onClick={() =>
-          setItems([
-            ...items,
-            { item: "", amount: 0, category: "อาหาร", type: "expense" },
-          ])
+          setItems([...items, { item: "", amount: 0, category: "อาหาร", type: "expense" }])
         }
         className="w-full mt-4 py-3 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 text-xs font-bold flex items-center justify-center gap-2 active:bg-slate-50"
       >

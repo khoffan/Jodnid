@@ -1,6 +1,8 @@
-from typing import Optional
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+from typing import Optional
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
     # กำหนดค่าตัวแปรและ Type (ถ้าใน .env ไม่มี จะใช้ค่า Default ที่ใส่ไว้)
@@ -35,10 +37,12 @@ class Settings(BaseSettings):
     # ตั้งค่าการโหลดไฟล์ .env
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
+
 @lru_cache()
 def get_settings():
     """ใช้ lru_cache เพื่อให้โหลดไฟล์ครั้งเดียวแล้วจำค่าไว้ตลอด"""
     return Settings()
+
 
 # สร้าง instance ไว้พร้อมใช้งาน
 settings = get_settings()

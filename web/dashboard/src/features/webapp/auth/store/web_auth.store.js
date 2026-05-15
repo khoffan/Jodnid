@@ -21,15 +21,9 @@ export const useWebAuthStore = create((set) => ({
 
     const urlParams = new URLSearchParams(window.location.search);
     const isWebApp = urlParams.get("webapp") === "true" || !liff.isInClient();
-    console.log(
-      "Initializing app - isWebApp:",
-      isWebApp,
-      "LIFF Context:",
-      !liff.isInClient(),
-    );
+    console.log("Initializing app - isWebApp:", isWebApp, "LIFF Context:", !liff.isInClient());
     // 🔹 กรณีเปิดผ่าน Web Browser / Desktop
     if (isWebApp) {
-      console.log("Web App Mode");
       const user = sessionStorage.getItem("user_info");
       if (!user) {
         set({
@@ -55,7 +49,6 @@ export const useWebAuthStore = create((set) => ({
       : import.meta.env.VITE_LINE_LIFF_ID;
 
     if (!liffId) {
-      console.error("LIFF ID is required, but none was found.");
       set({
         error: "เกิดข้อผิดพลาด: ไม่พบ LIFF ID กรุณาตรวจสอบไฟล์ .env",
         loading: false,
@@ -71,7 +64,9 @@ export const useWebAuthStore = create((set) => ({
         const idToken = liff.getIDToken();
         sessionStorage.setItem("id_token", idToken);
 
-        await api.post("/api/user", {});
+        await api.post("/api/user", {
+          id_token: idToken,
+        });
 
         set({
           userId: context.userId,

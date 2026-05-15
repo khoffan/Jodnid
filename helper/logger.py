@@ -1,7 +1,10 @@
-from model.models import SystemLog
 import traceback
+
 from sqlmodel import Session
+
 from core.config_settings import settings
+from model.models import SystemLog
+
 
 class JodNidLogger:
     def __init__(self, db: Session):
@@ -21,9 +24,9 @@ class JodNidLogger:
             user_id=kwargs.get("user_id"),
             payload=kwargs.get("payload"),
             stack_trace=stack,
-            environment=self.env
+            environment=self.env,
         )
-        
+
         try:
             self.db.add(log_entry)
             self.db.commit()

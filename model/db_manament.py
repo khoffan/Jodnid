@@ -1,21 +1,34 @@
-from model.models import CategoryMapping, SystemConfiguration, Administrator, Categories
-from sqlmodel import Session, extract, select, and_, func, desc
-from model.models import UserBudget, engine, Users, Transactions, TempTransactions, Categories, Attachments
-from typing import List, Dict, Any, Optional
 import uuid
 from datetime import datetime
+from typing import Any, Dict, List
+
+from sqlmodel import Session, and_, desc, extract, func, select
+
+from model.models import (
+    Administrator,
+    Attachments,
+    Categories,
+    CategoryMapping,
+    SystemConfiguration,
+    TempTransactions,
+    Transactions,
+    UserBudget,
+    Users,
+    engine,
+)
+
 
 class DBManagerUsers:
     def __init__(self):
         pass
 
     # --- 1. จัดการ User (เหมือนเดิมแต่เพิ่ม Error Handling) ---
-    def get_or_create_user(line_user_id: str, profile: Dict = None):        
+    def get_or_create_user(self, line_user_id: str, profile: Dict = None):
         display_name = profile["display_name"] if profile else "Unknown User"
-        
+
         with Session(engine) as session:
             user = session.get(Users, line_user_id)
-            
+
             if not user:
                 # กรณี User ใหม่: สร้าง Record ใหม่
                 user = Users(line_user_id=line_user_id, display_name=display_name)
@@ -29,31 +42,37 @@ class DBManagerUsers:
                 if profile.get("picture_url") and user.picture_url != profile.get("picture_url"):
                     user.picture_url = profile.get("picture_url")
                 # หากมีฟิลด์รูปโปรไฟล์ (pictureUrl) ก็อัปเดตตรงนี้ได้เลย
-            
+
             session.commit()
             session.refresh(user)
             return user
+
 
 class DBManagerTransactions:
     def __init__(self):
         pass
 
     # --- 2. บันทึกข้อมูลชั่วคราว (เพิ่ม attachment_id และ source_type) ---
-    def save_temp_transaction(self,user_id: str, raw_data: List[Dict[str, Any]], 
-                            attachment_id: str = None, source_type: str = "text"):
+    def save_temp_transaction(
+        self,
+        user_id: str,
+        raw_data: List[Dict[str, Any]],
+        attachment_id: str = None,
+        source_type: str = "text",
+    ):
         with Session(engine) as session:
             temp_entry = TempTransactions(
-                user_id=user_id, 
+                user_id=user_id,
                 raw_data=raw_data,
                 attachment_id=attachment_id,
-                source_type=source_type
+                source_type=source_type,
             )
             session.add(temp_entry)
             session.commit()
             session.refresh(temp_entry)
             return temp_entry.id
 
-    def delete_temp_transaction(self,temp_id: str):
+    def delete_temp_transaction(self, temp_id: str):
         with Session(engine) as session:
             temp = session.get(TempTransactions, temp_id)
             if temp:
@@ -63,9 +82,18 @@ class DBManagerTransactions:
             return False
 
     # บันทึกจากชั่วคร่าวเข้าตารางจริง (รองรับทั้งกรณีมี Temp และไม่มี Temp)
-    def save_transaction(self,session: Session, temp: TempTransactions = None, user_id: str = None, edit: bool = False, items: List[Dict[str, Any]] = None):
+    def save_transaction(
+        self,
+        session: Session,
+        temp: TempTransactions = None,
+        user_id: str = None,
+        edit: bool = False,
+        items: List[Dict[str, Any]] = None,
+    ):
         # ดึงหมวด "อื่นๆ" ไว้รอเลย เผื่อต้องใช้ (Fallback)
-        statement_other = select(Categories).where(Categories.name == "อื่นๆ", Categories.parent_id == None)
+        statement_other = select(Categories).where(
+            Categories.name == "อื่นๆ", Categories.parent_id is None
+        )
         default_parent = session.exec(statement_other).first()
         if not default_parent:
             default_parent = Categories(name="อื่นๆ", icon="✨")
@@ -74,27 +102,26 @@ class DBManagerTransactions:
 
         total_amount = 0.0
         item_count = 0
-        updated_budgets_info = [] # เก็บข้อมูล Budget ที่ถูกอัปเดต
-        processed_parent_ids = set() # ป้องกันการดึง Budget ซ้ำถ้ามีหลายรายการใน Parent เดียวกัน
+        updated_budgets_info = []  # เก็บข้อมูล Budget ที่ถูกอัปเดต
+        processed_parent_ids = set()  # ป้องกันการดึง Budget ซ้ำถ้ามีหลายรายการใน Parent เดียวกัน
         now = datetime.now()
-        
+
         if edit:
             raw_data = items
-        elif temp == None:
+        elif temp is None:
             raw_data = items
         else:
             raw_data = temp.raw_data.get("transactions", [])
         for item in raw_data:
-            if not item.get('is_actual_item', True) or item.get("priority", True):
+            if not item.get("is_actual_item", True) or item.get("priority", True):
                 continue
-            raw_cat_name = str(item.get('category', 'อื่นๆ')).strip()
-            
+            raw_cat_name = str(item.get("category", "อื่นๆ")).strip()
+
             # 2. ค้นหาใน Mapping Table ก่อน
             # 1. ค้นหาใน Mapping Table (เช่น AI ส่ง "อาหาร" มา -> เจอ "อาหารและเครื่องดื่ม")
             mapping = session.exec(
                 select(CategoryMapping).where(CategoryMapping.alias_name == raw_cat_name)
             ).first()
-
             if mapping:
                 target_cat = mapping.category
             else:
@@ -102,35 +129,36 @@ class DBManagerTransactions:
                 target_cat = session.exec(
                     select(Categories).where(Categories.name == raw_cat_name)
                 ).first()
-                
+
                 # 3. ถ้ายังไม่เจออีก ลงหมวด "อื่นๆ"
                 if not target_cat:
                     # สร้างหมวดหมู่ย่อยใหม่เพื่อเก็บ Stat ในอนาคต
                     target_cat = Categories(
-                        name=raw_cat_name, 
-                        icon="📝", 
-                        parent_id=default_parent.id # ผูกไว้กับ "อื่นๆ" ก่อนในเบื้องต้น
+                        name=raw_cat_name,
+                        icon="📝",
+                        parent_id=default_parent.id,  # ผูกไว้กับ "อื่นๆ" ก่อนในเบื้องต้น
                     )
                     session.add(target_cat)
-                    session.flush() 
-                    
+                    session.flush()
+
                     # เพิ่มเข้า Mapping Table อัตโนมัติ เพื่อให้ครั้งหน้าไม่ต้องสร้างซ้ำ
-                    new_mapping = CategoryMapping(alias_name=raw_cat_name, category_id=target_cat.id)
+                    new_mapping = CategoryMapping(
+                        alias_name=raw_cat_name, category_id=target_cat.id
+                    )
                     session.add(new_mapping)
-            print(f"target cat {target_cat}")
             # 5. หา Parent ID เพื่อไปตัด Budget
             # (ถ้า target_cat มี parent_id ให้ใช้ parent_id, ถ้าไม่มีแสดงว่าเป็น Parent เองอยู่แล้ว)
             parent_id = target_cat.parent_id if target_cat.parent_id else target_cat.id
 
             # 2. บันทึก Transaction
-            amount = float(item.get('amount', 0))
+            amount = float(item.get("amount", 0))
             new_tx = Transactions(
                 user_id=(temp.user_id if temp else user_id),
                 amount=amount,
-                item_name=item.get('item') or item.get('receiver') or "ไม่ระบุรายการ",
-                transaction_type="expense", 
+                item_name=item.get("item") or item.get("receiver") or item.get("note") or "ไม่ระบุรายการ",
+                transaction_type="expense",
                 category_id=target_cat.id,
-                transaction_date=now
+                transaction_date=now,
             )
             session.add(new_tx)
 
@@ -139,10 +167,10 @@ class DBManagerTransactions:
                 UserBudget.user_id == (temp.user_id if temp else user_id),
                 UserBudget.category_id == parent_id,
                 UserBudget.month == now.month,
-                UserBudget.year == now.year
+                UserBudget.year == now.year,
             )
             budget = session.exec(statement_b).first()
-            
+
             if budget:
                 budget.current_spent += amount
                 session.add(budget)
@@ -151,41 +179,54 @@ class DBManagerTransactions:
 
             total_amount += amount
             item_count += 1
-        
+
         # 4. ลบ Temp และ Commit เพื่อให้ข้อมูลลง DB จริง
-        session.delete(temp)
+        if temp is not None:
+            session.delete(temp)
         session.commit()
 
         # 5. ดึงข้อมูล Budget ที่อัปเดตแล้วมาเตรียมส่งกลับ (ต้องดึงใหม่หลัง commit เพื่อความชัวร์)
         for b_id in processed_parent_ids:
             b = session.get(UserBudget, b_id)
             if b:
-                updated_budgets_info.append({
-                    "category_name": b.category.name,
-                    "amount": b.amount,
-                    "current_spent": b.current_spent,
-                    "icon": b.category.icon
-                })
-        
+                updated_budgets_info.append(
+                    {
+                        "category_name": b.category.name,
+                        "amount": b.amount,
+                        "current_spent": b.current_spent,
+                        "icon": b.category.icon,
+                    }
+                )
+
         return {
-            "count": item_count, 
+            "count": item_count,
             "total": total_amount,
-            "budgets": updated_budgets_info # ส่งข้อมูลสรุปงบกลับไป
+            "budgets": updated_budgets_info,  # ส่งข้อมูลสรุปงบกลับไป
         }
 
     # --- 3. ย้ายข้อมูลจาก Temp ไปเป็น Transaction จริง (รองรับ Category และ Attachment) ---
-    def confirm_and_save_transaction(self,temp_id: str = None, user_id: str = None,edit: bool = False, items: List[Dict[str, Any]] = None):
+    def confirm_and_save_transaction(
+        self,
+        temp_id: str = None,
+        user_id: str = None,
+        edit: bool = False,
+        items: List[Dict[str, Any]] = None,
+    ):
         with Session(engine) as session:
             # 1. ดึงข้อมูลชั่วคราว
-            if temp_id == None and items is not None:
-                return self.save_transaction(session=session, temp=None, user_id=user_id, edit=edit, items=items)
+            if temp_id is None and items is not None:
+                return self.save_transaction(
+                    session=session, temp=None, user_id=user_id, edit=edit, items=items
+                )
             temp = session.get(TempTransactions, temp_id)
             if not temp:
                 return False
-            return self.save_transaction(session=session, temp=temp, user_id=None, edit=edit, items=items)
+            return self.save_transaction(
+                session=session, temp=temp, user_id=None, edit=edit, items=items
+            )
 
     # --- 4. บันทึก Metadata ของรูปภาพ ---
-    def create_attachment_record(self,user_id: str, file_path: str, file_type: str = "image/jpeg"):
+    def create_attachment_record(self, user_id: str, file_path: str, file_type: str = "image/jpeg"):
         """
         สร้าง Record ในตาราง Attachments เพื่อเก็บ Path รูปที่บันทึกลง Disk แล้ว
         """
@@ -193,8 +234,8 @@ class DBManagerTransactions:
             new_attachment = Attachments(
                 id=str(uuid.uuid4()),
                 user_id=user_id,
-                file_path=file_path, # ควรเป็น Relative Path
-                file_type=file_type
+                file_path=file_path,  # ควรเป็น Relative Path
+                file_type=file_type,
             )
             session.add(new_attachment)
             session.commit()
@@ -202,7 +243,7 @@ class DBManagerTransactions:
             return new_attachment.id
 
     # ดึงข้อมูล temp transaction เพื่อแสดงผลก่อนยืนยัน (กรณีมี temp_id)
-    def get_temp_transaction_data(self,temp_id):
+    def get_temp_transaction_data(self, temp_id):
         with Session(engine) as session:
             statement = select(TempTransactions).where(TempTransactions.id == temp_id)
             return session.exec(statement).first()
@@ -212,35 +253,38 @@ class DBManagerTransactions:
             # ทำการ Join ระหว่าง Transactions และ Category โดยใช้ category_id
             statement = select(Transactions, Categories).join(Categories)
             results = session.exec(statement).all()
-            
+
             # แปลงผลลัพธ์ให้อยู่ในรูปแบบที่นำไปใช้งานต่อได้ง่าย (เช่น รวมข้อมูลเข้าด้วยกัน)
             combined_data = []
             for tx, cat in results:
-                tx_data = tx.model_dump() # หรือ tx.__dict__ ในกรณีใช้ SQLAlchemy ธรรมดา
+                tx_data = tx.model_dump()  # หรือ tx.__dict__ ในกรณีใช้ SQLAlchemy ธรรมดา
                 # เพิ่มข้อมูล category เข้าไปใน Transaction Object
                 tx_data["category_name"] = cat.name if cat else "ไม่มีหมวดหมู่"
                 combined_data.append(tx_data)
-                
+
             return combined_data
-        
-    def get_transaction_by_id(self,transaction_id: str):
+
+    def get_transaction_by_id(self, transaction_id: str):
         with Session(engine) as session:
             statement = select(Transactions).where(Transactions.id == transaction_id)
             return session.exec(statement).first()
 
+
 class DBManagerCategories:
     def __init__(self):
         pass
+
     # --- 5. จัดการ Category (เพื่อความง่ายในการเรียกใช้) ---
     def get_all_categories(self):
         with Session(engine) as session:
             statement = select(Categories)
             return session.exec(statement).all()
 
-    def get_category_by_name(self,name: str):
+    def get_category_by_name(self, name: str):
         with Session(engine) as session:
             statement = select(Categories).where(Categories.name == name)
             return session.exec(statement).first()
+
     def get_parent_categories(self) -> List[Categories]:
         """
         ดึงข้อมูลหมวดหมู่หลัก (Parent Categories) ทั้งหมดในระบบ
@@ -250,51 +294,59 @@ class DBManagerCategories:
             # เลือกเฉพาะรายการที่ไม่มี parent_id (เป็นรากของหมวดหมู่)
             statement = select(Categories).where(Categories.parent_id == None)
             results = session.exec(statement).all()
-            
+
             return results
+
 
 class DBManagerDashboard:
     def __init__(self):
         pass
-    def get_dashboard_data(self,user_id: str, type: str = "monthly",day: int = None, month: int = None, year: int = None):
+
+    def get_dashboard_data(
+        self,
+        user_id: str,
+        type: str = "monthly",
+        day: int = None,
+        month: int = None,
+        year: int = None,
+    ):
         with Session(engine) as session:
             now = datetime.now()
-            
 
             target_month = int(month) if month else now.month
             target_year = int(year) if year else now.year
             target_day = int(day) if day else now.day
             # สร้างเงื่อนไขพื้นฐาน (Filter by User)
             filters = [Transactions.user_id == user_id]
-            
+
             if type == "daily":
                 # --- Logic สำหรับรายวัน ---
                 # กรองเฉพาะ วัน/เดือน/ปี ปัจจุบัน
-                filters.append(extract('day', Transactions.transaction_date) == target_day)
-                filters.append(extract('month', Transactions.transaction_date) == target_month)
-                filters.append(extract('year', Transactions.transaction_date) == target_year)
+                filters.append(extract("day", Transactions.transaction_date) == target_day)
+                filters.append(extract("month", Transactions.transaction_date) == target_month)
+                filters.append(extract("year", Transactions.transaction_date) == target_year)
             else:
-                filters.append(extract('month', Transactions.transaction_date) == target_month)
-                filters.append(extract('year', Transactions.transaction_date) == target_year)
+                filters.append(extract("month", Transactions.transaction_date) == target_month)
+                filters.append(extract("year", Transactions.transaction_date) == target_year)
 
             # 1. ดึงข้อมูล Transactions พร้อมหมวดหมู่ (เรียงลำดับใหม่ล่าสุดขึ้นก่อน)
             statement = (
                 select(Transactions, Categories)
                 .join(Categories, isouter=True)
                 .where(and_(*filters))
-                .order_by(Transactions.transaction_date.desc()) # เอาล่าสุดขึ้นก่อน
+                .order_by(Transactions.transaction_date.desc())  # เอาล่าสุดขึ้นก่อน
             )
             results = session.exec(statement).all()
-            
+
             # 2. คำนวณยอดรวมและ Summary
             summary_by_cat = {}
             total_amount = 0
-            
+
             for tx, cat in results:
                 cat_name = cat.name if cat else "ทั่วไป"
                 summary_by_cat[cat_name] = summary_by_cat.get(cat_name, 0) + tx.amount
                 total_amount += tx.amount
-                
+
             return {
                 "total_amount": total_amount,
                 "summary": summary_by_cat,
@@ -302,27 +354,32 @@ class DBManagerDashboard:
                     {
                         "item": tx.item_name,
                         "amount": tx.amount,
-                        "date": tx.transaction_date.strftime("%H:%M" if type == "daily" else "%d/%m/%Y"), # ถ้ารายวันโชว์เป็นเวลาแทน
+                        "date": tx.transaction_date.strftime(
+                            "%H:%M" if type == "daily" else "%d/%m/%Y"
+                        ),  # ถ้ารายวันโชว์เป็นเวลาแทน
                         "icon": cat.icon if cat else "✨",
-                        "category": cat.name if cat else "ทั่วไป"
-                    } for tx, cat in results[:10]
-                ]
+                        "category": cat.name if cat else "ทั่วไป",
+                    }
+                    for tx, cat in results[:10]
+                ],
             }
+
 
 class DBManagerBudget:
     def __init__(self):
         pass
-    def setup_user_budget(self,user_id: str, category_id: int, amount: float):
+
+    def setup_user_budget(self, user_id: str, category_id: int, amount: float):
         with Session(engine) as session:
             now = datetime.now()
-            
+
             # 1. ตรวจสอบก่อนว่า category_id ที่ส่งมาคือ Parent Category จริงหรือไม่ (กันพลาด)
             category = session.get(Categories, category_id)
             print(f"category {category}")
             if not category or category.parent_id is not None:
                 return {
-                    "success": False, 
-                    "message": "กรุณาเลือกหมวดหมู่หลัก (Parent Category) ในการตั้งงบประมาณ"
+                    "success": False,
+                    "message": "กรุณาเลือกหมวดหมู่หลัก (Parent Category) ในการตั้งงบประมาณ",
                 }
 
             # 2. ค้นหาว่าในเดือน/ปี และหมวดหมู่นี้ User เคยตั้งงบไว้หรือยัง
@@ -330,10 +387,10 @@ class DBManagerBudget:
                 UserBudget.user_id == user_id,
                 UserBudget.category_id == category_id,
                 UserBudget.month == now.month,
-                UserBudget.year == now.year
+                UserBudget.year == now.year,
             )
             budget = session.exec(statement).first()
-            
+
             if budget:
                 # กรณีมีอยู่แล้ว -> อัปเดตยอดงบใหม่
                 budget.amount = amount
@@ -345,34 +402,30 @@ class DBManagerBudget:
                     amount=amount,
                     current_spent=0.0,
                     month=now.month,
-                    year=now.year
+                    year=now.year,
                 )
                 session.add(budget)
-                
-            session.commit()
-            return {
-                "success": True, 
-                "message": f"ตั้งงบประมาณหมวด {category.name} เรียบร้อยแล้วครับ"
-            }
-            
 
+            session.commit()
+            return {"success": True, "message": f"ตั้งงบประมาณหมวด {category.name} เรียบร้อยแล้วครับ"}
 
     def sync_user_budgets(self, session: Session, user_id: str, month: int, year: int):
         """
-        ฟังก์ชันสำหรับคำนวณยอดใช้จ่ายจริงจาก Transactions 
+        ฟังก์ชันสำหรับคำนวณยอดใช้จ่ายจริงจาก Transactions
         แล้วนำไปอัปเดตในตาราง UserBudget ให้เป็นปัจจุบันที่สุด
         """
         # 1. ดึงยอดรวมการใช้จ่ายแยกตามหมวดหมู่จาก Transactions จริงของเดือนนั้นๆ
         # สมมติว่า Transaction มีฟิลด์ category_id และ amount
-        spent_statement = select(
-            Transactions.category_id,
-            func.sum(Transactions.amount).label("total_spent")
-        ).where(
-            Transactions.user_id == user_id,
-            func.extract('month', Transactions.transaction_date) == month,
-            func.extract('year', Transactions.transaction_date) == year
-        ).group_by(Transactions.category_id)
-        
+        spent_statement = (
+            select(Transactions.category_id, func.sum(Transactions.amount).label("total_spent"))
+            .where(
+                Transactions.user_id == user_id,
+                func.extract("month", Transactions.transaction_date) == month,
+                func.extract("year", Transactions.transaction_date) == year,
+            )
+            .group_by(Transactions.category_id)
+        )
+
         actual_spent_results = session.exec(spent_statement).all()
 
         # 2. นำยอดที่ได้ไป Update ใน UserBudget
@@ -383,22 +436,23 @@ class DBManagerBudget:
                     UserBudget.user_id == user_id,
                     UserBudget.category_id == cat_id,
                     UserBudget.month == month,
-                    UserBudget.year == year
+                    UserBudget.year == year,
                 )
             ).first()
 
             if budget_record:
                 budget_record.current_spent = float(total_spent)
                 session.add(budget_record)
-        
-        session.commit() # บันทึกการอัปเดตทั้งหมด
+
+        session.commit()  # บันทึกการอัปเดตทั้งหมด
 
 
 class DBManagerAdmin:
     def __init__(self):
         pass
+
     # administrator db menament
-    def update_administrator_data_system(self,session: Session ,uid: str, email: str):
+    def update_administrator_data_system(self, session: Session, uid: str, email: str):
         admin = session.exec(select(Administrator).where(Administrator.uid == uid)).first()
         if admin:
             admin.email = email
@@ -413,32 +467,37 @@ class DBManagerAdmin:
             session.commit()
         session.refresh(admin)
         return {"success": True, "data": admin.dict()}
-        
-    def create_system_config(self,session: Session ,name: str, key: str, value: str, value_type: str, description: str):
+
+    def create_system_config(
+        self, session: Session, name: str, key: str, value: str, value_type: str, description: str
+    ):
         system_configuration = SystemConfiguration(
-            name=name,
-            key=key,
-            value=value,
-            value_type=value_type,
-            description=description
+            name=name, key=key, value=value, value_type=value_type, description=description
         )
         session.add(system_configuration)
         session.commit()
         session.refresh(system_configuration)
         return {"success": True, "data": system_configuration}
 
-    def get_system_config_data(self,session: Session):
+    def get_system_config_data(self, session: Session):
         statement = select(SystemConfiguration).order_by(desc(SystemConfiguration.created_at))
-        
+
         system_configuration = session.exec(statement).all()
         system_configuration_list = [config.dict() for config in system_configuration]
         return {"success": True, "data": system_configuration_list}
 
-    def update_system_config(self,session: Session, key: str, value: str, value_type: str = None, description: str = None):
+    def update_system_config(
+        self,
+        session: Session,
+        key: str,
+        value: str,
+        value_type: str = None,
+        description: str = None,
+    ):
         # 1. ค้นหา Config ด้วย Key
         statement = select(SystemConfiguration).where(SystemConfiguration.key == key)
         system_configuration = session.exec(statement).first()
-        
+
         if system_configuration:
             # 2. อัปเดตค่า (ตรวจสอบก่อนว่ามีการส่งค่าใหม่มาไหม)
             system_configuration.value = value
@@ -446,14 +505,14 @@ class DBManagerAdmin:
                 system_configuration.value_type = value_type
             if description:
                 system_configuration.description = description
-            
+
             # 3. อัปเดตเวลาแก้ไขล่าสุด
             system_configuration.updated_at = datetime.utcnow()
-            
+
             session.add(system_configuration)
             session.commit()
             session.refresh(system_configuration)
 
             return {"success": True, "data": system_configuration}
-            
+
         return {"success": False, "message": "System configuration not found"}

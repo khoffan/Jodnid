@@ -1,20 +1,18 @@
-from openai import OpenAI
 import json
+
+from openai import OpenAI
+
 
 def extract_transactions(api_key: str, user_prompt: str):
     """
     ฟังก์ชันสำหรับสกัดข้อมูลรายรับ-รายจ่ายจากข้อความผู้ใช้
     คืนค่าเป็น List ของ Dictionary หรือ None หากเกิดข้อผิดพลาด
     """
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://api.opentyphoon.ai/v1"
-    )
+    client = OpenAI(api_key=api_key, base_url="https://api.opentyphoon.ai/v1")
 
     system_prompt = (
         "คุณคือ 'AI สมุดบัญชีอัจฉริยะ' หน้าที่คือสกัดข้อมูลและจัดหมวดหมู่ให้ตรงกับฐานข้อมูลของระบบ JodNid\n"
         "เป้าหมาย: สกัดชื่อสินค้า ราคา และจัดเข้า 5 หมวดหมู่หลักตามที่กำหนดเท่านั้น\n\n"
-        
         "📋 กฎการจัดหมวดหมู่ (Category Mapping):\n"
         "ให้เลือกใช้ชื่อหมวดหมู่ที่ระบุไว้ด้านล่างนี้ 'เป๊ะๆ' เพื่อให้ระบบ Map เข้า Database ได้ถูกต้อง:\n"
         "1. 'อาหารและเครื่องดื่ม': อาหารสด/แห้ง, ขนม, กาแฟ, มื้ออาหาร, วัตถุดิบปรุงอาหาร\n"
@@ -22,9 +20,8 @@ def extract_transactions(api_key: str, user_prompt: str):
         "3. 'ที่อยู่อาศัยและของใช้': ค่าเช่าห้อง, ค่าผ่อนบ้าน/คอนโด, ค่าส่วนกลาง, ค่าน้ำ/ไฟ/เน็ต, ของใช้ในบ้าน\n"
         "4. 'ช้อปปิ้งและบันเทิง': เสื้อผ้า, ของฟุ่มเฟือย, เกม, เติมเกม, ดูหนัง, อุปกรณ์อิเล็กทรอนิกส์\n"
         "5. 'อื่นๆ': รายการที่ไม่เข้าพวกข้างต้น หรือยอดปรับสมดุล\n\n"
-
         "⚠️ กฎเหล็ก (Strict Rules):\n"
-        "1. ตอบเป็น JSON รูปแบบ: {\"grand_total\": float, \"transactions\": [...]} เท่านั้น\n"
+        '1. ตอบเป็น JSON รูปแบบ: {"grand_total": float, "transactions": [...]} เท่านั้น\n'
         "2. ยอดสุทธิ (grand_total): คือยอดเงินรวมทั้งหมดที่ต้องจ่ายจริงตามสลิป หากไม่พบให้ใส่ null\n"
         "3. ราคา (Amount): ดึงยอดเงินตามที่ปรากฏจริงหลังชื่อสินค้า (Face Value) ห้ามคำนวณ VAT เอง\n"
         "4. การระบุรายการจริง (is_actual_item):\n"
@@ -34,7 +31,6 @@ def extract_transactions(api_key: str, user_prompt: str):
         "   - true: สำหรับรายการเสริมที่ 'ต้องบวกเพิ่ม' เข้าไป (เช่น VAT หรือ Service Charge ที่ร้านแยกบรรทัดมาและยังไม่ได้รวมในราคาสินค้าด้านบน)\n"
         "   - false: สำหรับรายการสินค้าทั่วไป หรือรายการที่รวมทุกอย่างไว้แล้ว\n"
         "6. ความถูกต้อง: ผลรวมของรายการ (is_actual_item=true) + รายการ (priority=true) ต้องเท่ากับ grand_total เสมอ\n\n"
-
         "🔍 ฟิลด์ข้อมูลที่บังคับ:\n"
         "- grand_total: ยอดรวมสุทธิ (float หรือ null)\n"
         "- item: ชื่อสินค้า หรือ 'ภาษีมูลค่าเพิ่ม (VAT)'\n"
@@ -51,38 +47,36 @@ def extract_transactions(api_key: str, user_prompt: str):
             model="typhoon-v2.5-30b-a3b-instruct",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ],
-            temperature=0.1, # ปรับให้ต่ำลงเพื่อให้ผลลัพธ์คงที่ (Deterministic)
+            temperature=0.1,  # ปรับให้ต่ำลงเพื่อให้ผลลัพธ์คงที่ (Deterministic)
             max_tokens=3000,
             top_p=0.9,
-            response_format={"type": "json_object"} # บังคับให้ตอบเป็น JSON
+            response_format={"type": "json_object"},  # บังคับให้ตอบเป็น JSON
         )
 
         # ดึงเนื้อหาออกมา
         content = response.choices[0].message.content
         # แปลง String JSON เป็น Python List/Dict
         data = json.loads(content)
-        
+
         # ปรับ format เล็กน้อยเผื่อ LLM คืนค่ามาเป็น Dict ที่มี Key ครอบอีกที
         if isinstance(data["transactions"], dict) and "transactions" in data:
             return data
-        
+
         return data
 
     except Exception as e:
         print(f"Error extracting transactions: {e}")
         return None
 
+
 def is_transaction_message(api_key: str, user_prompt: str) -> bool:
     """
-    ใช้ AI ตรวจสอบว่าข้อความเป็นรายการรับ-จ่ายหรือไม่ 
+    ใช้ AI ตรวจสอบว่าข้อความเป็นรายการรับ-จ่ายหรือไม่
     คืนค่า True หากเป็นรายการ, False หากไม่ใช่
     """
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://api.opentyphoon.ai/v1"
-    )
+    client = OpenAI(api_key=api_key, base_url="https://api.opentyphoon.ai/v1")
 
     system_prompt = (
         "Check if the message is about financial transactions (income/expense/buy/sell/pay).\n"
@@ -94,15 +88,14 @@ def is_transaction_message(api_key: str, user_prompt: str) -> bool:
             model="typhoon-v2.5-30b-a3b-instruct",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ],
-            temperature=0, # ต้องการความแม่นยำสูงสุด
-            max_tokens=200  # ใช้ token น้อยมากเพราะตอบแค่คำเดียว
+            temperature=0,  # ต้องการความแม่นยำสูงสุด
+            max_tokens=200,  # ใช้ token น้อยมากเพราะตอบแค่คำเดียว
         )
 
         result = response.choices[0].message.content.strip().lower()
         return "true" in result
     except Exception as e:
         print(f"Validation Error: {e}")
-        return True # Fallback เป็น True เพื่อให้ไปเช็คต่อที่ตัวหลักหาก AI ตัวเล็กพัง
-
+        return True  # Fallback เป็น True เพื่อให้ไปเช็คต่อที่ตัวหลักหาก AI ตัวเล็กพัง

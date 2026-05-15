@@ -1,11 +1,14 @@
-from sqlmodel import select, Session
-from fastapi import Security, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from firebase_admin import auth, credentials
-import firebase_admin
-from model.models import Administrator, engine
-from core.config_settings import settings
 import json
+
+import firebase_admin
+from fastapi import HTTPException, Security, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from firebase_admin import auth, credentials
+from sqlmodel import Session, select
+
+from core.config_settings import settings
+from model.models import Administrator, engine
+
 # 1. Initialize Firebase (ควรใช้ environment variable เพื่อความปลอดภัย)
 if not firebase_admin._apps:
     try:
@@ -24,30 +27,31 @@ if not firebase_admin._apps:
 # ใช้ HTTPBearer เพื่อดักจับ Header "Authorization: Bearer <token>"
 security = HTTPBearer()
 
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
     """
     ฟังก์ชัน Dependency สำหรับตรวจสอบ Firebase ID Token
     """
     token = credentials.credentials
-    
+
     try:
         # 2. ตรวจสอบ Token กับ Firebase
         decoded_token = auth.verify_id_token(token)
-        
+
         # คืนค่าข้อมูล User (เช่น uid, email, name) ออกไปให้ Route เรียกใช้
-        statement = select(Administrator).where(Administrator.uid == decoded_token['uid'])
+        statement = select(Administrator).where(Administrator.uid == decoded_token["uid"])
         with Session(engine) as session:
             userAdmin = session.exec(statement).first()
-        
+
             if not userAdmin:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="User not found",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
-            
+
             return userAdmin
-        
+
     except auth.ExpiredIdTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

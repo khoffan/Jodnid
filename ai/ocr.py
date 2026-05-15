@@ -1,8 +1,10 @@
-from openai import OpenAI
-import requests
 import json
-import re
+
+import requests
+from openai import OpenAI
+
 from ai.text_nlp import extract_transactions
+
 
 def is_financial_document(api_key: str, ocr_text: str) -> bool:
     client = OpenAI(api_key=api_key, base_url="https://api.opentyphoon.ai/v1")
@@ -24,7 +26,7 @@ def is_financial_document(api_key: str, ocr_text: str) -> bool:
             model="typhoon-v2.5-30b-a3b-instruct",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": ocr_text[:1500]} # เพิ่มเป็น 1500 เผื่อหัวใบเสร็จยาว
+                {"role": "user", "content": ocr_text[:1500]},  # เพิ่มเป็น 1500 เผื่อหัวใบเสร็จยาว
             ],
             temperature=0,
             max_tokens=600,
@@ -35,7 +37,8 @@ def is_financial_document(api_key: str, ocr_text: str) -> bool:
         print(f"Image Validation Error: {e}")
         return True
 
-def extract_text_from_image(image_path,filename,api_key):
+
+def extract_text_from_image(image_path, filename, api_key):
     url = "https://api.opentyphoon.ai/v1/ocr"
     model = "typhoon-ocr"
     task_type = "default"
@@ -45,22 +48,20 @@ def extract_text_from_image(image_path,filename,api_key):
     repetition_penalty = 1.2
     pages = None
 
-    files = {'file': (filename, image_path, 'image/jpeg')}
+    files = {"file": (filename, image_path, "image/jpeg")}
     data = {
-            'model': model,
-            'task_type': task_type,
-            'max_tokens': str(max_tokens),
-            'temperature': str(temperature),
-            'top_p': str(top_p),
-            'repetition_penalty': str(repetition_penalty)
+        "model": model,
+        "task_type": task_type,
+        "max_tokens": str(max_tokens),
+        "temperature": str(temperature),
+        "top_p": str(top_p),
+        "repetition_penalty": str(repetition_penalty),
     }
 
     if pages:
-        data['pages'] = json.dumps(pages)
+        data["pages"] = json.dumps(pages)
 
-    headers = {
-            'Authorization': f'Bearer {api_key}'
-    }
+    headers = {"Authorization": f"Bearer {api_key}"}
 
     response = requests.post(url, files=files, data=data, headers=headers)
     if response.status_code == 200:
@@ -68,25 +69,28 @@ def extract_text_from_image(image_path,filename,api_key):
 
         # Extract text from successful results
         extracted_texts = []
-        for page_result in result.get('results', []):
-            if page_result.get('success') and page_result.get('message'):
-                content = page_result['message']['choices'][0]['message']['content']
+        for page_result in result.get("results", []):
+            if page_result.get("success") and page_result.get("message"):
+                content = page_result["message"]["choices"][0]["message"]["content"]
                 try:
                     # Try to parse as JSON if it's structured output
                     parsed_content = json.loads(content)
-                    text = parsed_content.get('natural_text', content)
+                    text = parsed_content.get("natural_text", content)
                 except json.JSONDecodeError:
                     text = content
                 extracted_texts.append(text)
-            elif not page_result.get('success'):
-                print(f"Error processing {page_result.get('filename', 'unknown')}: {page_result.get('error', 'Unknown error')}")
-        full_text = '\n'.join(extracted_texts)
+            elif not page_result.get("success"):
+                print(
+                    f"Error processing {page_result.get('filename', 'unknown')}: {page_result.get('error', 'Unknown error')}"
+                )
+        full_text = "\n".join(extracted_texts)
         if not is_financial_document(api_key, full_text):
-            print("The extracted text does not appear to be from a financial document. Skipping transaction extraction.")
+            print(
+                "The extracted text does not appear to be from a financial document. Skipping transaction extraction."
+            )
             return {"success": False, "error": "Not a financial document"}
 
         response = extract_transactions(api_key, full_text)
         return {"success": True, "text": response}
     else:
         return {"success": False, "error": response.text}
-       

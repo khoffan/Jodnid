@@ -15,13 +15,13 @@ export const useWebTransaction = create(() => ({
           Authorization: `Bearer ${token}`,
         },
       });
-      if (res.data.success) {
-        console.log("Transaction created successfully:", res.data);
+      if (res.data.detail.success) {
         return true;
       }
       return false;
     } catch (error) {
       console.error("Error creating transaction:", error);
+      return false;
     }
   },
 }));

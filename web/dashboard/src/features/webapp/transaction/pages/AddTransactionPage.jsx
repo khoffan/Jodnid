@@ -3,8 +3,6 @@ import { useNavigate } from "react-router";
 import api from "../../../../common/lib/api";
 import { useWebTransaction } from "../store/web.transaction.store";
 
-
-
 export default function AddTransactionPage() {
   const navigate = useNavigate();
   const { createTransaction } = useWebTransaction();
@@ -24,7 +22,9 @@ export default function AddTransactionPage() {
     category: true,
     date: true,
     note: true,
-  })
+    is_actual_item: false,
+    priority: false,
+  });
 
   // คำนวณสรุปยอดรวมของรายการที่กำลังจะบันทึก
   const totalIncome = items
@@ -43,12 +43,12 @@ export default function AddTransactionPage() {
         const res = await api.get(`/api/categories/parent`);
         setCategories(res.data);
         setCategory(res.data[0]?.name || "");
-      } catch(e) {
+      } catch (e) {
         console.error("Error fetching categories:", e);
       }
-    }
+    };
     fetchCatogories();
-  }, [])
+  }, []);
 
   // เพิ่มรายการลงในลิสต์ชั่วคราว
   const handleAddItem = (e) => {
@@ -82,6 +82,8 @@ export default function AddTransactionPage() {
       category,
       date,
       note: note,
+      is_actual_item: true, // กำหนดเป็นรายการจริงที่จะบันทึก
+      priority: false,
     };
 
     setItems([...items, newItem]);
@@ -94,6 +96,8 @@ export default function AddTransactionPage() {
       category: true,
       date: true,
       note: true,
+      is_actual_item: false,
+      priority: false,
     });
   };
 
@@ -109,19 +113,28 @@ export default function AddTransactionPage() {
       alert("กรุณาเพิ่มรายการอย่างน้อย 1 รายการก่อนบันทึก");
       return;
     }
-
     setIsLoading(true);
-    
-    console.log("Net balance:", Math.abs(netBalance));
-    console.log("Saving all transactions:", );
-    const newItems = items.map(i => ({amount: i.amount.toFixed(2), category: i.category, type: i.type, note: i.note, date: i.date }))
-    await createTransaction({
+    const newItems = items.map((i) => ({
+      amount: i.amount.toFixed(2),
+      category: i.category,
+      type: i.type,
+      note: i.note,
+      date: i.date,
+      is_actual_item: i.is_actual_item,
+      priority: false,
+    }));
+    const result = await createTransaction({
       total: Math.abs(netBalance).toFixed(2),
       items: newItems,
     });
-    // จำลองการทำงาน (Mock API)
+
     setIsLoading(false);
-    alert(`บันทึกรายการทั้งหมด ${newItems.length} รายการเรียบร้อยแล้ว! 📝`);
+    if (result) {
+      alert(`บันทึกรายการทั้งหมด ${newItems.length} รายการเรียบร้อยแล้ว! 📝`);
+      navigate("/");
+    } else {
+      alert("เกิดข้อผิดพลาดในการบันทึกรายการ กรุณาลองใหม่อีกครั้ง");
+    }
   };
 
   return (
@@ -136,9 +149,7 @@ export default function AddTransactionPage() {
             >
               💼
             </span>
-            <span className="font-bold text-gray-900 text-lg tracking-tight">
-              JodNid
-            </span>
+            <span className="font-bold text-gray-900 text-lg tracking-tight">JodNid</span>
           </div>
           <button
             onClick={() => navigate("/")}
@@ -211,16 +222,12 @@ export default function AddTransactionPage() {
                     step="0.01"
                   />
                   {validate.amount === false && (
-                    <p className="text-red-500 text-xs mt-1">
-                      กรุณาระบุจำนวนเงินที่มากกว่า 0
-                    </p>
+                    <p className="text-red-500 text-xs mt-1">กรุณาระบุจำนวนเงินที่มากกว่า 0</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    หมวดหมู่
-                  </label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">หมวดหมู่</label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
@@ -233,17 +240,13 @@ export default function AddTransactionPage() {
                     ))}
                   </select>
                   {validate.category === false && (
-                    <p className="text-red-500 text-xs mt-1">
-                      กรุณาเลือกหมวดหมู่
-                    </p>
+                    <p className="text-red-500 text-xs mt-1">กรุณาเลือกหมวดหมู่</p>
                   )}
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">
-                  วันที่
-                </label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">วันที่</label>
                 <input
                   type="date"
                   value={date}
@@ -265,9 +268,7 @@ export default function AddTransactionPage() {
                   className="w-full px-4 py-3.5 border border-gray-200  rounded-xl focus:ring-4 focus:ring-green-100 focus:border-green-400 outline-none resize-none transition-all bg-gray-50/20"
                 />
                 {validate.note === false && (
-                  <p className="text-red-500 text-xs mt-1">
-                    กรุณาระบุหมายเหตุ
-                  </p>
+                  <p className="text-red-500 text-xs mt-1">กรุณาระบุหมายเหตุ</p>
                 )}
               </div>
 
@@ -291,9 +292,7 @@ export default function AddTransactionPage() {
               <div className="space-y-4 border-b border-gray-100 pb-4 mb-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">รายการทั้งหมด</span>
-                  <span className="font-bold text-gray-700">
-                    {items.length} รายการ
-                  </span>
+                  <span className="font-bold text-gray-700">{items.length} รายการ</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">รวมรายรับ</span>
@@ -316,9 +315,7 @@ export default function AddTransactionPage() {
               </div>
 
               <div className="flex justify-between items-center mb-6">
-                <span className="text-sm font-semibold text-gray-700">
-                  คงเหลือสุทธิ
-                </span>
+                <span className="text-sm font-semibold text-gray-700">คงเหลือสุทธิ</span>
                 <span
                   className={`text-xl font-extrabold tracking-tight ${
                     netBalance >= 0 ? "text-green-600" : "text-red-600"
@@ -335,9 +332,7 @@ export default function AddTransactionPage() {
                 onClick={handleSubmitAll}
                 disabled={isLoading || items.length === 0}
                 className={`w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-sm active:scale-[0.98] transition-all flex items-center justify-center text-sm tracking-wide ${
-                  isLoading || items.length === 0
-                    ? "opacity-50 cursor-not-allowed"
-                    : ""
+                  isLoading || items.length === 0 ? "opacity-50 cursor-not-allowed" : ""
                 }`}
               >
                 {isLoading ? (
@@ -369,9 +364,7 @@ export default function AddTransactionPage() {
 
             {/* ลิสต์รายการย่อยที่เพิ่มแล้ว */}
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex-1 max-h-[350px] overflow-y-auto">
-              <h3 className="text-sm font-bold text-gray-800 mb-4">
-                รายการที่กำลังเพิ่ม
-              </h3>
+              <h3 className="text-sm font-bold text-gray-800 mb-4">รายการที่กำลังเพิ่ม</h3>
 
               {items.length === 0 ? (
                 <div className="text-center py-12 text-gray-400 text-xs">
@@ -385,13 +378,9 @@ export default function AddTransactionPage() {
                       className="flex items-center justify-between p-3 border border-gray-50 bg-gray-50/50 rounded-xl"
                     >
                       <div className="flex items-center gap-3">
+                        <div></div>
                         <div>
-
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-gray-800">
-                            {item.note}
-                          </p>
+                          <p className="text-xs font-bold text-gray-800">{item.note}</p>
                           <p className="text-[10px] text-gray-400">
                             {item.category} • {item.date}
                           </p>
@@ -401,9 +390,7 @@ export default function AddTransactionPage() {
                       <div className="flex items-center gap-3">
                         <span
                           className={`text-xs font-extrabold ${
-                            item.type === "income"
-                              ? "text-green-600"
-                              : "text-red-600"
+                            item.type === "income" ? "text-green-600" : "text-red-600"
                           }`}
                         >
                           {item.type === "income" ? "+" : "-"}฿

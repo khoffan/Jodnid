@@ -20,27 +20,27 @@ export const useWebAuthStore = create((set) => ({
     set({ loading: true, error: null });
 
     const urlParams = new URLSearchParams(window.location.search);
-    // const isWebApp = urlParams.get("webapp") === "true" || !liff.isInClient();
-    // console.log("Initializing app - isWebApp:", isWebApp, "LIFF Context:", !liff.isInClient());
-    // // 🔹 กรณีเปิดผ่าน Web Browser / Desktop
-    // if (isWebApp) {
-    //   const user = sessionStorage.getItem("user_info");
-    //   if (!user) {
-    //     set({
-    //       isWebApp: true,
-    //       error: "กรุณาเข้าสู่ระบบผ่าน LINE ก่อนใช้งาน",
-    //       loading: false,
-    //     });
-    //     return;
-    //   }
-    //   set({
-    //     isWebApp: true,
-    //     user: user ? JSON.parse(user) : null,
-    //     isAuth: true,
-    //     loading: false,
-    //   });
-    //   return;
-    // }
+    const isWebApp = urlParams.get("webapp") === "true" || !liff.isInClient();
+    console.log("Initializing app - isWebApp:", isWebApp, "LIFF Context:", !liff.isInClient());
+    // 🔹 กรณีเปิดผ่าน Web Browser / Desktop
+    if (isWebApp) {
+      const user = sessionStorage.getItem("user_info");
+      if (!user) {
+        set({
+          isWebApp: true,
+          error: "กรุณาเข้าสู่ระบบผ่าน LINE ก่อนใช้งาน",
+          loading: false,
+        });
+        return;
+      }
+      set({
+        isWebApp: true,
+        user: user ? JSON.parse(user) : null,
+        isAuth: true,
+        loading: false,
+      });
+      return;
+    }
 
     // 🔹 กรณีเปิดผ่าน LINE LIFF Client
 

@@ -49,6 +49,7 @@ export const useWebAuthStore = create((set) => ({
       : import.meta.env.VITE_LINE_LIFF_ID;
 
     if (!liffId) {
+      console.error("LIFF ID is not defined in environment variables");
       set({
         error: "เกิดข้อผิดพลาด: ไม่พบ LIFF ID กรุณาตรวจสอบไฟล์ .env",
         loading: false,
@@ -79,6 +80,7 @@ export const useWebAuthStore = create((set) => ({
           navigate(targetPath);
         }
       } else {
+        liff.login();
         // ยังไม่ล็อกอิน ให้แสดงปุ่มให้ผู้ใช้กด
         set({ loading: false, isAuth: false });
       }

@@ -48,7 +48,9 @@ export const useWebAuthStore = create((set) => ({
       ? import.meta.env.VITE_LINE_LIFF_ID_TEST
       : import.meta.env.VITE_LINE_LIFF_ID;
 
-    if (!liffId) {
+    if (import.meta.env.VITE_ENV === "production") {
+      liffId = import.meta.env.VITE_LINE_LIFF_ID;
+    } else if (!liffId) {
       console.error("LIFF ID is not defined in environment variables");
       set({
         error: "เกิดข้อผิดพลาด: ไม่พบ LIFF ID กรุณาตรวจสอบไฟล์ .env",

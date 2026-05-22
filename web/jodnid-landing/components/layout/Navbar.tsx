@@ -34,7 +34,7 @@ const Navbar: React.FC = () => {
             </Link>
           ))}
           <Button size="sm" variant="line">เพิ่มเพื่อน</Button>
-          <Button size="sm" variant="web" navigate="https://jodnid.vercel.app" imageSrc="https://www.flaticon.com/free-icon/internet_6803408" >เริ่มเลย</Button>
+          <Button size="sm" variant="web" navigate="https://jodnid.vercel.app" imageSrc="/internet.png" >เริ่มเลย</Button>
         </div>
 
         {/* Mobile Button (Simple Version) */}

@@ -1,14 +1,46 @@
 import { create } from "zustand";
 import { auth } from "../../../common/firebase/firebase_config";
-import {
-  signInWithEmailAndPassword,
-  signOut,
-  createUserWithEmailAndPassword,
-} from "firebase/auth";
+import { signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import api from "../../../common/lib/api";
+
 const useAuthStore = create((set) => ({
   user: null,
   isLoading: true,
+  initializeAuth: () => {
+    set({ isLoading: true });
+
+    // onAuthStateChanged จะทำงานเมื่อเปิดแอป หรือเมื่อ Firebase แอบ Refresh Token สำเร็จ
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          // ดึง idToken ล่าสุด (ถ้าใกล้หมดอายุ หรือหมดแล้วมันจะ Refresh ให้เองเบื้องหลัง)
+          const idToken = await firebaseUser.getIdToken();
+          sessionStorage.setItem("token", idToken);
+
+          // ดึงข้อมูลผู้ใช้จาก Backend มา Sync
+          const res = await api.post("/api/administrator/sync", {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            name: firebaseUser.displayName,
+            phone: firebaseUser.phoneNumber,
+            profile: firebaseUser.photoURL,
+          });
+
+          set({ user: res.data.data, isLoading: false });
+        } catch (error) {
+          console.error("Error syncing user data:", error);
+          set({ user: null, isLoading: false });
+        }
+      } else {
+        // ไม่มีผู้ใช้ล็อกอินอยู่ หรือกด SignOut ไปแล้ว
+        sessionStorage.removeItem("token");
+        set({ user: null, isLoading: false });
+      }
+    });
+
+    return unsubscribe;
+  },
+
   signIn: async (email, password) => {
     try {
       set({ isLoading: true });
@@ -47,7 +79,5 @@ const useAuthStore = create((set) => ({
     set({ user: null, isLoading: false });
   },
 }));
-
-// Listen for auth state changes
 
 export default useAuthStore;

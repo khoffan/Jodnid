@@ -1,7 +1,6 @@
 import axios from "axios";
 import { config } from "../config/config";
 import { auth } from "../firebase/firebase_config";
-import { getIdToken } from "firebase/auth";
 
 const api = axios.create({
   // ดึงค่าจาก .env หรือใส่ URL ตรงๆ (แนะนำให้ใช้ .env)
@@ -13,16 +12,27 @@ const api = axios.create({
   },
 });
 
-api.interceptors.request.use(async (config) => {
-  const token = sessionStorage.getItem("token");
-  if (!token) {
-    const newToken = await getIdToken(auth.currentUser);
-    sessionStorage.setItem("token", newToken);
-    config.headers.Authorization = `Bearer ${newToken}`;
-  } else {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+api.interceptors.request.use(
+  async (config) => {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      // ดึง Token ล่าสุด หากหมดอายุ Firebase SDK จะจัดการทำ Refresh token ให้ทันที
+      // การใส่พารามิเตอร์ true ลงไปใน getIdToken(true) จะเป็นการบังคับ Force Refresh (หากต้องการชัวร์ๆ)
+      // แต่ปกติเรียกธรรมดา getIdToken() ก็เพียงพอแล้วครับ มันฉลาดพอจะสลับใบเมื่อใบเก่าใกล้หมดอายุ
+      const token = await currentUser.getIdToken();
+      config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      // กรณีเพิ่งเปิดแอปและ Firebase ยังโหลดไม่เสร็จ ให้ดึงจาก Storage ประทังไปก่อน
+      const token = sessionStorage.getItem("token");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  },
+);
 
 export default api;

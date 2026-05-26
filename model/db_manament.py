@@ -16,6 +16,7 @@ from model.models import (
     Users,
     engine,
 )
+from model.permissionEnum import PermissionEnum
 
 
 class DBManagerUsers:
@@ -155,7 +156,10 @@ class DBManagerTransactions:
             new_tx = Transactions(
                 user_id=(temp.user_id if temp else user_id),
                 amount=amount,
-                item_name=item.get("item") or item.get("receiver") or item.get("note") or "ไม่ระบุรายการ",
+                item_name=item.get("item")
+                or item.get("receiver")
+                or item.get("note")
+                or "ไม่ระบุรายการ",
                 transaction_type="expense",
                 category_id=target_cat.id,
                 transaction_date=now,
@@ -516,3 +520,12 @@ class DBManagerAdmin:
             return {"success": True, "data": system_configuration}
 
         return {"success": False, "message": "System configuration not found"}
+
+    def create_role(
+        self,
+        session: Session,
+        name: str,
+        description: str = None,
+        permissions: List[PermissionEnum] = [],
+    ):
+        pass

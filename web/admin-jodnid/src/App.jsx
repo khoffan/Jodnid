@@ -1,10 +1,8 @@
 import { useEffect } from "react";
 import { Routes, Route } from "react-router";
 import { SystemConfiguration } from "./features/systemConfiguration/pages/SystemConfiguration";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "./common/firebase/firebase_config";
 
-import AdminNavbar from "./common/components/AdminNavbar";
+import Sidebar from "./common/components/Sidebar";
 import LoginPage from "./features/authentication/pages/LoginPage";
 import AuthGuard from "./common/guard/authGuard";
 import useAuthStore from "./features/authentication/store/auth.store";
@@ -21,12 +19,9 @@ const element = (
 );
 
 export default function App() {
-  const { user, isLoading } = useAuthStore();
+  const { initializeAuth, isLoading, user } = useAuthStore();
   useEffect(() => {
-    const subscription = onAuthStateChanged(auth, (user) => {
-      useAuthStore.setState({ user, isLoading: false });
-    });
-    return () => subscription();
+    return initializeAuth();
   }, []);
 
   if (isLoading) {
@@ -37,9 +32,15 @@ export default function App() {
     );
   }
   return (
-    <div>
-      {user && <AdminNavbar />}
-      {element}
+    // 💡 ใช้ flex เพื่อจัดเซ็ตแนวแกน X (ซ้าย-ขวา) และจำกัดความสูงเต็มหน้าจอ
+    <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-950 overflow-hidden">
+      {/* ฝั่งซ้าย: เรนเดอร์ Sidebar ถ้ามี user */}
+      {user && <Sidebar />}
+
+      {/* ฝั่งขวา: พื้นที่แสดงเนื้อหาหลักของแต่ละหน้าจอ */}
+      <main className="flex-1 h-full overflow-y-auto p-6 text-slate-800 dark:text-slate-100">
+        {element}
+      </main>
     </div>
   );
 }

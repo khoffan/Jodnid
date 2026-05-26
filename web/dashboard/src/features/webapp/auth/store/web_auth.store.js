@@ -98,9 +98,14 @@ export const useWebAuthStore = create((set) => ({
     // 🔹 ตรวจสอบว่าใช้งานผ่าน LIFF หรือไม่
     if (!liff.isInClient()) {
       // 🌐 กรณีใช้ผ่าน Web Browser ทั่วไป ให้ Redirect ไปยังหน้า LINE Login (Web)
-      const clientId = testMode
-        ? import.meta.env.VITE_LINE_CHANNEL_ID_TEST
-        : import.meta.env.VITE_LINE_CHANNEL_ID;
+      let clientId;
+      if (import.meta.env.VITE_ENV === "production") {
+        clientId = import.meta.env.VITE_LINE_CHANNEL_ID;
+      } else {
+        clientId = testMode
+          ? import.meta.env.VITE_LINE_CHANNEL_ID_TEST
+          : import.meta.env.VITE_LINE_CHANNEL_ID;
+      }
 
       const redirectUri = window.location.origin + "/login/callback";
       const state = Math.random().toString(36).substring(7);

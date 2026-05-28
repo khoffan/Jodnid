@@ -19,11 +19,8 @@ from model.models import (
 
 
 class DBManagerUsers:
-    def __init__(self):
-        pass
-
-    # --- 1. จัดการ User (เหมือนเดิมแต่เพิ่ม Error Handling) ---
-    def get_or_create_user(self, line_user_id: str, profile: Dict = None):
+    @staticmethod
+    def get_or_create_user(line_user_id: str, profile: Dict = None) -> Users:
         display_name = profile["display_name"] if profile else "Unknown User"
 
         with Session(engine) as session:
@@ -41,11 +38,53 @@ class DBManagerUsers:
                     user.email = profile.get("email")
                 if profile.get("picture_url") and user.picture_url != profile.get("picture_url"):
                     user.picture_url = profile.get("picture_url")
-                # หากมีฟิลด์รูปโปรไฟล์ (pictureUrl) ก็อัปเดตตรงนี้ได้เลย
 
             session.commit()
             session.refresh(user)
             return user
+    
+    @staticmethod
+    def update_user_config(line_user_id: str, update_data: Dict[str, Any]) -> bool:
+        """
+        ฟังก์ชันสำหรับอัปเดตข้อมูล Profile/Config แบบ PATCH (เปลี่ยนเฉพาะฟิลด์ที่ส่งมา)
+        รองรับการทำงานกับ SQLModel Session โดยตรง
+        :param line_user_id: ID ของผู้ใช้ LINE (Primary Key)
+        :param update_data: Dict ข้อมูลที่ต้องการอัปเดต (เช่น {"use_bypass_mode": True})
+        """
+        try:
+            with Session(engine) as session:
+                # 1. ดึงข้อมูลปัจจุบันของผู้ใช้จาก Database
+                user = session.get(Users, line_user_id)
+
+                if not user:
+                    print(f"User not found: {line_user_id}")
+                    return False
+
+                # 🛡️ Whitelist: เฉพาะฟิลด์ในโมเดล Users ที่เราอนุญาตให้สลับค่าแบบ PATCH ได้
+                allowed_fields = {"display_name", "email", "picture_url", "use_bypass_mode"}
+
+                # 2. ตรวจสอบและวนลูปอัปเดตค่าที่ส่งมาจากชิ้นงานฝั่ง Webhook
+                has_changes = False
+                for key, value in update_data.items():
+                    if key in allowed_fields:
+                        # เช็คว่าค่าใหม่ต่างจากค่าเดิมใน DB ไหม ป้องกันการสั่ง Update ซ้ำโดยไม่จำเป็น
+                        if getattr(user, key) != value:
+                            setattr(user, key, value)
+                            has_changes = True
+
+                # 3. สั่ง Commit เฉพาะเมื่อตรวจสอบพบข้อมูลเปลี่ยนแปลงจริง
+                if has_changes:
+                    session.add(user)
+                    session.commit()
+                    print(f"Successfully PATCH updated profile for user: {line_user_id}")
+                else:
+                    print("No changes detected, skip DB write.")
+
+                return True
+
+        except Exception as e:
+            print(f"Failed to update user config: {str(e)}")
+            return False
 
 
 class DBManagerTransactions:
@@ -89,6 +128,8 @@ class DBManagerTransactions:
         user_id: str = None,
         edit: bool = False,
         items: List[Dict[str, Any]] = None,
+        skip_confirm: bool = False,
+        attachment_id: str = None,
     ):
         # ดึงหมวด "อื่นๆ" ไว้รอเลย เผื่อต้องใช้ (Fallback)
         statement_other = select(Categories).where(
@@ -155,10 +196,16 @@ class DBManagerTransactions:
             new_tx = Transactions(
                 user_id=(temp.user_id if temp else user_id),
                 amount=amount,
-                item_name=item.get("item") or item.get("receiver") or item.get("note") or "ไม่ระบุรายการ",
+                item_name=item.get("item")
+                or item.get("receiver")
+                or item.get("note")
+                or "ไม่ระบุรายการ",
                 transaction_type="expense",
                 category_id=target_cat.id,
                 transaction_date=now,
+                source_type=item.get("source_type", "text"),
+                is_confirmed=not skip_confirm,
+                attachment_id=attachment_id if attachment_id else (temp.attachment_id if temp else None),
             )
             session.add(new_tx)
 
@@ -211,18 +258,31 @@ class DBManagerTransactions:
         user_id: str = None,
         edit: bool = False,
         items: List[Dict[str, Any]] = None,
+        attachment_id: str = None,
+        skip_confirm: bool = False,
     ):
         with Session(engine) as session:
             # 1. ดึงข้อมูลชั่วคราว
             if temp_id is None and items is not None:
                 return self.save_transaction(
-                    session=session, temp=None, user_id=user_id, edit=edit, items=items
+                    session=session,
+                    temp=None,
+                    user_id=user_id,
+                    edit=edit,
+                    items=items,
+                    skip_confirm=skip_confirm,
+                    attachment_id=attachment_id,
                 )
             temp = session.get(TempTransactions, temp_id)
             if not temp:
                 return False
             return self.save_transaction(
-                session=session, temp=temp, user_id=None, edit=edit, items=items
+                session=session,
+                temp=temp,
+                user_id=None,
+                edit=edit,
+                items=items,
+                skip_confirm=skip_confirm,
             )
 
     # --- 4. บันทึก Metadata ของรูปภาพ ---

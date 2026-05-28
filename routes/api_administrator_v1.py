@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
 from helper.logger import JodNidLogger
-from helper.utils import clear_config_cache, get_all_users, get_line_profile
+from helper.utils import Utilities
 from middleware.auth import get_current_user
 from model.db_manament import DBManagerAdmin
 from model.models import Administrator, get_session
@@ -19,11 +19,10 @@ class AdministratorAPIs:
     def setup_router(self):
         router = self.router
         logger = self.logger
-        users = get_all_users(next(get_session()))
+        users = Utilities.get_all_users(next(get_session()))
         user_id = None
         for user in users:
-            profile = get_line_profile(user_id=user.line_user_id, line_token=self.line_access_token)
-            user_id = profile.get("userId")
+            user_id = user.line_user_id
 
         # administrator service
         @router.post("/sync")
@@ -93,7 +92,7 @@ class AdministratorAPIs:
             description = data.get("description")
             if not key or not value:
                 return {"success": False, "message": "Missing key or value"}
-            clear_config_cache()
+            Utilities.clear_config_cache()
             logger.info(
                 module="app",
                 message=f"Updating system configuration for key: {key}, value: {value}, value_type: {value_type}, description: {description}",
@@ -111,7 +110,7 @@ class AdministratorAPIs:
             value = data.get("value")
             if not key or not value:
                 return {"success": False, "message": "Missing key or value"}
-            clear_config_cache()
+            Utilities.clear_config_cache()
             logger.info(
                 module="app",
                 message=f"Toggling system configuration for key: {key}, value: {value}",

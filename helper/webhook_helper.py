@@ -2,24 +2,40 @@
 import re
 from typing import Any, Dict, List
 
+from linebot.v3.messaging import (
+    PostbackAction,
+    QuickReply,
+    QuickReplyItem,
+)
+
 from ai.ocr import extract_text_from_image
 from ai.text_nlp import extract_transactions, is_transaction_message
 from helper.logger import JodNidLogger
-from helper.utils import (
-    create_dynamic_flex_receipt,
-    get_content_line,
-    get_instruction_flex,
-    get_line_profile,
-    pre_process_image_file,
-    save_line_image,
-    send_line_reply_v3,
-    send_loading_indicator_v3,
-    send_push_notification,
-)
+from helper.utils import LineUtils, Utilities
 from model.db_manament import DBManagerTransactions, DBManagerUsers
+from model.models import Users
 
 manager_transactions = DBManagerTransactions()
-manager_users = DBManagerUsers()
+
+
+def get_bypass_quick_reply(skip_confirmation: bool) -> QuickReply:
+    """สร้างปุ่มกลมใต้แชท เพื่อสลับสถานะโหมดบันทึกด่วนตามจริงของผู้ใช้"""
+    if skip_confirmation:
+        button_text = "🛡️ ปิดโหมดบันทึกด่วน"
+        postback_data = "action=set_bypass&value=false"
+    else:
+        button_text = "⚡ เปิดโหมดบันทึกด่วน"
+        postback_data = "action=set_bypass&value=true"
+
+    return QuickReply(
+        items=[
+            QuickReplyItem(
+                action=PostbackAction(
+                    label=button_text, data=postback_data, display_text=f"ขอ{button_text}ครับ"
+                )
+            )
+        ]
+    )
 
 
 async def process_webhook_event(
@@ -31,10 +47,10 @@ async def process_webhook_event(
     logger: JodNidLogger,
 ):
     event_type = event.get("type")
-    profile = get_line_profile(user_id=user_id, line_token=line_access_token)
+    profile = LineUtils.get_line_profile(user_id=user_id, line_token=line_access_token)
 
     # ดึงค่า User (หรือสร้างถ้ายังไม่มี)
-    manager_users.get_or_create_user(
+    user_data = DBManagerUsers.get_or_create_user(
         line_user_id=user_id,
         profile={
             "display_name": profile.get("displayName"),
@@ -57,7 +73,7 @@ async def process_webhook_event(
             #     return
             # Logic: เช็ค Keywords และเรียก AI (ย้ายจาก Webhook มาที่นี่)
             await handle_text_message(
-                user_id, user_text, reply_token, line_access_token, api_key, logger
+                user_id, user_text, reply_token, line_access_token, api_key, logger, user_data
             )
 
         # --- กรณีเป็น Image (งานที่หนักที่สุด) ---
@@ -72,7 +88,7 @@ async def process_webhook_event(
             #     return
             # ย้าย Logic การทำ OCR และ Extract ไปไว้ในฟังก์ชันย่อย
             await handle_image_message(
-                user_id, message_id, reply_token, line_access_token, api_key, logger
+                user_id, message_id, reply_token, line_access_token, api_key, logger, user_data
             )
 
     elif event_type == "postback":
@@ -91,6 +107,7 @@ async def handle_text_message(
     line_access_token: str,
     api_key: str,
     logger: JodNidLogger,
+    user_record: Users,
 ):
     try:
         HELPER_KEYWORDS = [
@@ -124,8 +141,8 @@ async def handle_text_message(
             logger.info(
                 module="webhook_text_ai", message="processing helper keywords", user_id=user_id
             )
-            send_push_notification(
-                user_id, alt_text="คําแนะนำ", content=get_instruction_flex()
+            LineUtils.send_push_notification(
+                user_id, alt_text="คําแนะนำ", content=LineUtils.get_instruction_flex()
             )  # ส่ง Flex คำแนะนำที่เราคุยกัน
 
         # --- 2. คำทักทาย (Greetings) ---
@@ -133,14 +150,14 @@ async def handle_text_message(
             logger.info(
                 module="webhook_text_ai", message="processing greeting keywords", user_id=user_id
             )
-            profile = get_line_profile(user_id=user_id, line_token=line_access_token)
+            profile = LineUtils.get_line_profile(user_id=user_id, line_token=line_access_token)
             user_name = profile.get("displayName", "คุณ")
             greeting_text = (
                 f"สวัสดีครับคุณ {user_name}! 🙏\n"
                 "ผม 'จดนิด' พร้อมช่วยบันทึกรายจ่ายให้คุณแล้ว\n"
                 "ลองพิมพ์ 'ค่าข้าว 60' หรือส่งรูปสลิปมาได้เลยครับ"
             )
-            send_push_notification(user_id, content=greeting_text, alt_text="สวัสดีครับ")
+            LineUtils.send_push_notification(user_id, content=greeting_text, alt_text="สวัสดีครับ")
 
         # --- STEP B: ดักจับรูปแบบยอดฮิตด้วย Regex (เร็วมาก - 0ms) ---
         # Pattern: [ข้อความ] ตามด้วย [ตัวเลข] เช่น "กะเพรา 50" หรือ "โอน 100"
@@ -160,14 +177,14 @@ async def handle_text_message(
                 user_id=user_id,
             )
             # ส่ง loading indicator เฉพาะตอนที่ต้องรอ AI นานๆ
-            send_loading_indicator_v3(user_id=user_id, seconds=5)
+            LineUtils.send_loading_indicator_v3(user_id=user_id, seconds=5)
             is_transaction = is_transaction_message(api_key, user_text)
 
         if is_transaction:
             logger.info(
                 module="webhook_text_ai", message="processing transaction message", user_id=user_id
             )
-            send_line_reply_v3(reply_token, text="จดนิดกำลังวิเคราะห์รายการให้นะครับ... ⏳")
+            LineUtils.send_line_reply_v3(reply_token, text="จดนิดกำลังวิเคราะห์รายการให้นะครับ... ⏳")
             # ส่งไปให้ Typhoon วิเคราะห์รายการ
             final_transactions = extract_transactions(api_key, user_text)
             logger.info(
@@ -175,10 +192,36 @@ async def handle_text_message(
                 message=f"Extracted Transactions: {final_transactions}",
                 user_id=user_id,
             )
-            temp_id = manager_transactions.save_temp_transaction(user_id, final_transactions)
+            skip_confirm = getattr(user_record, "use_bypass_mode", False)
+            quick_reply = get_bypass_quick_reply(skip_confirm)
+            if skip_confirm:
+                items = (
+                    final_transactions.get("transactions")
+                    if isinstance(final_transactions, dict)
+                    else final_transactions
+                )
+                result = manager_transactions.confirm_and_save_transaction(
+                    items=items, user_id=user_id, skip_confirm=skip_confirm
+                )
 
-            flex_msg = create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
-            send_push_notification(user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ")
+                logger.info(
+                    module="webhook_bypass_mode_text", message=f"result: {result}", user_id=user_id
+                )
+                flex_msg = LineUtils.create_dynamic_flex_receipt(
+                    final_transactions, skip_confirm=skip_confirm
+                )
+                LineUtils.send_push_notification(
+                    user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ", quick_reply=quick_reply
+                )
+            else:
+                temp_id = manager_transactions.save_temp_transaction(user_id, final_transactions)
+
+                flex_msg = LineUtils.create_dynamic_flex_receipt(
+                    final_transactions, temp_id=temp_id
+                )
+                LineUtils.send_push_notification(
+                    user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ", quick_reply=quick_reply
+                )
         else:
             logger.info(
                 module="webhook_text_ai", message="Not a transaction message.", user_id=user_id
@@ -194,7 +237,7 @@ async def handle_text_message(
                 "• ข้อความที่ไม่มีตัวเลขจำนวนเงิน"
             )
             # (Option) คุณอาจจะส่งข้อความกลับไปบอก User ว่าไม่พบรายการในข้อความนี้ก็ได้
-            send_push_notification(
+            LineUtils.send_push_notification(
                 user_id, content=guidance_text, alt_text="จดนิดยังไม่เข้าใจรายการนี้ครับ"
             )
     except Exception as e:
@@ -203,7 +246,8 @@ async def handle_text_message(
             message=f"Error handling text message: {str(e)}",
             user_id=user_id,
         )
-        send_push_notification(user_id, content="เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง")
+        print(f"Error handling text message: {str(e)}")
+        LineUtils.send_push_notification(user_id, content="เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง")
 
 
 async def handle_image_message(
@@ -213,18 +257,21 @@ async def handle_image_message(
     line_access_token: str,
     api_key: str,
     logger: JodNidLogger,
+    user_record: Users,
 ):
-    send_loading_indicator_v3(user_id=user_id, seconds=20)
-    send_line_reply_v3(reply_token, text="จดนิดกำลังวิเคราะห์รายการให้นะครับ... ⏳")
-    image_bytes = get_content_line(message_id, line_token=line_access_token)
-    processing_image = pre_process_image_file(image_bytes)
+    LineUtils.send_loading_indicator_v3(user_id=user_id, seconds=20)
+    LineUtils.send_line_reply_v3(reply_token, text="จดนิดกำลังวิเคราะห์รายการให้นะครับ... ⏳")
+    image_bytes = LineUtils.get_content_line(message_id, line_token=line_access_token)
+    processing_image = Utilities.pre_process_image_file(image_bytes)
     if processing_image is None:
         logger.error(module="webhook_image_ai", message="Failed to download image", user_id=user_id)
         return {"status": "error", "message": "Failed to download image"}
     # NOTE: LINE ไม่ได้ส่งไฟล์รูปมาตรงๆ แต่ส่ง message_id มา
     # คุณต้องเขียนฟังก์ชันไป get รูปจาก LINE API มาก่อน (ใช้ Channel Access Token)
     # จากนั้นค่อยส่งไฟล์นั้นไปที่ extract_text_from_image
-    save_file = save_line_image(user_id=user_id, message_id=message_id, image_bytes=image_bytes)
+    save_file = LineUtils.save_line_image(
+        user_id=user_id, message_id=message_id, image_bytes=image_bytes
+    )
     if save_file:
         attachment_id = manager_transactions.create_attachment_record(
             user_id=user_id, file_path=save_file, file_type="image/jpeg"
@@ -239,22 +286,43 @@ async def handle_image_message(
                 message=f"OCR failed: {ocr_json.get('error')}",
                 user_id=user_id,
             )
-            send_push_notification(
+            LineUtils.send_push_notification(
                 user_id,
                 content="ขออภัยครับ ระบบไม่สามารถอ่านข้อมูลจากรูปนี้ได้ กรุณาลองใหม่อีกครั้งด้วยรูปที่ชัดเจนขึ้นครับ",
             )
             return
         ocr_result = ocr_json["text"]
         final_transactions = ocr_result
+        skip_confirm = getattr(user_record, "use_bypass_mode", False)
+        quick_reply = get_bypass_quick_reply(skip_confirm)
+        if skip_confirm:
+            items = (
+                final_transactions.get("transactions")
+                if isinstance(final_transactions, dict)
+                else final_transactions
+            )
+            result = manager_transactions.confirm_and_save_transaction(
+                items=items, user_id=user_id, skip_confirm=skip_confirm, attachment_id=attachment_id
+            )
 
-        temp_id = manager_transactions.save_temp_transaction(
-            user_id, final_transactions, attachment_id=attachment_id, source_type="image"
-        )
-        flex_msg = create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
-        send_push_notification(user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ")
+            logger.info(
+                module="webhook_bypass_mode_ocr", message=f"result: {result}", user_id=user_id
+            )
+            flex_msg = LineUtils.create_dynamic_flex_receipt(
+                final_transactions, skip_confirm=skip_confirm
+            )
+            LineUtils.send_push_notification(
+                user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ", quick_reply=quick_reply
+            )
+        else:
+            temp_id = manager_transactions.save_temp_transaction(
+                user_id, final_transactions, attachment_id=attachment_id, source_type="image"
+            )
+            flex_msg = LineUtils.create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
+            LineUtils.send_push_notification(user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ")
     else:
         logger.error(module="webhook_image_ai", message="Failed to save image", user_id=user_id)
-        send_push_notification(
+        LineUtils.send_push_notification(
             user_id, content="ขออภัยครับ ระบบไม่สามารถอ่านข้อมูลจากรูปนี้ได้ กรุณาลองใหม่อีกครั้งด้วยรูปที่ชัดเจนขึ้นครับ"
         )
 
@@ -273,6 +341,31 @@ async def handle_postback(postback_data: str, user_id: str, logger: JodNidLogger
             user_id=user_id,
         )
 
+        # ⚙️ 1. จุดดักจับการกดปุ่มสลับโหมด (Quick Reply Event)
+        if action == "set_bypass":
+            is_enable = params.get("value") == "true"
+
+            # อัปเดตสถานะลงฐานข้อมูลในตาราง Users ผ่าน manager_users
+            DBManagerUsers.update_user_config(
+                line_user_id=user_id, update_data={"use_bypass_mode": is_enable}
+            )
+
+            # เจนตัวปุ่มกลมชุดใหม่ที่ "สลับค่าตรงข้ามซ้อนกลับ" รอไว้
+            new_quick_reply = get_bypass_quick_reply(is_enable)
+
+            if is_enable:
+                reply_text = "⚡ เปิดโหมดบันทึกด่วนเรียบร้อย! ต่อไปเมื่อส่งข้อความหรือสลิป JodNid จะบันทึกให้ทันทีโดยไม่ถามซ้ำครับ"
+            else:
+                reply_text = "🛡️ เปลี่ยนกลับเป็นโหมดปกติแล้วครับ ต่อไประบบจะแสดงบิลให้คุณยืนยันก่อนบันทึกเสมอครับ"
+
+            LineUtils.send_push_notification(
+                user_id=user_id,
+                content=reply_text,
+                alt_text="เปลี่ยนโหมดการทำงาน",
+                quick_reply=new_quick_reply,
+            )
+            return
+
         if action == "confirm":
             # 1. บันทึกลง DB และดึงข้อมูลสรุปงบที่อัปเดต
             result = manager_transactions.confirm_and_save_transaction(temp_id=post_temp_id)
@@ -285,7 +378,9 @@ async def handle_postback(postback_data: str, user_id: str, logger: JodNidLogger
 
                 # 2. ส่ง Reply ยืนยันการบันทึกสำเร็จก่อน (เพื่อปิด Loading ของ LINE)
                 text_confirm = f"✅ บันทึกสำเร็จ {count} รายการ\n💰 ยอดรวม ฿{total:,.2f}"
-                send_push_notification(user_id=user_id, content=text_confirm, alt_text="บันทึกสำเร็จ")
+                LineUtils.send_push_notification(
+                    user_id=user_id, content=text_confirm, alt_text="บันทึกสำเร็จ"
+                )
                 logger.info(
                     module="webhook_postback",
                     message=f"text_confirm: {text_confirm}",
@@ -319,10 +414,12 @@ async def handle_postback(postback_data: str, user_id: str, logger: JodNidLogger
                             user_id=user_id,
                         )
                         # ส่งเป็น Push Message (เพราะอาจจะใช้เวลาประมวลผลแยกกัน)
-                        send_push_notification(user_id, content=budget_msg, alt_text="สรุปยอดใช้จ่าย")
+                        LineUtils.send_push_notification(
+                            user_id, content=budget_msg, alt_text="สรุปยอดใช้จ่าย"
+                        )
 
                         # TIP: ในอนาคตคุณสามารถเปลี่ยนจากส่ง Text เป็นส่ง
-                        # send_line_push_v3(user_id, flex_json=create_budget_flex(b))
+                        # LineUtils.send_line_push_v3(user_id, flex_json=LineUtils.create_budget_flex(b))
                         # เพื่อความสวยงามได้ครับ
             else:
                 logger.info(
@@ -330,7 +427,7 @@ async def handle_postback(postback_data: str, user_id: str, logger: JodNidLogger
                     message=f"❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ temp_id: {post_temp_id}",
                     user_id=user_id,
                 )
-                send_push_notification(
+                LineUtils.send_push_notification(
                     user_id=user_id,
                     content="❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ",
                     alt_text="ไม่พบข้อมูล",
@@ -343,14 +440,14 @@ async def handle_postback(postback_data: str, user_id: str, logger: JodNidLogger
                 user_id=user_id,
             )
             manager_transactions.delete_temp_transaction(temp_id=post_temp_id)
-            send_push_notification(
+            LineUtils.send_push_notification(
                 user_id=user_id, content="🗑️ ยกเลิกการบันทึกรายการเรียบร้อยครับ", alt_text="ยกเลิกการบันทึก"
             )
     except Exception as e:
         logger.error(
             module="webhook_postback", message=f"Error handling postback: {str(e)}", user_id=user_id
         )
-        send_push_notification(user_id, content="ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล")
+        LineUtils.send_push_notification(user_id, content="ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล")
 
 
 def confirme_data_from_edit(
@@ -372,7 +469,9 @@ def confirme_data_from_edit(
 
             # 2. ส่ง Reply ยืนยันการบันทึกสำเร็จก่อน (เพื่อปิด Loading ของ LINE)
             text_confirm = f"✅ บันทึกสำเร็จ {count} รายการ\n💰 ยอดรวม ฿{total:,.2f}"
-            send_push_notification(user_id=user_id, content=text_confirm, alt_text="บันทึกสำเร็จ")
+            LineUtils.send_push_notification(
+                user_id=user_id, content=text_confirm, alt_text="บันทึกสำเร็จ"
+            )
             logger.info(
                 module="webhook_postback_edit",
                 message=f"text_confirm: {text_confirm}",
@@ -406,7 +505,9 @@ def confirme_data_from_edit(
                         user_id=user_id,
                     )
                     # ส่งเป็น Push Message (เพราะอาจจะใช้เวลาประมวลผลแยกกัน)
-                    send_push_notification(user_id, content=budget_msg, alt_text="สรุปยอดใช้จ่าย")
+                    LineUtils.send_push_notification(
+                        user_id, content=budget_msg, alt_text="สรุปยอดใช้จ่าย"
+                    )
 
                     # TIP: ในอนาคตคุณสามารถเปลี่ยนจากส่ง Text เป็นส่ง
                     # send_line_push_v3(user_id, flex_json=create_budget_flex(b))
@@ -417,7 +518,7 @@ def confirme_data_from_edit(
                 message=f"❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ temp_id: {post_temp_id}",
                 user_id=user_id,
             )
-            send_push_notification(
+            LineUtils.send_push_notification(
                 user_id=user_id, content="❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ", alt_text="ไม่พบข้อมูล"
             )
     except Exception as e:
@@ -426,4 +527,4 @@ def confirme_data_from_edit(
             message=f"Error handling postback: {str(e)}",
             user_id=user_id,
         )
-        send_push_notification(user_id, content="ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล")
+        LineUtils.send_push_notification(user_id, content="ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล")

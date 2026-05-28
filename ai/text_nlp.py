@@ -1,9 +1,10 @@
 import json
+from typing import Any, Dict, List
 
 from openai import OpenAI
 
 
-def extract_transactions(api_key: str, user_prompt: str):
+def extract_transactions(api_key: str, user_prompt: str) -> List[Dict[str, Any]] | None:
     """
     ฟังก์ชันสำหรับสกัดข้อมูลรายรับ-รายจ่ายจากข้อความผู้ใช้
     คืนค่าเป็น List ของ Dictionary หรือ None หากเกิดข้อผิดพลาด

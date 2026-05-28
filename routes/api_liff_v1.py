@@ -4,7 +4,7 @@ from sqlmodel import Session
 
 from core.config_settings import settings
 from helper.logger import JodNidLogger
-from helper.utils import get_all_users, get_line_profile, get_user_overview
+from helper.utils import Utilities, LineUtils
 from helper.webhook_helper import confirme_data_from_edit
 from middleware.line_auth import (
     exchange_code_for_tokens,
@@ -35,7 +35,6 @@ manager_categories = DBManagerCategories()
 manager_transactions = DBManagerTransactions()
 manager_user_budget = DBManagerBudget()
 manager_dashboard = DBManagerDashboard()
-manager_users = DBManagerUsers()
 
 
 class LiffApi:
@@ -47,11 +46,10 @@ class LiffApi:
     def setup_router(self):
         router = self.router
         logger = self.logger
-        users = get_all_users(next(get_session()))
+        users = Utilities.get_all_users(next(get_session()))
         user_id = None
         for user in users:
-            profile = get_line_profile(user_id=user.line_user_id, line_token=self.line_access_token)
-            user_id = profile.get("userId")
+            user_id=user.line_user_id
 
         @router.post("/user")
         async def update_user_profile(req: LineLoginRequest):
@@ -70,7 +68,7 @@ class LiffApi:
             channel_id = settings.LINE_CHANNEL_ID_TEST if is_test_mode else settings.LINE_CHANNEL_ID
             user_payload = await verify_id_token_with_line(id_token, channel_id)
             print("user_payload: ", user_payload)
-            manager_users.get_or_create_user(
+            DBManagerUsers.get_or_create_user(
                 line_user_id=user_payload.get("sub"),
                 profile={
                     "display_name": user_payload.get("name"),
@@ -141,7 +139,7 @@ class LiffApi:
                 message=f"Overview stats requested for user_id: {user_id}",
                 user_id=user_id,
             )
-            data = get_user_overview(db, user_id)
+            data = Utilities.get_user_overview(db, user_id)
             logger.info(
                 module="app",
                 message=f"Overview stats for user_id: {user_id} retrieved successfully",

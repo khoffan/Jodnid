@@ -23,6 +23,7 @@ from PIL import Image, ImageEnhance
 from sqlmodel import Session, extract, func, select
 
 from core.config_settings import settings
+from helper.logger import JodNidLogger
 from model.db_manament import DBManagerBudget
 from model.models import Categories, SystemConfiguration, Transactions, UserBudget, Users, engine
 
@@ -165,10 +166,12 @@ class LineUtils:
                 for t in transactions
                 if t.get("is_actual_item", True) or t.get("priority", True)
             )
-            if grand_total > 0:
+            if grand_total is not None and grand_total > 0:
                 diff = total - grand_total
                 if diff > 0:
                     total = total - diff
+            else:
+                total = total
         except Exception as e:
             print(f"Error calculating total from transactions: {str(e)}")
             total = 0.0
@@ -234,8 +237,10 @@ class LineUtils:
 
         # 🎨 ไดนามิกปรับแต่งตามสถานะ skip_confirm
         header_title = "✨ บันทึกสำเร็จเรียบร้อย" if skip_confirm else "ตรวจสอบรายการ"
-        header_color = "#06C755" if skip_confirm else "#1DB446"  # ใช้สีเขียวออฟฟิเชียลของ LINE เมื่อจดสำเร็จ
-        
+        header_color = (
+            "#06C755" if skip_confirm else "#1DB446"
+        )  # ใช้สีเขียวออฟฟิเชียลของ LINE เมื่อจดสำเร็จ
+
         flex_json = {
             "type": "bubble",
             "header": {
@@ -318,9 +323,7 @@ class LineUtils:
             }
         else:
             # ⚡ ถ้าเป็นโหมด Bypass จะดีไซน์ขอบล่างให้คลีน ไม่มีปุ่มรบกวนสายตา
-            flex_json["body"]["contents"].append(
-                {"type": "separator", "margin": "xxl"}
-            )
+            flex_json["body"]["contents"].append({"type": "separator", "margin": "xxl"})
 
         return flex_json
 
@@ -640,6 +643,72 @@ class LineUtils:
         else:
             print(f"Error fetching profile: {result.status_code} - {result.text}")
             return None
+
+    @staticmethod
+    def reply_budget_for_use(
+        result: dict, user_id: str, logger: JodNidLogger, post_temp_id: str = None
+    ):
+        if result:
+            count = result.get("count", 0)
+            total = result.get("total", 0.0)
+            budgets = result.get("budgets", [])
+
+            # 2. ส่ง Reply ยืนยันการบันทึกสำเร็จก่อน (เพื่อปิด Loading ของ LINE)
+            text_confirm = f"✅ บันทึกสำเร็จ {count} รายการ\n💰 ยอดรวม ฿{total:,.2f}"
+            LineUtils.send_push_notification(
+                user_id=user_id, content=text_confirm, alt_text="บันทึกสำเร็จ"
+            )
+            logger.info(
+                module="webhook_postback",
+                message=f"text_confirm: {text_confirm}",
+                user_id=user_id,
+            )
+            # 3. ส่ง Push Message สรุปงบประมาณ (ถ้ามีการตั้งงบไว้)
+            if budgets:
+                for b in budgets:
+                    # คำนวณสถานะ
+                    amount = b["amount"]
+                    spent = b["current_spent"]
+                    percent = (spent / amount) * 100 if amount > 0 else 0
+                    remaining = amount - spent
+
+                    # สร้างข้อความเตือนตามระดับการใช้จ่าย
+                    status_emoji = "📊"
+                    if percent >= 100:
+                        status_emoji = "⚠️ งบเกินแล้ว!"
+                    elif percent >= 80:
+                        status_emoji = "🔔 ใกล้เต็มแล้ว!"
+
+                    budget_msg = (
+                        f"{status_emoji}\n"
+                        f"หมวด: {b['icon']} {b['category_name']}\n"
+                        f"ใช้ไป: {percent:.1f}% (฿{spent:,.2f})\n"
+                        f"คงเหลือ: ฿{remaining:,.2f}"
+                    )
+                    logger.info(
+                        module="webhook_postback",
+                        message=f"budget_msg: {budget_msg}",
+                        user_id=user_id,
+                    )
+                    # ส่งเป็น Push Message (เพราะอาจจะใช้เวลาประมวลผลแยกกัน)
+                    LineUtils.send_push_notification(
+                        user_id, content=budget_msg, alt_text="สรุปยอดใช้จ่าย"
+                    )
+
+                    # TIP: ในอนาคตคุณสามารถเปลี่ยนจากส่ง Text เป็นส่ง
+                    # LineUtils.send_line_push_v3(user_id, flex_json=LineUtils.create_budget_flex(b))
+                    # เพื่อความสวยงามได้ครับ
+        else:
+            logger.info(
+                module="webhook_postback",
+                message=f"❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ temp_id: {post_temp_id}",
+                user_id=user_id,
+            )
+            LineUtils.send_push_notification(
+                user_id=user_id,
+                content="❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ",
+                alt_text="ไม่พบข้อมูล",
+            )
 
 
 class Utilities:

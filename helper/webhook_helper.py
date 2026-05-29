@@ -213,6 +213,8 @@ async def handle_text_message(
                 LineUtils.send_push_notification(
                     user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ", quick_reply=quick_reply
                 )
+
+                LineUtils.reply_budget_for_use(result=result, user_id=user_id, logger=logger)
             else:
                 temp_id = manager_transactions.save_temp_transaction(user_id, final_transactions)
 
@@ -304,6 +306,7 @@ async def handle_image_message(
             result = manager_transactions.confirm_and_save_transaction(
                 items=items, user_id=user_id, skip_confirm=skip_confirm, attachment_id=attachment_id
             )
+            print(f"Result from confirm_and_save_transaction: {result}")
 
             logger.info(
                 module="webhook_bypass_mode_ocr", message=f"result: {result}", user_id=user_id
@@ -314,6 +317,9 @@ async def handle_image_message(
             LineUtils.send_push_notification(
                 user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ", quick_reply=quick_reply
             )
+            print("sending receipt flex message with bypass mode")
+            LineUtils.reply_budget_for_use(result=result, user_id=user_id, logger=logger)
+            print("sending receipt flex message with bypass mode - done")
         else:
             temp_id = manager_transactions.save_temp_transaction(
                 user_id, final_transactions, attachment_id=attachment_id, source_type="image"
@@ -371,67 +377,9 @@ async def handle_postback(postback_data: str, user_id: str, logger: JodNidLogger
             result = manager_transactions.confirm_and_save_transaction(temp_id=post_temp_id)
             logger.info(module="webhook_postback", message=f"result: {result}", user_id=user_id)
 
-            if result:
-                count = result.get("count", 0)
-                total = result.get("total", 0.0)
-                budgets = result.get("budgets", [])
-
-                # 2. ส่ง Reply ยืนยันการบันทึกสำเร็จก่อน (เพื่อปิด Loading ของ LINE)
-                text_confirm = f"✅ บันทึกสำเร็จ {count} รายการ\n💰 ยอดรวม ฿{total:,.2f}"
-                LineUtils.send_push_notification(
-                    user_id=user_id, content=text_confirm, alt_text="บันทึกสำเร็จ"
-                )
-                logger.info(
-                    module="webhook_postback",
-                    message=f"text_confirm: {text_confirm}",
-                    user_id=user_id,
-                )
-                # 3. ส่ง Push Message สรุปงบประมาณ (ถ้ามีการตั้งงบไว้)
-                if budgets:
-                    for b in budgets:
-                        # คำนวณสถานะ
-                        amount = b["amount"]
-                        spent = b["current_spent"]
-                        percent = (spent / amount) * 100 if amount > 0 else 0
-                        remaining = amount - spent
-
-                        # สร้างข้อความเตือนตามระดับการใช้จ่าย
-                        status_emoji = "📊"
-                        if percent >= 100:
-                            status_emoji = "⚠️ งบเกินแล้ว!"
-                        elif percent >= 80:
-                            status_emoji = "🔔 ใกล้เต็มแล้ว!"
-
-                        budget_msg = (
-                            f"{status_emoji}\n"
-                            f"หมวด: {b['icon']} {b['category_name']}\n"
-                            f"ใช้ไป: {percent:.1f}% (฿{spent:,.2f})\n"
-                            f"คงเหลือ: ฿{remaining:,.2f}"
-                        )
-                        logger.info(
-                            module="webhook_postback",
-                            message=f"budget_msg: {budget_msg}",
-                            user_id=user_id,
-                        )
-                        # ส่งเป็น Push Message (เพราะอาจจะใช้เวลาประมวลผลแยกกัน)
-                        LineUtils.send_push_notification(
-                            user_id, content=budget_msg, alt_text="สรุปยอดใช้จ่าย"
-                        )
-
-                        # TIP: ในอนาคตคุณสามารถเปลี่ยนจากส่ง Text เป็นส่ง
-                        # LineUtils.send_line_push_v3(user_id, flex_json=LineUtils.create_budget_flex(b))
-                        # เพื่อความสวยงามได้ครับ
-            else:
-                logger.info(
-                    module="webhook_postback",
-                    message=f"❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ temp_id: {post_temp_id}",
-                    user_id=user_id,
-                )
-                LineUtils.send_push_notification(
-                    user_id=user_id,
-                    content="❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ",
-                    alt_text="ไม่พบข้อมูล",
-                )
+            LineUtils.reply_budget_for_use(
+                result=result, user_id=user_id, logger=logger, post_temp_id=post_temp_id
+            )
 
         elif action == "cancel":
             logger.info(

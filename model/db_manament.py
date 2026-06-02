@@ -174,17 +174,14 @@ class DBManagerTransactions:
                 # 3. ถ้ายังไม่เจออีก ลงหมวด "อื่นๆ"
                 if not target_cat:
                     # สร้างหมวดหมู่ย่อยใหม่เพื่อเก็บ Stat ในอนาคต
-                    target_cat = Categories(
-                        name=raw_cat_name,
-                        icon="📝",
-                        parent_id=default_parent.id,  # ผูกไว้กับ "อื่นๆ" ก่อนในเบื้องต้น
-                    )
-                    session.add(target_cat)
-                    session.flush()
-
-                    # เพิ่มเข้า Mapping Table อัตโนมัติ เพื่อให้ครั้งหน้าไม่ต้องสร้างซ้ำ
+                            # บังคับให้ใช้หมวด "อื่นๆ" ตัวหลักที่มีอยู่แล้วในระบบทันที ไม่สร้างแถวใหม่ใน Categories
+                    target_cat = default_parent  
+                    
+                    # 💡 แต่แอบบันทึกคำที่ AI พ่นมาลงใน Mapping Table ไว้ 
+                    # ครั้งหน้าถ้า AI ส่งคำนี้มาอีก มันจะลัดคิววิ่งเข้าเงื่อนไขที่ 1 ไปหา "อื่นๆ" ได้ไวขึ้นทันที 
                     new_mapping = CategoryMapping(
-                        alias_name=raw_cat_name, category_id=target_cat.id
+                        alias_name=raw_cat_name, 
+                        category_id=default_parent.id  # ผูกเข้ากับ ID ของ "อื่นๆ" หลัก
                     )
                     session.add(new_mapping)
             # 5. หา Parent ID เพื่อไปตัด Budget

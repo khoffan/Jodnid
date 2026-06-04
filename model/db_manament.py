@@ -42,7 +42,7 @@ class DBManagerUsers:
             session.commit()
             session.refresh(user)
             return user
-    
+
     @staticmethod
     def update_user_config(line_user_id: str, update_data: Dict[str, Any]) -> bool:
         """
@@ -133,7 +133,7 @@ class DBManagerTransactions:
     ):
         # ดึงหมวด "อื่นๆ" ไว้รอเลย เผื่อต้องใช้ (Fallback)
         statement_other = select(Categories).where(
-            Categories.name == "อื่นๆ", Categories.parent_id is None
+            Categories.name == "อื่นๆ", Categories.parent_id.is_(None)
         )
         default_parent = session.exec(statement_other).first()
         if not default_parent:
@@ -166,26 +166,19 @@ class DBManagerTransactions:
             if mapping:
                 target_cat = mapping.category
             else:
-                # 2. ถ้าไม่มีใน Mapping ลองหาใน Categories ตรงๆ
                 target_cat = session.exec(
                     select(Categories).where(Categories.name == raw_cat_name)
                 ).first()
 
-                # 3. ถ้ายังไม่เจออีก ลงหมวด "อื่นๆ"
                 if not target_cat:
-                    # สร้างหมวดหมู่ย่อยใหม่เพื่อเก็บ Stat ในอนาคต
-                            # บังคับให้ใช้หมวด "อื่นๆ" ตัวหลักที่มีอยู่แล้วในระบบทันที ไม่สร้างแถวใหม่ใน Categories
-                    target_cat = default_parent  
-                    
-                    # 💡 แต่แอบบันทึกคำที่ AI พ่นมาลงใน Mapping Table ไว้ 
-                    # ครั้งหน้าถ้า AI ส่งคำนี้มาอีก มันจะลัดคิววิ่งเข้าเงื่อนไขที่ 1 ไปหา "อื่นๆ" ได้ไวขึ้นทันที 
+                    target_cat = default_parent
+
                     new_mapping = CategoryMapping(
-                        alias_name=raw_cat_name, 
-                        category_id=default_parent.id  # ผูกเข้ากับ ID ของ "อื่นๆ" หลัก
+                        alias_name=raw_cat_name,
+                        category_id=default_parent.id,  # ผูกเข้ากับ ID ของ "อื่นๆ" หลัก
                     )
                     session.add(new_mapping)
-            # 5. หา Parent ID เพื่อไปตัด Budget
-            # (ถ้า target_cat มี parent_id ให้ใช้ parent_id, ถ้าไม่มีแสดงว่าเป็น Parent เองอยู่แล้ว)
+
             parent_id = target_cat.parent_id if target_cat.parent_id else target_cat.id
 
             # 2. บันทึก Transaction
@@ -202,7 +195,9 @@ class DBManagerTransactions:
                 transaction_date=now,
                 source_type=item.get("source_type", "text"),
                 is_confirmed=not skip_confirm,
-                attachment_id=attachment_id if attachment_id else (temp.attachment_id if temp else None),
+                attachment_id=attachment_id
+                if attachment_id
+                else (temp.attachment_id if temp else None),
             )
             session.add(new_tx)
 
@@ -270,17 +265,18 @@ class DBManagerTransactions:
                     skip_confirm=skip_confirm,
                     attachment_id=attachment_id,
                 )
-            temp = session.get(TempTransactions, temp_id)
-            if not temp:
-                return False
-            return self.save_transaction(
-                session=session,
-                temp=temp,
-                user_id=None,
-                edit=edit,
-                items=items,
-                skip_confirm=skip_confirm,
-            )
+            else:
+                temp = session.get(TempTransactions, temp_id)
+                if not temp:
+                    return False
+                return self.save_transaction(
+                    session=session,
+                    temp=temp,
+                    user_id=None,
+                    edit=edit,
+                    items=items,
+                    skip_confirm=skip_confirm,
+                )
 
     # --- 4. บันทึก Metadata ของรูปภาพ ---
     def create_attachment_record(self, user_id: str, file_path: str, file_type: str = "image/jpeg"):

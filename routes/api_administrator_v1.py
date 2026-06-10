@@ -7,8 +7,6 @@ from middleware.auth import get_current_user
 from model.db_manament import DBManagerAdmin
 from model.models import Administrator, get_session
 
-manager_admin = DBManagerAdmin()
-
 
 class AdministratorAPIs:
     def __init__(self, logger: JodNidLogger, line_access_token: str):
@@ -37,7 +35,7 @@ class AdministratorAPIs:
             uid = data.get("uid")
             if not email or not uid:
                 return {"success": False, "message": "Missing email or uid or name"}
-            result = manager_admin.update_administrator_data_system(db, uid, email)
+            result = DBManagerAdmin.update_administrator_data_system(db, uid, email)
             logger.info(
                 module="administrator",
                 message=f"Data sync for uid: {uid} result: {result}",
@@ -69,7 +67,9 @@ class AdministratorAPIs:
                 message=f"Creating system configuration for name: {name}, key: {key}, value: {value}, value_type: {value_type}, description: {description}",
                 user_id=user.uid,
             )
-            return manager_admin.create_system_config(db, name, key, value, value_type, description)
+            return DBManagerAdmin.create_system_config(
+                db, name, key, value, value_type, description
+            )
 
         @router.get("/all")
         def get_all_system_configuration(
@@ -78,7 +78,7 @@ class AdministratorAPIs:
             logger.info(
                 module="app", message="Fetching all system configurations", user_id=user.uid
             )
-            return manager_admin.get_system_config_data(db)
+            return DBManagerAdmin.get_system_config_data(db)
 
         @router.patch("/config/update")
         def update_system_configuration(
@@ -98,7 +98,7 @@ class AdministratorAPIs:
                 message=f"Updating system configuration for key: {key}, value: {value}, value_type: {value_type}, description: {description}",
                 user_id=user.uid,
             )
-            return manager_admin.update_system_config(db, key, value, value_type, description)
+            return DBManagerAdmin.update_system_config(db, key, value, value_type, description)
 
         @router.patch("/config/toggle")
         def toggle_system_configuration(
@@ -116,4 +116,4 @@ class AdministratorAPIs:
                 message=f"Toggling system configuration for key: {key}, value: {value}",
                 user_id=user.uid,
             )
-            return manager_admin.update_system_config(db, key, value)
+            return DBManagerAdmin.update_system_config(db, key, value)

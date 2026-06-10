@@ -27,8 +27,6 @@ from helper.logger import JodNidLogger
 from model.db_manament import DBManagerBudget
 from model.models import Categories, SystemConfiguration, Transactions, UserBudget, Users, engine
 
-manager_budget = DBManagerBudget()
-
 is_test_mode = settings.TEST_MODE
 line_access_token = ""
 if is_test_mode:
@@ -741,7 +739,7 @@ class Utilities:
     def get_user_overview(session: Session, user_id: str):
         today = datetime.now()
 
-        manager_budget.sync_user_budgets(session, user_id, today.month, today.year)
+        DBManagerBudget.sync_user_budgets(session, user_id, today.month, today.year)
 
         # 1. ยอดรวมทั้งเดือน และ วันนี้ (เหมือนเดิม)
         monthly_total = Utilities.get_monthly_usage(session, user_id)

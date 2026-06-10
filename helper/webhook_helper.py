@@ -7,6 +7,7 @@ from linebot.v3.messaging import (
     QuickReply,
     QuickReplyItem,
 )
+from sqlmodel import Session
 
 from ai.ocr import extract_text_from_image
 from ai.text_nlp import extract_transactions, is_transaction_message
@@ -15,7 +16,7 @@ from helper.utils import LineUtils, Utilities
 from model.db_manament import DBManagerTransactions, DBManagerUsers
 from model.models import Users
 
-manager_transactions = DBManagerTransactions()
+# Use DBManager classes' static methods and pass `db: Session` from callers
 
 
 def get_bypass_quick_reply(skip_confirmation: bool) -> QuickReply:
@@ -39,6 +40,7 @@ def get_bypass_quick_reply(skip_confirmation: bool) -> QuickReply:
 
 
 async def process_webhook_event(
+    db: Session,
     event: dict,
     user_id: str,
     reply_token: str,
@@ -51,10 +53,7 @@ async def process_webhook_event(
 
     # ดึงค่า User (หรือสร้างถ้ายังไม่มี)
     user_data = DBManagerUsers.get_or_create_user(
-        line_user_id=user_id,
-        profile={
-            "display_name": profile.get("displayName"),
-        },
+        db, line_user_id=user_id, profile={"display_name": profile.get("displayName")}
     )
 
     if event_type == "message":
@@ -73,7 +72,7 @@ async def process_webhook_event(
             #     return
             # Logic: เช็ค Keywords และเรียก AI (ย้ายจาก Webhook มาที่นี่)
             await handle_text_message(
-                user_id, user_text, reply_token, line_access_token, api_key, logger, user_data
+                db, user_id, user_text, reply_token, line_access_token, api_key, logger, user_data
             )
 
         # --- กรณีเป็น Image (งานที่หนักที่สุด) ---
@@ -88,7 +87,7 @@ async def process_webhook_event(
             #     return
             # ย้าย Logic การทำ OCR และ Extract ไปไว้ในฟังก์ชันย่อย
             await handle_image_message(
-                user_id, message_id, reply_token, line_access_token, api_key, logger, user_data
+                db, user_id, message_id, reply_token, line_access_token, api_key, logger, user_data
             )
 
     elif event_type == "postback":
@@ -97,10 +96,11 @@ async def process_webhook_event(
             module="webhook", message=f"handle postback data: {postback_data}", user_id=user_id
         )
         # Logic การจัดการ Confirm/Cancel
-        await handle_postback(postback_data, user_id, logger)
+        await handle_postback(db, postback_data, user_id, logger)
 
 
 async def handle_text_message(
+    db: Session,
     user_id: str,
     user_text: str,
     reply_token: str,
@@ -200,8 +200,8 @@ async def handle_text_message(
                     if isinstance(final_transactions, dict)
                     else final_transactions
                 )
-                result = manager_transactions.confirm_and_save_transaction(
-                    items=items, user_id=user_id, skip_confirm=skip_confirm
+                result = DBManagerTransactions.confirm_and_save_transaction(
+                    db, items=items, user_id=user_id, skip_confirm=skip_confirm
                 )
 
                 logger.info(
@@ -216,7 +216,9 @@ async def handle_text_message(
 
                 LineUtils.reply_budget_for_use(result=result, user_id=user_id, logger=logger)
             else:
-                temp_id = manager_transactions.save_temp_transaction(user_id, final_transactions)
+                temp_id = DBManagerTransactions.save_temp_transaction(
+                    db, user_id, final_transactions
+                )
 
                 flex_msg = LineUtils.create_dynamic_flex_receipt(
                     final_transactions, temp_id=temp_id
@@ -253,6 +255,7 @@ async def handle_text_message(
 
 
 async def handle_image_message(
+    db: Session,
     user_id: str,
     message_id: str,
     reply_token: str,
@@ -275,8 +278,8 @@ async def handle_image_message(
         user_id=user_id, message_id=message_id, image_bytes=image_bytes
     )
     if save_file:
-        attachment_id = manager_transactions.create_attachment_record(
-            user_id=user_id, file_path=save_file, file_type="image/jpeg"
+        attachment_id = DBManagerTransactions.create_attachment_record(
+            db, user_id=user_id, file_path=save_file, file_type="image/jpeg"
         )
         # ตัวอย่าง Flow:
         # image_bytes = download_line_image(message_id)
@@ -303,8 +306,12 @@ async def handle_image_message(
                 if isinstance(final_transactions, dict)
                 else final_transactions
             )
-            result = manager_transactions.confirm_and_save_transaction(
-                items=items, user_id=user_id, skip_confirm=skip_confirm, attachment_id=attachment_id
+            result = DBManagerTransactions.confirm_and_save_transaction(
+                db,
+                items=items,
+                user_id=user_id,
+                skip_confirm=skip_confirm,
+                attachment_id=attachment_id,
             )
             print(f"Result from confirm_and_save_transaction: {result}")
 
@@ -321,8 +328,8 @@ async def handle_image_message(
             LineUtils.reply_budget_for_use(result=result, user_id=user_id, logger=logger)
             print("sending receipt flex message with bypass mode - done")
         else:
-            temp_id = manager_transactions.save_temp_transaction(
-                user_id, final_transactions, attachment_id=attachment_id, source_type="image"
+            temp_id = DBManagerTransactions.save_temp_transaction(
+                db, user_id, final_transactions, attachment_id=attachment_id, source_type="image"
             )
             flex_msg = LineUtils.create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
             LineUtils.send_push_notification(user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ")
@@ -333,7 +340,7 @@ async def handle_image_message(
         )
 
 
-async def handle_postback(postback_data: str, user_id: str, logger: JodNidLogger):
+async def handle_postback(db: Session, postback_data: str, user_id: str, logger: JodNidLogger):
     try:
         from urllib.parse import parse_qsl
 
@@ -353,7 +360,7 @@ async def handle_postback(postback_data: str, user_id: str, logger: JodNidLogger
 
             # อัปเดตสถานะลงฐานข้อมูลในตาราง Users ผ่าน manager_users
             DBManagerUsers.update_user_config(
-                line_user_id=user_id, update_data={"use_bypass_mode": is_enable}
+                db, line_user_id=user_id, update_data={"use_bypass_mode": is_enable}
             )
 
             # เจนตัวปุ่มกลมชุดใหม่ที่ "สลับค่าตรงข้ามซ้อนกลับ" รอไว้
@@ -374,7 +381,7 @@ async def handle_postback(postback_data: str, user_id: str, logger: JodNidLogger
 
         if action == "confirm":
             # 1. บันทึกลง DB และดึงข้อมูลสรุปงบที่อัปเดต
-            result = manager_transactions.confirm_and_save_transaction(temp_id=post_temp_id)
+            result = DBManagerTransactions.confirm_and_save_transaction(db, temp_id=post_temp_id)
             logger.info(module="webhook_postback", message=f"result: {result}", user_id=user_id)
 
             LineUtils.reply_budget_for_use(
@@ -387,7 +394,7 @@ async def handle_postback(postback_data: str, user_id: str, logger: JodNidLogger
                 message=f"canceling temp_id: {post_temp_id}",
                 user_id=user_id,
             )
-            manager_transactions.delete_temp_transaction(temp_id=post_temp_id)
+            DBManagerTransactions.delete_temp_transaction(db, temp_id=post_temp_id)
             LineUtils.send_push_notification(
                 user_id=user_id, content="🗑️ ยกเลิกการบันทึกรายการเรียบร้อยครับ", alt_text="ยกเลิกการบันทึก"
             )
@@ -399,15 +406,19 @@ async def handle_postback(postback_data: str, user_id: str, logger: JodNidLogger
 
 
 def confirme_data_from_edit(
-    post_temp_id: str, user_id: str, items: List[Dict[str, Any]] = None, logger: JodNidLogger = None
+    db: Session,
+    post_temp_id: str,
+    user_id: str,
+    items: List[Dict[str, Any]] = None,
+    logger: JodNidLogger = None,
 ):
     if logger is None:
         logger = JodNidLogger()
 
     try:
         # 1. บันทึกลง DB และดึงข้อมูลสรุปงบที่อัปเดต
-        result = manager_transactions.confirm_and_save_transaction(
-            temp_id=post_temp_id, edit=True, items=items
+        result = DBManagerTransactions.confirm_and_save_transaction(
+            db, temp_id=post_temp_id, edit=True, items=items
         )
         logger.info(module="webhook_postback_edit", message=f"result: {result}", user_id=user_id)
         if result:

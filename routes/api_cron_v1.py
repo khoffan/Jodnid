@@ -10,8 +10,6 @@ from helper.utils import LineUtils, Utilities
 from model.db_manament import DBManagerDashboard
 from model.models import get_session
 
-manager_dashboard = DBManagerDashboard()
-
 header_scheme = APIKeyHeader(name="X-Cron-Token", auto_error=False)
 
 
@@ -85,7 +83,7 @@ class CronAPis:
                     user_id=user_id,
                 )
                 # ดึงข้อมูลจากฟังก์ชันสรุปที่คุยกันก่อนหน้า
-                data = manager_dashboard.get_dashboard_data(db, user_id, type="daily")
+                data = DBManagerDashboard.get_dashboard_data(db, user_id, type="daily")
 
                 if data["total_amount"] > 0:
                     flex_content = LineUtils.create_summary_flex(

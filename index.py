@@ -73,7 +73,6 @@ app.include_router(cron_apis.router)
 app.include_router(administrator_api.router)
 
 
-
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
@@ -98,7 +97,14 @@ async def line_webhook(data: LineWebhook, background_tasks: BackgroundTasks):
             )
             continue
         background_tasks.add_task(
-            process_webhook_event, event, user_id, reply_token, line_access_token, api_key, logger
+            process_webhook_event,
+            db_session,
+            event,
+            user_id,
+            reply_token,
+            line_access_token,
+            api_key,
+            logger,
         )
 
     return {"status": "ok"}

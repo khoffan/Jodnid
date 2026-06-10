@@ -189,7 +189,14 @@ class Administrator(SQLModel, table=True):
 
 # --- Database Connection ---
 raw_url_db = os.getenv("DATABASE_URL")
-engine = create_engine(raw_url_db)
+engine = create_engine(
+    raw_url_db,
+    pool_size=10,  # 🟢 ท่อหลัก: เปิดสแตนด์บายรอไว้สูงสุด 10 คอนเนคชัน
+    max_overflow=20,  # 🟡 ท่อสำรอง: ขยายเพิ่มได้อีกไม่เกิน 20 คอนเนคชันกรณีคนถล่มใช้งาน
+    pool_timeout=30,  # ⏱️ ถ้ารอนานเกิน 30 วินาทีแล้วไม่มีท่อว่างให้หลุด Timeout
+    pool_recycle=1800,  # ♻️ รีไซเคิลท่อทุกๆ 30 นาที ป้องกันท่อเน่า
+    pool_pre_ping=True,  # 🏓 เช็คท่อก่อนใช้ทุกครั้ง ถ้าท่อหลุดจะเชื่อมต่อใหม่ให้อัตโนมัติ
+)
 
 
 def create_db_and_tables():

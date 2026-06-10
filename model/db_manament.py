@@ -14,73 +14,66 @@ from model.models import (
     Transactions,
     UserBudget,
     Users,
-    engine,
 )
 
 
 class DBManagerUsers:
     @staticmethod
-    def get_or_create_user(line_user_id: str, profile: Dict = None) -> Users:
+    def get_or_create_user(session: Session, line_user_id: str, profile: Dict = None) -> Users:
         display_name = profile["display_name"] if profile else "Unknown User"
 
-        with Session(engine) as session:
+        user = session.get(Users, line_user_id)
+
+        if not user:
+            # กรณี User ใหม่: สร้าง Record ใหม่
+            user = Users(line_user_id=line_user_id, display_name=display_name)
+            session.add(user)
+        else:
+            # กรณี User เก่า: เช็คว่าต้องอัปเดตชื่อไหม (ป้องกันค่า null หรือชื่อเก่า)
+            if user.display_name != display_name:
+                user.display_name = display_name
+            if profile.get("email") and user.email != profile.get("email"):
+                user.email = profile.get("email")
+            if profile.get("picture_url") and user.picture_url != profile.get("picture_url"):
+                user.picture_url = profile.get("picture_url")
+
+        session.commit()
+        session.refresh(user)
+        return user
+
+    @staticmethod
+    def update_user_config(
+        session: Session, line_user_id: str, update_data: Dict[str, Any]
+    ) -> bool:
+        try:
+            # 1. ดึงข้อมูลปัจจุบันของผู้ใช้จาก Database
             user = session.get(Users, line_user_id)
 
             if not user:
-                # กรณี User ใหม่: สร้าง Record ใหม่
-                user = Users(line_user_id=line_user_id, display_name=display_name)
+                print(f"User not found: {line_user_id}")
+                return False
+
+            # 🛡️ Whitelist: เฉพาะฟิลด์ในโมเดล Users ที่เราอนุญาตให้สลับค่าแบบ PATCH ได้
+            allowed_fields = {"display_name", "email", "picture_url", "use_bypass_mode"}
+
+            # 2. ตรวจสอบและวนลูปอัปเดตค่าที่ส่งมาจากชิ้นงานฝั่ง Webhook
+            has_changes = False
+            for key, value in update_data.items():
+                if key in allowed_fields:
+                    # เช็คว่าค่าใหม่ต่างจากค่าเดิมใน DB ไหม ป้องกันการสั่ง Update ซ้ำโดยไม่จำเป็น
+                    if getattr(user, key) != value:
+                        setattr(user, key, value)
+                        has_changes = True
+
+            # 3. สั่ง Commit เฉพาะเมื่อตรวจสอบพบข้อมูลเปลี่ยนแปลงจริง
+            if has_changes:
                 session.add(user)
+                session.commit()
+                print(f"Successfully PATCH updated profile for user: {line_user_id}")
             else:
-                # กรณี User เก่า: เช็คว่าต้องอัปเดตชื่อไหม (ป้องกันค่า null หรือชื่อเก่า)
-                if user.display_name != display_name:
-                    user.display_name = display_name
-                if profile.get("email") and user.email != profile.get("email"):
-                    user.email = profile.get("email")
-                if profile.get("picture_url") and user.picture_url != profile.get("picture_url"):
-                    user.picture_url = profile.get("picture_url")
+                print("No changes detected, skip DB write.")
 
-            session.commit()
-            session.refresh(user)
-            return user
-
-    @staticmethod
-    def update_user_config(line_user_id: str, update_data: Dict[str, Any]) -> bool:
-        """
-        ฟังก์ชันสำหรับอัปเดตข้อมูล Profile/Config แบบ PATCH (เปลี่ยนเฉพาะฟิลด์ที่ส่งมา)
-        รองรับการทำงานกับ SQLModel Session โดยตรง
-        :param line_user_id: ID ของผู้ใช้ LINE (Primary Key)
-        :param update_data: Dict ข้อมูลที่ต้องการอัปเดต (เช่น {"use_bypass_mode": True})
-        """
-        try:
-            with Session(engine) as session:
-                # 1. ดึงข้อมูลปัจจุบันของผู้ใช้จาก Database
-                user = session.get(Users, line_user_id)
-
-                if not user:
-                    print(f"User not found: {line_user_id}")
-                    return False
-
-                # 🛡️ Whitelist: เฉพาะฟิลด์ในโมเดล Users ที่เราอนุญาตให้สลับค่าแบบ PATCH ได้
-                allowed_fields = {"display_name", "email", "picture_url", "use_bypass_mode"}
-
-                # 2. ตรวจสอบและวนลูปอัปเดตค่าที่ส่งมาจากชิ้นงานฝั่ง Webhook
-                has_changes = False
-                for key, value in update_data.items():
-                    if key in allowed_fields:
-                        # เช็คว่าค่าใหม่ต่างจากค่าเดิมใน DB ไหม ป้องกันการสั่ง Update ซ้ำโดยไม่จำเป็น
-                        if getattr(user, key) != value:
-                            setattr(user, key, value)
-                            has_changes = True
-
-                # 3. สั่ง Commit เฉพาะเมื่อตรวจสอบพบข้อมูลเปลี่ยนแปลงจริง
-                if has_changes:
-                    session.add(user)
-                    session.commit()
-                    print(f"Successfully PATCH updated profile for user: {line_user_id}")
-                else:
-                    print("No changes detected, skip DB write.")
-
-                return True
+            return True
 
         except Exception as e:
             print(f"Failed to update user config: {str(e)}")
@@ -88,18 +81,15 @@ class DBManagerUsers:
 
 
 class DBManagerTransactions:
-    def __init__(self):
-        pass
-
-    # --- 2. บันทึกข้อมูลชั่วคราว (เพิ่ม attachment_id และ source_type) ---
+    @staticmethod
     def save_temp_transaction(
-        self,
+        session: Session,
         user_id: str,
         raw_data: List[Dict[str, Any]],
         attachment_id: str = None,
         source_type: str = "text",
     ):
-        with Session(engine) as session:
+        try:
             temp_entry = TempTransactions(
                 user_id=user_id,
                 raw_data=raw_data,
@@ -110,19 +100,26 @@ class DBManagerTransactions:
             session.commit()
             session.refresh(temp_entry)
             return temp_entry.id
+        except Exception as e:
+            print(f"Error in save_temp_transaction: {str(e)}")
+            return None
 
-    def delete_temp_transaction(self, temp_id: str):
-        with Session(engine) as session:
+    @staticmethod
+    def delete_temp_transaction(session: Session, temp_id: str):
+        try:
             temp = session.get(TempTransactions, temp_id)
             if temp:
                 session.delete(temp)
                 session.commit()
                 return True
             return False
+        except Exception as e:
+            print(f"Error in delete_temp_transaction: {str(e)}")
+            return False
 
     # บันทึกจากชั่วคร่าวเข้าตารางจริง (รองรับทั้งกรณีมี Temp และไม่มี Temp)
+    @staticmethod
     def save_transaction(
-        self,
         session: Session,
         temp: TempTransactions = None,
         user_id: str = None,
@@ -244,8 +241,9 @@ class DBManagerTransactions:
         }
 
     # --- 3. ย้ายข้อมูลจาก Temp ไปเป็น Transaction จริง (รองรับ Category และ Attachment) ---
+    @staticmethod
     def confirm_and_save_transaction(
-        self,
+        session: Session,
         temp_id: str = None,
         user_id: str = None,
         edit: bool = False,
@@ -253,10 +251,10 @@ class DBManagerTransactions:
         attachment_id: str = None,
         skip_confirm: bool = False,
     ):
-        with Session(engine) as session:
+        try:
             # 1. ดึงข้อมูลชั่วคราว
             if temp_id is None and items is not None:
-                return self.save_transaction(
+                return DBManagerTransactions.save_transaction(
                     session=session,
                     temp=None,
                     user_id=user_id,
@@ -269,7 +267,7 @@ class DBManagerTransactions:
                 temp = session.get(TempTransactions, temp_id)
                 if not temp:
                     return False
-                return self.save_transaction(
+                return DBManagerTransactions.save_transaction(
                     session=session,
                     temp=temp,
                     user_id=None,
@@ -277,13 +275,14 @@ class DBManagerTransactions:
                     items=items,
                     skip_confirm=skip_confirm,
                 )
+        except Exception as e:
+            print(f"Error in confirm_and_save_transaction: {str(e)}")
+            return False
 
     # --- 4. บันทึก Metadata ของรูปภาพ ---
-    def create_attachment_record(self, user_id: str, file_path: str, file_type: str = "image/jpeg"):
-        """
-        สร้าง Record ในตาราง Attachments เพื่อเก็บ Path รูปที่บันทึกลง Disk แล้ว
-        """
-        with Session(engine) as session:
+    @staticmethod
+    def create_attachment_record(session: Session, user_id: str, file_path: str, file_type: str = "image/jpeg"):
+        try:
             new_attachment = Attachments(
                 id=str(uuid.uuid4()),
                 user_id=user_id,
@@ -294,15 +293,23 @@ class DBManagerTransactions:
             session.commit()
             session.refresh(new_attachment)
             return new_attachment.id
+        except Exception as e:
+            print(f"Error in create_attachment_record: {str(e)}")
+            return None
 
     # ดึงข้อมูล temp transaction เพื่อแสดงผลก่อนยืนยัน (กรณีมี temp_id)
-    def get_temp_transaction_data(self, temp_id):
-        with Session(engine) as session:
+    @staticmethod
+    def get_temp_transaction_data(session:Session, temp_id):
+        try:
             statement = select(TempTransactions).where(TempTransactions.id == temp_id)
             return session.exec(statement).first()
-
-    def get_Transactions(self):
-        with Session(engine) as session:
+        except Exception as e:
+            print(f"Error in get_temp_transaction_data: {str(e)}")
+            return None
+    
+    @staticmethod
+    def get_Transactions(session: Session):
+        try:
             # ทำการ Join ระหว่าง Transactions และ Category โดยใช้ category_id
             statement = select(Transactions, Categories).join(Categories)
             results = session.exec(statement).all()
@@ -316,54 +323,64 @@ class DBManagerTransactions:
                 combined_data.append(tx_data)
 
             return combined_data
+        except Exception as e:
+            print(f"Error in get_Transactions: {str(e)}")
+            return []
 
-    def get_transaction_by_id(self, transaction_id: str):
-        with Session(engine) as session:
+    @staticmethod
+    def get_transaction_by_id(session: Session, transaction_id: str):
+        try:
             statement = select(Transactions).where(Transactions.id == transaction_id)
             return session.exec(statement).first()
+        except Exception as e:
+            print(f"Error in get_transaction_by_id: {str(e)}")
+            return None
 
 
 class DBManagerCategories:
-    def __init__(self):
-        pass
-
     # --- 5. จัดการ Category (เพื่อความง่ายในการเรียกใช้) ---
-    def get_all_categories(self):
-        with Session(engine) as session:
+    @staticmethod
+    def get_all_categories(session: Session) -> List[Categories]:
+        try:
             statement = select(Categories)
             return session.exec(statement).all()
+        except Exception as e:
+            print(f"Error in get_all_categories: {str(e)}")
+            return []
 
-    def get_category_by_name(self, name: str):
-        with Session(engine) as session:
+    @staticmethod
+    def get_category_by_name(session: Session, name: str):
+        try:
             statement = select(Categories).where(Categories.name == name)
             return session.exec(statement).first()
+        except Exception as e:
+            print(f"Error in get_category_by_name: {str(e)}")
+            return None
 
-    def get_parent_categories(self) -> List[Categories]:
-        """
-        ดึงข้อมูลหมวดหมู่หลัก (Parent Categories) ทั้งหมดในระบบ
-        เพื่อนำไปแสดงผลในหน้าตั้งค่า Budget หรือใช้จัดกลุ่มรายงาน
-        """
-        with Session(engine) as session:
+    @staticmethod
+    def get_parent_categories(session: Session) -> List[Categories]:
+        try:
             # เลือกเฉพาะรายการที่ไม่มี parent_id (เป็นรากของหมวดหมู่)
-            statement = select(Categories).where(Categories.parent_id == None)
+            statement = select(Categories).where(Categories.parent_id.is_(None))
             results = session.exec(statement).all()
 
             return results
+        except Exception as e:
+            print(f"Error in get_parent_categories: {str(e)}")
+            return []
 
 
-class DBManagerDashboard:
-    def __init__(self):
-        pass
-
+class DBManagerDashboard:    
+    @staticmethod
     def get_dashboard_data(
-        self,
+        session: Session,
         user_id: str,
         type: str = "monthly",
         day: int = None,
         month: int = None,
         year: int = None,
     ):
-        with Session(engine) as session:
+        try:
             now = datetime.now()
 
             target_month = int(month) if month else now.month
@@ -416,14 +433,14 @@ class DBManagerDashboard:
                     for tx, cat in results[:10]
                 ],
             }
+        except Exception as e:
+            print(f"Error in get_dashboard_data: {str(e)}")
+            return {"total_amount": 0, "summary": {}, "transactions": []}
 
-
-class DBManagerBudget:
-    def __init__(self):
-        pass
-
-    def setup_user_budget(self, user_id: str, category_id: int, amount: float):
-        with Session(engine) as session:
+class DBManagerBudget:    
+    @staticmethod
+    def setup_user_budget(session: Session, user_id: str, category_id: int, amount: float):
+        try:
             now = datetime.now()
 
             # 1. ตรวจสอบก่อนว่า category_id ที่ส่งมาคือ Parent Category จริงหรือไม่ (กันพลาด)
@@ -461,8 +478,12 @@ class DBManagerBudget:
 
             session.commit()
             return {"success": True, "message": f"ตั้งงบประมาณหมวด {category.name} เรียบร้อยแล้วครับ"}
+        except Exception as e:
+            print(f"Error in setup_user_budget: {str(e)}")
+            return {"success": False, "message": "เกิดข้อผิดพลาดในการตั้งงบประมาณ กรุณาลองใหม่อีกครั้ง"}
 
-    def sync_user_budgets(self, session: Session, user_id: str, month: int, year: int):
+    @staticmethod
+    def sync_user_budgets(session: Session, user_id: str, month: int, year: int):
         """
         ฟังก์ชันสำหรับคำนวณยอดใช้จ่ายจริงจาก Transactions
         แล้วนำไปอัปเดตในตาราง UserBudget ให้เป็นปัจจุบันที่สุด
@@ -505,7 +526,8 @@ class DBManagerAdmin:
         pass
 
     # administrator db menament
-    def update_administrator_data_system(self, session: Session, uid: str, email: str):
+    @staticmethod
+    def update_administrator_data_system(session: Session, uid: str, email: str):
         admin = session.exec(select(Administrator).where(Administrator.uid == uid)).first()
         if admin:
             admin.email = email
@@ -521,8 +543,9 @@ class DBManagerAdmin:
         session.refresh(admin)
         return {"success": True, "data": admin.dict()}
 
+    @staticmethod
     def create_system_config(
-        self, session: Session, name: str, key: str, value: str, value_type: str, description: str
+        session: Session, name: str, key: str, value: str, value_type: str, description: str
     ):
         system_configuration = SystemConfiguration(
             name=name, key=key, value=value, value_type=value_type, description=description
@@ -532,6 +555,7 @@ class DBManagerAdmin:
         session.refresh(system_configuration)
         return {"success": True, "data": system_configuration}
 
+    @staticmethod
     def get_system_config_data(self, session: Session):
         statement = select(SystemConfiguration).order_by(desc(SystemConfiguration.created_at))
 
@@ -539,8 +563,8 @@ class DBManagerAdmin:
         system_configuration_list = [config.dict() for config in system_configuration]
         return {"success": True, "data": system_configuration_list}
 
+    @staticmethod
     def update_system_config(
-        self,
         session: Session,
         key: str,
         value: str,

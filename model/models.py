@@ -76,9 +76,7 @@ class Transactions(SQLModel, table=True):
 
     source_type: str = Field(default="text")
     is_confirmed: bool = Field(default=False, index=True)
-    undo_token: Optional[str] = Field(
-        default_factory=lambda: str(uuid.uuid4()), unique=True, index=True
-    )
+    undo_token: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()), index=True)
 
     # Foreign Keys
     user_id: str = Field(foreign_key="users.line_user_id")

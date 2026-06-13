@@ -117,6 +117,57 @@ class DBManagerTransactions:
             print(f"Error in delete_temp_transaction: {str(e)}")
             return False
 
+    @staticmethod
+    def undo_transaction(session: Session, user_id: str, undo_token: str):
+        try:
+            statement = select(Transactions).where(
+                Transactions.user_id == user_id,
+                Transactions.undo_token == undo_token,
+            )
+            transactions = session.exec(statement).all()
+            if not transactions:
+                return False
+
+            budget_updates = {}
+            for transaction in transactions:
+                parent_id = None
+                if transaction.category_id and transaction.category:
+                    parent_id = (
+                        transaction.category.parent_id
+                        if transaction.category.parent_id
+                        else transaction.category.id
+                    )
+                elif transaction.category_id:
+                    parent_id = transaction.category_id
+
+                if parent_id:
+                    key = (
+                        parent_id,
+                        transaction.transaction_date.month,
+                        transaction.transaction_date.year,
+                    )
+                    budget_updates[key] = budget_updates.get(key, 0.0) + transaction.amount
+
+                session.delete(transaction)
+
+            for (parent_id, month, year), amount_to_reduce in budget_updates.items():
+                budget_statement = select(UserBudget).where(
+                    UserBudget.user_id == user_id,
+                    UserBudget.category_id == parent_id,
+                    UserBudget.month == month,
+                    UserBudget.year == year,
+                )
+                budget = session.exec(budget_statement).first()
+                if budget:
+                    budget.current_spent = max(0.0, budget.current_spent - amount_to_reduce)
+                    session.add(budget)
+
+            session.commit()
+            return True
+        except Exception as e:
+            print(f"Error in undo_transaction: {str(e)}")
+            return False
+
     # บันทึกจากชั่วคร่าวเข้าตารางจริง (รองรับทั้งกรณีมี Temp และไม่มี Temp)
     @staticmethod
     def save_transaction(
@@ -127,6 +178,7 @@ class DBManagerTransactions:
         items: List[Dict[str, Any]] = None,
         skip_confirm: bool = False,
         attachment_id: str = None,
+        undo_token: str = None,
     ):
         # ดึงหมวด "อื่นๆ" ไว้รอเลย เผื่อต้องใช้ (Fallback)
         statement_other = select(Categories).where(
@@ -143,6 +195,7 @@ class DBManagerTransactions:
         updated_budgets_info = []  # เก็บข้อมูล Budget ที่ถูกอัปเดต
         processed_parent_ids = set()  # ป้องกันการดึง Budget ซ้ำถ้ามีหลายรายการใน Parent เดียวกัน
         now = datetime.now()
+        batch_undo_token = undo_token or str(uuid.uuid4())
 
         if edit:
             raw_data = items
@@ -195,6 +248,7 @@ class DBManagerTransactions:
                 attachment_id=attachment_id
                 if attachment_id
                 else (temp.attachment_id if temp else None),
+                undo_token=batch_undo_token,
             )
             session.add(new_tx)
 
@@ -235,6 +289,8 @@ class DBManagerTransactions:
                 )
 
         return {
+            "current_transaction_id": new_tx.id,
+            "undo_token": batch_undo_token,
             "count": item_count,
             "total": total_amount,
             "budgets": updated_budgets_info,  # ส่งข้อมูลสรุปงบกลับไป
@@ -250,6 +306,7 @@ class DBManagerTransactions:
         items: List[Dict[str, Any]] = None,
         attachment_id: str = None,
         skip_confirm: bool = False,
+        undo_token: str = None,
     ):
         try:
             # 1. ดึงข้อมูลชั่วคราว
@@ -262,6 +319,7 @@ class DBManagerTransactions:
                     items=items,
                     skip_confirm=skip_confirm,
                     attachment_id=attachment_id,
+                    undo_token=undo_token,
                 )
             else:
                 temp = session.get(TempTransactions, temp_id)
@@ -274,6 +332,7 @@ class DBManagerTransactions:
                     edit=edit,
                     items=items,
                     skip_confirm=skip_confirm,
+                    undo_token=undo_token,
                 )
         except Exception as e:
             print(f"Error in confirm_and_save_transaction: {str(e)}")
@@ -281,7 +340,9 @@ class DBManagerTransactions:
 
     # --- 4. บันทึก Metadata ของรูปภาพ ---
     @staticmethod
-    def create_attachment_record(session: Session, user_id: str, file_path: str, file_type: str = "image/jpeg"):
+    def create_attachment_record(
+        session: Session, user_id: str, file_path: str, file_type: str = "image/jpeg"
+    ):
         try:
             new_attachment = Attachments(
                 id=str(uuid.uuid4()),
@@ -299,14 +360,14 @@ class DBManagerTransactions:
 
     # ดึงข้อมูล temp transaction เพื่อแสดงผลก่อนยืนยัน (กรณีมี temp_id)
     @staticmethod
-    def get_temp_transaction_data(session:Session, temp_id):
+    def get_temp_transaction_data(session: Session, temp_id):
         try:
             statement = select(TempTransactions).where(TempTransactions.id == temp_id)
             return session.exec(statement).first()
         except Exception as e:
             print(f"Error in get_temp_transaction_data: {str(e)}")
             return None
-    
+
     @staticmethod
     def get_Transactions(session: Session):
         try:
@@ -370,7 +431,7 @@ class DBManagerCategories:
             return []
 
 
-class DBManagerDashboard:    
+class DBManagerDashboard:
     @staticmethod
     def get_dashboard_data(
         session: Session,
@@ -437,7 +498,8 @@ class DBManagerDashboard:
             print(f"Error in get_dashboard_data: {str(e)}")
             return {"total_amount": 0, "summary": {}, "transactions": []}
 
-class DBManagerBudget:    
+
+class DBManagerBudget:
     @staticmethod
     def setup_user_budget(session: Session, user_id: str, category_id: int, amount: float):
         try:

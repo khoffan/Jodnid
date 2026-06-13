@@ -117,7 +117,7 @@ class LineUtils:
             try:
                 # ตรวจสอบว่าเป็นข้อความธรรมดาหรือ Flex
                 if isinstance(content, str):
-                    message = TextMessage(text=content)
+                    message = TextMessage(text=content, quickReply=quick_reply)
                 elif isinstance(content, dict):
                     message = FlexMessage(
                         altText=alt_text,
@@ -644,7 +644,11 @@ class LineUtils:
 
     @staticmethod
     def reply_budget_for_use(
-        result: dict, user_id: str, logger: JodNidLogger, post_temp_id: str = None
+        result: dict,
+        user_id: str,
+        logger: JodNidLogger,
+        post_temp_id: str = None,
+        quick_reply: Optional[QuickReply] = None,
     ):
         if result:
             count = result.get("count", 0)
@@ -653,8 +657,9 @@ class LineUtils:
 
             # 2. ส่ง Reply ยืนยันการบันทึกสำเร็จก่อน (เพื่อปิด Loading ของ LINE)
             text_confirm = f"✅ บันทึกสำเร็จ {count} รายการ\n💰 ยอดรวม ฿{total:,.2f}"
+            print(quick_reply)
             LineUtils.send_push_notification(
-                user_id=user_id, content=text_confirm, alt_text="บันทึกสำเร็จ"
+                user_id=user_id, content=text_confirm, alt_text="บันทึกสำเร็จ", quick_reply=quick_reply
             )
             logger.info(
                 module="webhook_postback",
@@ -690,7 +695,7 @@ class LineUtils:
                     )
                     # ส่งเป็น Push Message (เพราะอาจจะใช้เวลาประมวลผลแยกกัน)
                     LineUtils.send_push_notification(
-                        user_id, content=budget_msg, alt_text="สรุปยอดใช้จ่าย"
+                        user_id, content=budget_msg, alt_text="สรุปยอดใช้จ่าย", quick_reply=quick_reply
                     )
 
                     # TIP: ในอนาคตคุณสามารถเปลี่ยนจากส่ง Text เป็นส่ง
@@ -706,6 +711,7 @@ class LineUtils:
                 user_id=user_id,
                 content="❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ",
                 alt_text="ไม่พบข้อมูล",
+                quick_reply=quick_reply,
             )
 
 

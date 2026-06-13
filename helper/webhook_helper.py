@@ -19,8 +19,7 @@ from model.models import Users
 # Use DBManager classes' static methods and pass `db: Session` from callers
 
 
-def get_bypass_quick_reply(skip_confirmation: bool) -> QuickReply:
-    """สร้างปุ่มกลมใต้แชท เพื่อสลับสถานะโหมดบันทึกด่วนตามจริงของผู้ใช้"""
+def get_quick_reply(skip_confirmation: bool, undo_token: str = None) -> QuickReply:
     if skip_confirmation:
         button_text = "🛡️ ปิดโหมดบันทึกด่วน"
         postback_data = "action=set_bypass&value=false"
@@ -28,15 +27,28 @@ def get_bypass_quick_reply(skip_confirmation: bool) -> QuickReply:
         button_text = "⚡ เปิดโหมดบันทึกด่วน"
         postback_data = "action=set_bypass&value=true"
 
-    return QuickReply(
-        items=[
+    items = [
+        QuickReplyItem(
+            action=PostbackAction(
+                label=button_text,
+                data=postback_data,
+                display_text=f"ขอ{button_text}ครับ",
+            )
+        )
+    ]
+
+    if undo_token is not None:
+        items.append(
             QuickReplyItem(
                 action=PostbackAction(
-                    label=button_text, data=postback_data, display_text=f"ขอ{button_text}ครับ"
+                    label="↩️ ยกเลิกรายการนี้",
+                    data=f"action=undo&token={undo_token}",
+                    display_text="ขอ↩️ ยกเลิกรายการนี้",
                 )
             )
-        ]
-    )
+        )
+
+    return QuickReply(items=items)
 
 
 async def process_webhook_event(
@@ -120,15 +132,6 @@ async def handle_text_message(
             "how to use จดนิด",
         ]
         GREETING_KEYWORDS = ["สวัสดี", "hello", "hi", "เริ่ม", "start", "start จดนิด"]
-        SUMMARY_KEYWORDS = [
-            "ขอดูยอด",
-            "สรุปยอด",
-            "ใช้ไปเท่าไหร่",
-            "summary",
-            "how much",
-            "how much have i spent",
-            "how much have i spent today",
-        ]
         user_text_lower = user_text.lower().strip()
         logger.info(
             module="webhook_text_ai",
@@ -193,7 +196,7 @@ async def handle_text_message(
                 user_id=user_id,
             )
             skip_confirm = getattr(user_record, "use_bypass_mode", False)
-            quick_reply = get_bypass_quick_reply(skip_confirm)
+            quick_reply = get_quick_reply(skip_confirm)
             if skip_confirm:
                 items = (
                     final_transactions.get("transactions")
@@ -207,6 +210,8 @@ async def handle_text_message(
                 logger.info(
                     module="webhook_bypass_mode_text", message=f"result: {result}", user_id=user_id
                 )
+                undo_token = result.get("undo_token") if isinstance(result, dict) else None
+                quick_reply = get_quick_reply(skip_confirm, undo_token=undo_token)
                 flex_msg = LineUtils.create_dynamic_flex_receipt(
                     final_transactions, skip_confirm=skip_confirm
                 )
@@ -214,7 +219,9 @@ async def handle_text_message(
                     user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ", quick_reply=quick_reply
                 )
 
-                LineUtils.reply_budget_for_use(result=result, user_id=user_id, logger=logger)
+                LineUtils.reply_budget_for_use(
+                    result=result, user_id=user_id, logger=logger, quick_reply=quick_reply
+                )
             else:
                 temp_id = DBManagerTransactions.save_temp_transaction(
                     db, user_id, final_transactions
@@ -225,6 +232,9 @@ async def handle_text_message(
                 )
                 LineUtils.send_push_notification(
                     user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ", quick_reply=quick_reply
+                )
+                LineUtils.reply_budget_for_use(
+                    result=result, user_id=user_id, logger=logger, quick_reply=quick_reply
                 )
         else:
             logger.info(
@@ -242,7 +252,10 @@ async def handle_text_message(
             )
             # (Option) คุณอาจจะส่งข้อความกลับไปบอก User ว่าไม่พบรายการในข้อความนี้ก็ได้
             LineUtils.send_push_notification(
-                user_id, content=guidance_text, alt_text="จดนิดยังไม่เข้าใจรายการนี้ครับ"
+                user_id,
+                content=guidance_text,
+                alt_text="จดนิดยังไม่เข้าใจรายการนี้ครับ",
+                quick_reply=quick_reply,
             )
     except Exception as e:
         logger.error(
@@ -299,7 +312,7 @@ async def handle_image_message(
         ocr_result = ocr_json["text"]
         final_transactions = ocr_result
         skip_confirm = getattr(user_record, "use_bypass_mode", False)
-        quick_reply = get_bypass_quick_reply(skip_confirm)
+        quick_reply = get_quick_reply(skip_confirm)
         if skip_confirm:
             items = (
                 final_transactions.get("transactions")
@@ -318,6 +331,8 @@ async def handle_image_message(
             logger.info(
                 module="webhook_bypass_mode_ocr", message=f"result: {result}", user_id=user_id
             )
+            undo_token = result.get("undo_token") if isinstance(result, dict) else None
+            quick_reply = get_quick_reply(skip_confirm, undo_token=undo_token)
             flex_msg = LineUtils.create_dynamic_flex_receipt(
                 final_transactions, skip_confirm=skip_confirm
             )
@@ -325,18 +340,24 @@ async def handle_image_message(
                 user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ", quick_reply=quick_reply
             )
             print("sending receipt flex message with bypass mode")
-            LineUtils.reply_budget_for_use(result=result, user_id=user_id, logger=logger)
+            LineUtils.reply_budget_for_use(
+                result=result, user_id=user_id, logger=logger, quick_reply=quick_reply
+            )
             print("sending receipt flex message with bypass mode - done")
         else:
             temp_id = DBManagerTransactions.save_temp_transaction(
                 db, user_id, final_transactions, attachment_id=attachment_id, source_type="image"
             )
             flex_msg = LineUtils.create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
-            LineUtils.send_push_notification(user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ")
+            LineUtils.send_push_notification(
+                user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ", quick_reply=quick_reply
+            )
     else:
         logger.error(module="webhook_image_ai", message="Failed to save image", user_id=user_id)
         LineUtils.send_push_notification(
-            user_id, content="ขออภัยครับ ระบบไม่สามารถอ่านข้อมูลจากรูปนี้ได้ กรุณาลองใหม่อีกครั้งด้วยรูปที่ชัดเจนขึ้นครับ"
+            user_id,
+            content="ขออภัยครับ ระบบไม่สามารถอ่านข้อมูลจากรูปนี้ได้ กรุณาลองใหม่อีกครั้งด้วยรูปที่ชัดเจนขึ้นครับ",
+            quick_reply=quick_reply,
         )
 
 
@@ -364,7 +385,7 @@ async def handle_postback(db: Session, postback_data: str, user_id: str, logger:
             )
 
             # เจนตัวปุ่มกลมชุดใหม่ที่ "สลับค่าตรงข้ามซ้อนกลับ" รอไว้
-            new_quick_reply = get_bypass_quick_reply(is_enable)
+            new_quick_reply = get_quick_reply(is_enable)
 
             if is_enable:
                 reply_text = "⚡ เปิดโหมดบันทึกด่วนเรียบร้อย! ต่อไปเมื่อส่งข้อความหรือสลิป JodNid จะบันทึกให้ทันทีโดยไม่ถามซ้ำครับ"
@@ -398,6 +419,29 @@ async def handle_postback(db: Session, postback_data: str, user_id: str, logger:
             LineUtils.send_push_notification(
                 user_id=user_id, content="🗑️ ยกเลิกการบันทึกรายการเรียบร้อยครับ", alt_text="ยกเลิกการบันทึก"
             )
+
+        elif action == "undo":
+            undo_token = params.get("token")
+            logger.info(
+                module="webhook_postback",
+                message=f"processing undo token: {undo_token}",
+                user_id=user_id,
+            )
+            success = DBManagerTransactions.undo_transaction(
+                db, user_id=user_id, undo_token=undo_token
+            )
+            if success:
+                LineUtils.send_push_notification(
+                    user_id=user_id,
+                    content="↩️ ยกเลิกรายการเรียบร้อยแล้วครับ",
+                    alt_text="ยกเลิกรายการเรียบร้อย",
+                )
+            else:
+                LineUtils.send_push_notification(
+                    user_id=user_id,
+                    content="ขออภัยครับ ไม่พบรายการที่สามารถยกเลิกได้ หรือรายการถูกยกเลิกไปแล้ว",
+                    alt_text="ไม่สามารถยกเลิกได้",
+                )
     except Exception as e:
         logger.error(
             module="webhook_postback", message=f"Error handling postback: {str(e)}", user_id=user_id

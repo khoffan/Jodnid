@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from sqlmodel import JSON, Column, Field, Relationship, Session, SQLModel, create_engine
+from sqlmodel import JSON, Column, Field, Index, Relationship, Session, SQLModel, create_engine
 
 from model.permissionEnum import PermissionEnum
 
@@ -17,6 +17,7 @@ class Users(SQLModel, table=True):
     display_name: Optional[str] = None
     email: Optional[str] = None
     picture_url: Optional[str] = None
+    use_bypass_mode: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships
@@ -75,8 +76,9 @@ class Transactions(SQLModel, table=True):
     transaction_type: str = Field(default="expense")
     transaction_date: datetime = Field(default_factory=datetime.utcnow)
 
-    # เพิ่ม Field ใหม่
-    source_type: str = Field(default="text")  # 'text' หรือ 'image'
+    source_type: str = Field(default="text")
+    is_confirmed: bool = Field(default=False, index=True)
+    undo_token: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()), index=True)
 
     # Foreign Keys
     user_id: str = Field(foreign_key="users.line_user_id")
@@ -89,6 +91,9 @@ class Transactions(SQLModel, table=True):
     user: Users = Relationship(back_populates="transactions")
     category: Optional[Categories] = Relationship(back_populates="transactions")
     attachment: Optional[Attachments] = Relationship(back_populates="transaction")
+
+    # เวลาที่ Webhook จาก LINE สั่งลบหรือเช็คสถานะผ่านคู่หู user_id + undo_token จะได้ทำงานทันทีในระดับมิลลิวินาที
+    __table_args__ = (Index("idx_user_undo_transaction", "user_id", "undo_token"),)
 
 
 # --- 5. ตาราง TempTransactions (รอ Confirm) ---
@@ -202,7 +207,14 @@ class Administrator(SQLModel, table=True):
 
 # --- Database Connection ---
 raw_url_db = os.getenv("DATABASE_URL")
-engine = create_engine(raw_url_db)
+engine = create_engine(
+    raw_url_db,
+    pool_size=10,  # 🟢 ท่อหลัก: เปิดสแตนด์บายรอไว้สูงสุด 10 คอนเนคชัน
+    max_overflow=20,  # 🟡 ท่อสำรอง: ขยายเพิ่มได้อีกไม่เกิน 20 คอนเนคชันกรณีคนถล่มใช้งาน
+    pool_timeout=30,  # ⏱️ ถ้ารอนานเกิน 30 วินาทีแล้วไม่มีท่อว่างให้หลุด Timeout
+    pool_recycle=1800,  # ♻️ รีไซเคิลท่อทุกๆ 30 นาที ป้องกันท่อเน่า
+    pool_pre_ping=True,  # 🏓 เช็คท่อก่อนใช้ทุกครั้ง ถ้าท่อหลุดจะเชื่อมต่อใหม่ให้อัตโนมัติ
+)
 
 
 def create_db_and_tables():

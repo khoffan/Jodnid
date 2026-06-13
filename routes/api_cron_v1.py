@@ -6,17 +6,9 @@ from core.config_settings import settings
 from helper.logger import JodNidLogger
 
 # function
-from helper.utils import (
-    create_summary_flex,
-    get_all_users,
-    get_daily_usage,
-    get_monthly_usage,
-    send_push_notification,
-)
+from helper.utils import LineUtils, Utilities
 from model.db_manament import DBManagerDashboard
 from model.models import get_session
-
-manager_dashboard = DBManagerDashboard()
 
 header_scheme = APIKeyHeader(name="X-Cron-Token", auto_error=False)
 
@@ -47,15 +39,15 @@ class CronAPis:
         # cron job service
         @router.post("/remind-to-record")
         async def remind_logic(db: Session = Depends(get_session)):
-            all_users = get_all_users(db)
+            all_users = Utilities.get_all_users(db)
             count_reminded = 0
             for user in all_users:
                 user_id = user.line_user_id
-                daily_amount = get_daily_usage(db, user_id)
+                daily_amount = Utilities.get_daily_usage(db, user_id)
 
                 if daily_amount is None:
                     # 4. ถ้ายังไม่จด (None) -> ส่ง Push Notification ทันที
-                    send_push_notification(
+                    LineUtils.send_push_notification(
                         user_id=user.line_user_id,
                         content="📝 วันนี้ยังไม่ได้บันทึกรายการเลยนะ อย่าลืมจด 'จดนิด' เพื่อวินัยทางการเงินที่แม่นยำนะครับ",
                         alt_text="เตือนบันทึกรายจ่ายวันนี้",
@@ -80,7 +72,7 @@ class CronAPis:
         # --- เส้นที่ 2: สรุปรายวัน (Run ตอน 21:00) ---
         @router.post("/summary-daily")
         async def daily_summary(db: Session = Depends(get_session)):
-            all_users = get_all_users(db)
+            all_users = Utilities.get_all_users(db)
             processed_count = 0
 
             for user in all_users:
@@ -91,10 +83,10 @@ class CronAPis:
                     user_id=user_id,
                 )
                 # ดึงข้อมูลจากฟังก์ชันสรุปที่คุยกันก่อนหน้า
-                data = manager_dashboard.get_dashboard_data(db, user_id, type="daily")
+                data = DBManagerDashboard.get_dashboard_data(db, user_id, type="daily")
 
                 if data["total_amount"] > 0:
-                    flex_content = create_summary_flex(
+                    flex_content = LineUtils.create_summary_flex(
                         title="📊 สรุปรายงานรายวัน",
                         total=data["total_amount"],
                         items=data["transactions"],
@@ -103,7 +95,9 @@ class CronAPis:
                     )
 
                     # ส่งเป็น Flex Message
-                    send_push_notification(user_id, content=flex_content, alt_text="สรุปยอดรายวัน")
+                    LineUtils.send_push_notification(
+                        user_id, content=flex_content, alt_text="สรุปยอดรายวัน"
+                    )
                     processed_count += 1
                     logger.info(
                         module="cron",
@@ -121,7 +115,7 @@ class CronAPis:
         # --- เส้นที่ 3: สรุปรายเดือน (Run ทุกสิ้นเดือน หรือตามสั่ง) ---
         @router.post("/summary-monthly")
         async def monthly_summary(db: Session = Depends(get_session)):
-            all_users = get_all_users(db)
+            all_users = Utilities.get_all_users(db)
             for user in all_users:
                 user_id = user.line_user_id
                 logger.info(
@@ -129,9 +123,9 @@ class CronAPis:
                     message=f"Monthly summary cron job started for {len(all_users)} users",
                     user_id=user_id,
                 )
-                amount = get_monthly_usage(db, user_id)
+                amount = Utilities.get_monthly_usage(db, user_id)
                 msg = f"📅 สรุปยอดใช้จ่ายเดือนนี้ทั้งหมด ฿{amount:,.2f} ครับ"
-                send_push_notification(user_id, msg, alt_text="สรุปยอดรายเดือน")
+                LineUtils.send_push_notification(user_id, msg, alt_text="สรุปยอดรายเดือน")
                 logger.info(
                     module="cron",
                     message=f"Monthly summary cron job completed: {msg} users notified",

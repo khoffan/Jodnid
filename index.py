@@ -11,7 +11,7 @@ from core.config_settings import settings
 from helper.logger import JodNidLogger
 
 # function
-from helper.utils import get_all_users, get_config_value, get_line_profile, send_push_notification
+from helper.utils import LineUtils, Utilities
 from helper.webhook_helper import process_webhook_event
 from model.models import create_db_and_tables, get_session
 from routes.api_administrator_v1 import AdministratorAPIs
@@ -67,6 +67,7 @@ liff_api.setup_router()
 cron_apis.setup_router()
 administrator_api.setup_router()
 
+
 app.include_router(liff_api.router)
 app.include_router(cron_apis.router)
 app.include_router(administrator_api.router)
@@ -79,7 +80,7 @@ async def root():
 
 @app.post("/webhook")
 async def line_webhook(data: LineWebhook, background_tasks: BackgroundTasks):
-    is_maintenance_mode = get_config_value(key="is_maintenance_mode", default=False)
+    is_maintenance_mode = Utilities.get_config_value(key="is_maintenance_mode", default=False)
     for event in data.events:
         # 1. ดึง UID และประเภทของ Event
         user_id = event.get("source", {}).get("userId")
@@ -89,14 +90,21 @@ async def line_webhook(data: LineWebhook, background_tasks: BackgroundTasks):
         )
         if is_maintenance_mode:
             logger.info(module="webhook", message="Maintenance mode is enabled", user_id=user_id)
-            send_push_notification(
+            LineUtils.send_push_notification(
                 user_id=user_id,
                 content="ระบบกำลังปรับปรุง กรุณาลองใหม่อีกครั้งภายหลัง",
                 alt_text="ระบบกำลังปรับปรุง",
             )
             continue
         background_tasks.add_task(
-            process_webhook_event, event, user_id, reply_token, line_access_token, api_key, logger
+            process_webhook_event,
+            db_session,
+            event,
+            user_id,
+            reply_token,
+            line_access_token,
+            api_key,
+            logger,
         )
 
     return {"status": "ok"}
@@ -104,11 +112,6 @@ async def line_webhook(data: LineWebhook, background_tasks: BackgroundTasks):
 
 if __name__ == "__main__":
     create_db_and_tables()
-    users = get_all_users(db_session)
-    user_id = None
-    for user in users:
-        profile = get_line_profile(user_id=user.line_user_id, line_token=line_access_token)
-        user_id = profile.get("userId")
     port = int(os.getenv("PORT", 5005))  # ถ้าไม่มีใน .env ให้ใช้ 5005 เป็น default
-    logger.info(module="app", message=f"Starting server on port {port}", user_id=user_id)
+    logger.info(module="app", message=f"Starting server on port {port}")
     uvicorn.run("index:app", host="0.0.0.0", port=port, reload=True)

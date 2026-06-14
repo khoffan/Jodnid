@@ -9,11 +9,7 @@ export const ConfigTable = ({ configs, onEdit, onToggle }) => {
   };
 
   if (!configs || configs.length === 0) {
-    return (
-      <div className="py-8 text-center text-gray-500">
-        ไม่พบข้อมูลการตั้งค่า
-      </div>
-    );
+    return <div className="py-8 text-center text-gray-500">ไม่พบข้อมูลการตั้งค่า</div>;
   }
 
   return (
@@ -37,18 +33,11 @@ export const ConfigTable = ({ configs, onEdit, onToggle }) => {
         </thead>
         <tbody className="bg-white divide-y divide-gray-50">
           {configs.map((config) => (
-            <tr
-              key={config.key}
-              className="hover:bg-gray-50/50 transition-colors"
-            >
+            <tr key={config.key} className="hover:bg-gray-50/50 transition-colors">
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex flex-col">
-                  <p className="text-sm font-bold text-gray-800">
-                    {config.name}
-                  </p>
-                  <p className="text-xs text-gray-400 font-mono tracking-tighter">
-                    {config.key}
-                  </p>
+                  <p className="text-sm font-bold text-gray-800">{config.name}</p>
+                  <p className="text-xs text-gray-400 font-mono tracking-tighter">{config.key}</p>
                 </div>
               </td>
               <td className="px-6 py-4">
@@ -57,8 +46,8 @@ export const ConfigTable = ({ configs, onEdit, onToggle }) => {
                     <button
                       type="button"
                       onClick={() => handleToggle(config)}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        config.value === "true" ? "bg-blue-600" : "bg-gray-200"
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border border-gray-300 transition-colors duration-200 ease-in-out focus:outline-none ${
+                        config.value === "true" ? "bg-black" : "bg-gray-200"
                       }`}
                       role="switch"
                       aria-checked={config.value === "true"}
@@ -66,23 +55,19 @@ export const ConfigTable = ({ configs, onEdit, onToggle }) => {
                       <span
                         aria-hidden="true"
                         className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          config.value === "true"
-                            ? "translate-x-5"
-                            : "translate-x-0"
+                          config.value === "true" ? "translate-x-5" : "translate-x-0"
                         }`}
                       />
                     </button>
                     <span
-                      className={`ml-3 text-xs font-medium ${config.value === "true" ? "text-blue-600" : "text-gray-400"}`}
+                      className={`ml-3 text-xs font-medium ${config.value === "true" ? "text-black" : "text-gray-500"}`}
                     >
                       {config.value === "true" ? "Enabled" : "Disabled"}
                     </span>
                   </div>
                 ) : (
                   <div className="inline-block px-2.5 py-1 rounded-md bg-gray-50 border border-gray-200 shadow-sm">
-                    <code className="text-xs font-mono text-gray-600">
-                      {config.value}
-                    </code>
+                    <code className="text-xs font-mono text-gray-600">{config.value}</code>
                   </div>
                 )}
               </td>
@@ -94,7 +79,7 @@ export const ConfigTable = ({ configs, onEdit, onToggle }) => {
                   type="button"
                   title="แก้ไขการตั้งค่า"
                   onClick={() => onEdit(config)}
-                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors focus:outline-none"
+                  className="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-full transition-colors focus:outline-none"
                 >
                   <Edit3 size={18} />
                 </button>

@@ -1,99 +1,90 @@
 import React from "react";
 import useAuthStore from "../../features/authentication/store/auth.store";
-import { useNavigate } from "react-router";
+import { NavLink, useNavigate } from "react-router";
 import UserProfileCard from "./UserProfileCard";
-// นิยามเมนูและสิทธิ์ที่จำเป็นต้องมีในการมองเห็นเมนูนั้นๆ
+
 const SIDEBAR_MENUS = [
   {
     name: "Dashboard",
     path: "/dashboard",
-    icon: "📊", // สามารถเปลี่ยนเป็น Lucide React หรือ Heroicons ที่ใช้ในโปรเจกต์ได้เลยครับ
+    icon: "📊",
     requiredPermission: "overview_view",
   },
   {
-    name: "Config Management",
-    path: "/configs",
+    name: "Logs",
+    path: "/logs",
+    icon: "📝",
+    requiredPermission: "log_view",
+  },
+  {
+    name: "Administrator",
+    path: "/administrator",
+    icon: "👥",
+    requiredPermission: "admin_read",
+  },
+  {
+    name: "Config",
+    path: "/config",
     icon: "⚙️",
     requiredPermission: "config_read",
   },
   {
-    name: "Role Settings",
-    path: "/roles",
-    icon: "🔑",
-    requiredPermission: "admin_manage", // เฉพาะระดับสูงที่จัดการสิทธิ์ได้
-  },
-  {
-    name: "Administrators",
-    path: "/admins",
-    icon: "👥",
-    requiredPermission: "admin_read", // เฉพาะระดับสูงที่ดูรายชื่อทีมหลังบ้านได้
-  },
-  {
-    name: "Users Control",
+    name: "Users",
     path: "/users",
     icon: "👤",
-    requiredPermission: "user_view", // คนที่ดูประวัติผู้ใช้งานทั่วไปได้
+    requiredPermission: "user_view",
   },
 ];
 
 export default function Sidebar() {
-  // 1. ดึงข้อมูลสิทธิ์และข้อมูลผู้ใช้จาก Store หลังบ้าน (ปรับตาม Store จริงของคุณได้เลยครับ)
-  // สมมติโครงสร้าง: user: { name: "Khoffan", permissions: ["overview_view", "config_read"] }
-  const { user, signOut } = useAuthStore?.() || {
-    user: { permissions: ["overview_view", "config_read"] }, // Fallback ไว้ทดสอบ
-  };
+  const store = useAuthStore();
+  const user = store?.user;
+  const signOut = store?.signOut;
   const navigate = useNavigate();
 
-  const userPermissions = user?.permissions || [];
-  console.log("User Permissions:", userPermissions); // ล็อกสิทธิ์ที่ดึงมาได้เพื่อเช็คก่อนครับ
-
-  // 2. กรองเมนูที่ User คนนี้มีสิทธิ์ดูเท่านั้น
-  const visibleMenus = SIDEBAR_MENUS.filter((menu) =>
-    userPermissions.includes(menu.requiredPermission),
-  );
+  // Show all menus for admin users (permissions check can be added later)
+  const visibleMenus = SIDEBAR_MENUS;
 
   const handleLogout = () => {
-    signOut();
-    navigate("/", {
+    if (signOut) {
+      signOut();
+    }
+    navigate("/login", {
       replace: true,
     });
   };
 
   return (
-    <aside className="w-64 h-screen bg-slate-900 text-white flex flex-col justify-between p-4 border-r border-slate-800">
-      {/* ส่วนบน: Logo และ รายการเมนู */}
-      <div className="flex flex-col gap-6">
-        <div className="px-2 py-3 text-xl font-bold tracking-wider text-teal-400 border-b border-slate-800">
-          Molldini Admin
+    <aside className="w-64 h-full bg-white text-slate-900 flex flex-col justify-between border-r border-gray-200 p-4 flex-shrink-0">
+      <div className="flex flex-col gap-4">
+        <div className="px-3 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-bold tracking-tight text-slate-900">JodNid</h2>
+          <p className="text-xs text-slate-500 mt-1">Administrator</p>
         </div>
 
         <nav className="flex flex-col gap-1">
-          {visibleMenus.map((menu) => {
-            // ตัวอย่างการเช็ค Active state เผื่อปรับแต่ง CSS สไตล์
-            const isActive = true;
-
-            return (
-              <a
+          {visibleMenus.length > 0 ? (
+            visibleMenus.map((menu) => (
+              <NavLink
                 key={menu.path}
-                href={menu.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                  ${
-                    isActive
-                      ? "bg-teal-600 text-white"
-                      : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-                  }`}
+                to={menu.path}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium transition-all ${
+                    isActive ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100"
+                  }`
+                }
               >
                 <span className="text-base">{menu.icon}</span>
                 <span>{menu.name}</span>
-              </a>
-            );
-          })}
+              </NavLink>
+            ))
+          ) : (
+            <p className="text-xs text-slate-500 px-3 py-2">No menu items</p>
+          )}
         </nav>
       </div>
 
-      {/* ส่วนล่าง: ProfileCard ที่มีอยู่แล้ว */}
-      <div className="pt-4 border-t border-slate-800">
-        {/* ปลดคอมเมนต์แล้วเรียกใช้ Component ของคุณตรงนี้ได้เลยครับ */}
+      <div className="border-t border-gray-200 pt-4">
         <UserProfileCard user={user} handleLogout={handleLogout} />
       </div>
     </aside>

@@ -47,7 +47,7 @@ const useConfigStore = create((set, get) => ({
   // Action: อัปเดตข้อมูล (และรอให้ Backend Clear Cache)
   updateConfig: async (key, payload) => {
     try {
-      await api.post("/api/administrator/config/update", { key, ...payload });
+      await api.patch("/api/administrator/config/update", { key, ...payload });
       // หลังอัปเดต ให้ดึงข้อมูลใหม่มาทับทันทีเพื่อให้ UI ตรงกับ DB
       await get().fetchConfigs();
       return { success: true };

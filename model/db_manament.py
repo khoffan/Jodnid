@@ -585,9 +585,6 @@ class DBManagerBudget:
 
 
 class DBManagerAdmin:
-    def __init__(self):
-        pass
-
     # administrator db menament
     @staticmethod
     def update_administrator_data_system(session: Session, uid: str, email: str):
@@ -619,7 +616,7 @@ class DBManagerAdmin:
         return {"success": True, "data": system_configuration}
 
     @staticmethod
-    def get_system_config_data(self, session: Session):
+    def get_system_config_data(session: Session):
         statement = select(SystemConfiguration).order_by(desc(SystemConfiguration.created_at))
 
         system_configuration = session.exec(statement).all()

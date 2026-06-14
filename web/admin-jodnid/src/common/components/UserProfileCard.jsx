@@ -5,46 +5,41 @@ export default function UserProfileCard({ user, handleLogout }) {
   return (
     <div className="relative group">
       {/* Profile Trigger */}
-      <button className="flex items-center gap-3 p-1 pr-3 hover:bg-gray-50 rounded-full transition-all duration-200 border border-transparent hover:border-gray-100">
-        <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold shadow-md shadow-indigo-100">
+      <button className="flex items-center gap-3 w-full p-3 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200">
+        <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center text-slate-700 font-bold text-sm">
           {user?.email?.charAt(0).toUpperCase() || "U"}
         </div>
-        <div className="flex flex-col items-start hidden sm:flex">
-          <span className="text-sm font-bold text-gray-800 leading-tight">
+        <div className="flex flex-col items-start flex-1 min-w-0">
+          <span className="text-xs font-semibold text-slate-900 truncate">
             {user?.email?.split("@")[0]}
           </span>
-          <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
-            Administrator
+          <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
+            Admin
           </span>
         </div>
       </button>
 
       {/* Dropdown Menu */}
-      <div className="absolute right-0 mt-2 w-56 bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 translate-y-2 group-hover:translate-y-0">
-        {/* User Info Header (Mobile/Extra Info) */}
-        <div className="px-5 py-3 border-b border-gray-50 mb-1">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-tighter">
-            Signed in as
-          </p>
-          <p className="text-sm font-semibold text-gray-700 truncate">
-            {user?.email}
-          </p>
+      <div className="absolute left-0 right-0 bottom-full mb-2 bg-white rounded-lg shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Account</p>
+          <p className="text-sm font-semibold text-slate-900 truncate mt-1">{user?.email}</p>
         </div>
 
-        {/* Options */}
-        <button className="flex items-center gap-3 px-5 py-3 text-sm text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 w-full text-left transition-colors">
+        <Link
+          to="/profile"
+          className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors w-full text-left border-b border-gray-100"
+        >
           <UserIcon size={16} />
-          <Link to="/profile" className="font-medium">
-            จัดการโปรไฟล์
-          </Link>
-        </button>
+          <span className="font-medium">Profile</span>
+        </Link>
 
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-5 py-3 text-sm text-red-500 hover:bg-red-50 w-full text-left transition-colors"
+          className="flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left"
         >
           <LogOut size={16} />
-          <span className="font-medium">ออกจากระบบ</span>
+          <span className="font-medium">Sign Out</span>
         </button>
       </div>
     </div>

@@ -6,33 +6,28 @@ export const StatusCards = () => {
       label: "OCR Status",
       value: "Active",
       icon: <Camera />,
-      color: "bg-blue-500",
     },
     {
       label: "Database",
       value: "Connected",
       icon: <Database />,
-      color: "bg-green-500",
     },
     {
       label: "LINE API",
       value: "Online",
       icon: <MessageSquare />,
-      color: "bg-purple-500",
     },
   ];
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {statusItems.map((item, idx) => (
-        <div key={idx} className="bg-gray-50 border border-gray-100 rounded-xl shadow-sm p-4">
+        <div key={idx} className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
           <div className="flex flex-row items-center gap-4">
-            <div className={`p-3 ${item.color} rounded-xl text-white shadow-md`}>
-              {item.icon}
-            </div>
+            <div className="p-3 bg-slate-200 rounded-xl text-black shadow-sm">{item.icon}</div>
             <div>
-              <p className="text-xs text-gray-500 font-medium">{item.label}</p>
-              <p className="text-xl font-bold text-gray-800">{item.value}</p>
+              <p className="text-xs text-slate-500 font-medium">{item.label}</p>
+              <p className="text-xl font-bold text-black">{item.value}</p>
             </div>
           </div>
         </div>

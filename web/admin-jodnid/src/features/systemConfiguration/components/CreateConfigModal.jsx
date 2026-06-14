@@ -82,20 +82,17 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
       <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col overflow-hidden"
+        className="bg-white rounded-2xl border border-gray-200 w-full max-w-md flex flex-col overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-config-modal-title"
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2 text-blue-500">
+          <div className="flex items-center gap-2 text-black">
             <Plus size={20} />
-            <h2
-              id="create-config-modal-title"
-              className="font-bold text-xl text-gray-800"
-            >
+            <h2 id="create-config-modal-title" className="font-bold text-xl text-black">
               สร้าง Configuration ใหม่
             </h2>
           </div>
@@ -109,46 +106,34 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
 
         <div className="p-6 space-y-4">
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">
-              Display Name
-            </label>
+            <label className="text-sm font-medium text-gray-700">Display Name</label>
             <input
               type="text"
               placeholder="เช่น เปิดปิดระบบ OCR"
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-black transition-all text-sm"
               value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             />
-            {formError.name && (
-              <p className="text-red-500 text-sm">{formError.name}</p>
-            )}
+            {formError.name && <p className="text-red-500 text-sm">{formError.name}</p>}
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">
-              System Key (snake_case)
-            </label>
+            <label className="text-sm font-medium text-gray-700">System Key (snake_case)</label>
             <input
               type="text"
               placeholder="เช่น is_ocr_active"
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+              className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-black transition-all text-sm"
               value={formData.key}
-              onChange={(e) =>
-                setFormData({ ...formData, key: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, key: e.target.value })}
             />
-            {formError.key && (
-              <p className="text-red-500 text-sm">{formError.key}</p>
-            )}
+            {formError.key && <p className="text-red-500 text-sm">{formError.key}</p>}
           </div>
 
           <div className="flex gap-3">
             <div className="space-y-1 w-1/3">
-              <label className="text-sm font-medium text-gray-700">Type</label>
+              <label className="text-sm font-medium text-slate-700">Type</label>
               <select
-                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-black transition-all text-sm"
                 value={formData.value_type}
                 onChange={(e) =>
                   setFormData({
@@ -182,11 +167,9 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
               </div>
               {formData.value_type === "boolean" && (
                 <select
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-black transition-all text-sm"
                   value={formData.value}
-                  onChange={(e) =>
-                    setFormData({ ...formData, value: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, value: e.target.value })}
                 >
                   <option value="true">True</option>
                   <option value="false">False</option>
@@ -194,49 +177,37 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
               )}
               {formData.value_type === "json" && (
                 <textarea
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-black transition-all text-sm"
                   value={formData.value}
-                  onChange={(e) =>
-                    setFormData({ ...formData, value: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, value: e.target.value })}
                 />
               )}
               {useTextArea && formData.value_type === "string" ? (
                 <textarea
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-black transition-all text-sm"
                   value={formData.value}
-                  onChange={(e) =>
-                    setFormData({ ...formData, value: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, value: e.target.value })}
                 />
               ) : (
                 <input
                   type="text"
                   placeholder="ค่าเริ่มต้น"
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-black transition-all text-sm"
                   value={formData.value}
-                  onChange={(e) =>
-                    setFormData({ ...formData, value: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, value: e.target.value })}
                 />
               )}
-              {formError.value && (
-                <p className="text-red-500 text-sm">{formError.value}</p>
-              )}
+              {formError.value && <p className="text-red-500 text-sm">{formError.value}</p>}
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700">
-              Description
-            </label>
+            <label className="text-sm font-medium text-gray-700">Description</label>
             <textarea
               placeholder="คำอธิบายการใช้งาน..."
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm min-h-[80px]"
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200 focus:border-black transition-all text-sm min-h-[80px]"
               value={formData.description}
-              onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             />
             {formError.description && (
               <p className="text-red-500 text-sm">{formError.description}</p>
@@ -253,7 +224,7 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
           </button>
           <button
             onClick={handleSubmit}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-500 hover:bg-blue-600 rounded-lg shadow-md shadow-blue-500/30 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-black hover:bg-slate-900 rounded-lg transition-colors"
           >
             <Save size={16} />
             ยืนยันการสร้าง

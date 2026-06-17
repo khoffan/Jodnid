@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlmodel import Session
+from datetime import datetime
 
 from core.config_settings import settings
 from helper.logger import JodNidLogger
@@ -201,3 +202,23 @@ class LiffApi:
             return DBManagerBudget.setup_user_budget(
                 db, user_id, category_id=category_id, amount=amount
             )
+
+        @router.get("/budgets/{user_id}")
+        async def get_user_budgets(user_id: str, db: Session = Depends(get_session)):
+            logger.info(
+                module="budget",
+                message=f"Fetching budget remaining for user_id: {user_id}",
+                user_id=user_id,
+            )
+            try:
+                now = datetime.now()
+                result = DBManagerBudget.get_user_budget(db, user_id, now.month, now.year)
+                print("Budget result: ", result)
+                return {"success": True, "data": result}
+            except Exception as e:
+                logger.error(
+                    module="budget",
+                    message=f"Error fetching budget remaining for user_id: {user_id} - {str(e)}",
+                    user_id=user_id,
+                )
+                return {"success": False, "message": "Error fetching budget remaining"}

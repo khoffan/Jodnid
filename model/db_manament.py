@@ -469,6 +469,15 @@ class DBManagerDashboard:
             )
             results = session.exec(statement).all()
 
+            budget_statement = select(UserBudget).where(
+                UserBudget.user_id == user_id,
+                UserBudget.month == target_month,
+                UserBudget.year == target_year,
+            )
+            budget_results = session.exec(budget_statement).all()
+            total_budget = sum(budget.amount for budget in budget_results)
+            remaining_budget = total_budget - sum(budget.current_spent for budget in budget_results)
+
             # 2. คำนวณยอดรวมและ Summary
             summary_by_cat = {}
             total_amount = 0
@@ -481,6 +490,8 @@ class DBManagerDashboard:
             return {
                 "total_amount": total_amount,
                 "summary": summary_by_cat,
+                "total_budget": total_budget,
+                "remaining_budget": remaining_budget,
                 "transactions": [
                     {
                         "item": tx.item_name,
@@ -500,6 +511,20 @@ class DBManagerDashboard:
 
 
 class DBManagerBudget:
+    @staticmethod
+    def get_user_budget(session: Session, user_id: str, month: int, year: int):
+        try:
+            statement = select(UserBudget).where(
+                UserBudget.user_id == user_id,
+                UserBudget.month == month,
+                UserBudget.year == year,
+            )
+            budgets = session.exec(statement).all()
+            return budgets
+        except Exception as e:
+            print(f"Error in get_user_budget: {str(e)}")
+            return []
+
     @staticmethod
     def setup_user_budget(session: Session, user_id: str, category_id: int, amount: float):
         try:
@@ -543,6 +568,7 @@ class DBManagerBudget:
         except Exception as e:
             print(f"Error in setup_user_budget: {str(e)}")
             return {"success": False, "message": "เกิดข้อผิดพลาดในการตั้งงบประมาณ กรุณาลองใหม่อีกครั้ง"}
+    
 
     @staticmethod
     def sync_user_budgets(session: Session, user_id: str, month: int, year: int):

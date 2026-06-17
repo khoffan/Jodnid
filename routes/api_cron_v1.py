@@ -16,7 +16,7 @@ header_scheme = APIKeyHeader(name="X-Cron-Token", auto_error=False)
 async def verify_cron_token(token: str = Security(header_scheme)):
     expected_token = settings.CRON_SECRET_TOKEN
     if not token or token != expected_token:
-        raise HTTPException(status_code=403, detail="Could not validate credentials")
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing cron token")
     return token
 
 
@@ -69,9 +69,9 @@ class CronAPis:
                 "reminded_count": count_reminded,
             }
 
-        # --- เส้นที่ 2: สรุปรายวัน (Run ตอน 21:00) ---
-        @router.post("/summary-daily")
-        async def daily_summary(db: Session = Depends(get_session)):
+        # --- เส้นที่ 3: สรุปรายเดือน (Run ทุกสิ้นเดือน หรือตามสั่ง) ---
+        @router.post("/summary-monthly")
+        async def monthly_summary(db: Session = Depends(get_session)):
             all_users = Utilities.get_all_users(db)
             processed_count = 0
 
@@ -79,56 +79,35 @@ class CronAPis:
                 user_id = user.line_user_id
                 logger.info(
                     module="cron",
-                    message=f"Daily summary cron job started for {len(all_users)} users",
+                    message=f"Monthly summary cron job started for {len(all_users)} users",
                     user_id=user_id,
                 )
                 # ดึงข้อมูลจากฟังก์ชันสรุปที่คุยกันก่อนหน้า
-                data = DBManagerDashboard.get_dashboard_data(db, user_id, type="daily")
+                data = DBManagerDashboard.get_dashboard_data(db, user_id, type="monthly")
+                print(f"Monthly summary for user {user_id}: {data}")
 
                 if data["total_amount"] > 0:
                     flex_content = LineUtils.create_summary_flex(
-                        title="📊 สรุปรายงานรายวัน",
-                        total=data["total_amount"],
-                        items=data["transactions"],
-                        remaining=data.get("budget_remaining", 0),
-                        percent=data.get("total_percent", 0),
+                        title="📊 สรุปรายงานรายเดือน",
+                        data=data,
+                        current_month_spent=data.get("remaining_budget", 0.0),
+                        total_budget=data.get("total_budget", 0.0),
                     )
 
                     # ส่งเป็น Flex Message
                     LineUtils.send_push_notification(
-                        user_id, content=flex_content, alt_text="สรุปยอดรายวัน"
+                        user_id, content=flex_content, alt_text="สรุปยอดรายเดือน"
                     )
                     processed_count += 1
                     logger.info(
                         module="cron",
-                        message=f"Daily summary cron job completed: {processed_count}/{len(all_users)} users notified",
+                        message=f"Monthly summary cron job completed: {processed_count}/{len(all_users)} users notified",
                         user_id=user_id,
                     )
                 else:
                     logger.info(
                         module="cron",
-                        message=f"User {user_id} has no expenses recorded today.",
+                        message=f"User {user_id} has no expenses recorded this month.",
                         user_id=user_id,
                     )
             return {"status": "success", "users_notified": processed_count}
-
-        # --- เส้นที่ 3: สรุปรายเดือน (Run ทุกสิ้นเดือน หรือตามสั่ง) ---
-        @router.post("/summary-monthly")
-        async def monthly_summary(db: Session = Depends(get_session)):
-            all_users = Utilities.get_all_users(db)
-            for user in all_users:
-                user_id = user.line_user_id
-                logger.info(
-                    module="cron",
-                    message=f"Monthly summary cron job started for {len(all_users)} users",
-                    user_id=user_id,
-                )
-                amount = Utilities.get_monthly_usage(db, user_id)
-                msg = f"📅 สรุปยอดใช้จ่ายเดือนนี้ทั้งหมด ฿{amount:,.2f} ครับ"
-                LineUtils.send_push_notification(user_id, msg, alt_text="สรุปยอดรายเดือน")
-                logger.info(
-                    module="cron",
-                    message=f"Monthly summary cron job completed: {msg} users notified",
-                    user_id=user.line_user_id,
-                )
-            return {"status": "monthly_summary_sent"}

@@ -461,38 +461,32 @@ class LineUtils:
         }
 
     @staticmethod
-    def create_summary_flex(title, total, items, remaining, percent):
-        # กำหนดสีของ Progress Bar ตามสถานะ
+    def create_summary_flex(title: str, data: dict, current_month_spent: float, total_budget: float):
+        bill_total = float(data.get("total_amount", 0.0))
+        summary_by_cat = data.get("summary", {})
+
+        # 🧮 คำนวณสถานะงบประมาณ
+        remaining = max(0.0, total_budget - current_month_spent)
+        percent = (current_month_spent / total_budget * 100) if total_budget > 0 else 0.0
         bar_color = "#EF4444" if percent > 90 else "#22C55E"
 
-        # สร้างส่วนรายการ (Transaction Rows)
-        item_nodes = []
-        for item in items[:3]:  # แสดง 3 รายการล่าสุดใน Flex เพื่อความกระชับ
-            item_nodes.append(
-                {
-                    "type": "box",
-                    "layout": "horizontal",
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": f"{item['icon']} {item['item']}",
-                            "size": "sm",
-                            "color": "#555555",
-                            "flex": 4,
-                        },
-                        {
-                            "type": "text",
-                            "text": f"฿{item['amount']:,.0f}",
-                            "size": "sm",
-                            "color": "#111111",
-                            "align": "end",
-                            "weight": "bold",
-                            "flex": 2,
-                        },
-                    ],
-                }
-            )
+        # 📊 1. ส่วนสรุปยอดแยกตามหมวดหมู่ในบิลนี้
+        cat_nodes = []
+        for cat_name, cat_total in summary_by_cat.items():
+            # ถ้าไม่มีการส่งไอคอนมา ให้ดึงไอคอนพื้นฐานตามความเหมาะสม
+            cat_amount_str = f"฿{cat_total:,.2f}" if cat_total % 1 != 0 else f"฿{cat_total:,.0f}"
+            
+            cat_nodes.append({
+                "type": "box",
+                "layout": "horizontal",
+                "margin": "sm",
+                "contents": [
+                    {"type": "text", "text": f"📊 {cat_name}", "size": "sm", "color": "#4B5563", "flex": 4},
+                    {"type": "text", "text": cat_amount_str, "size": "sm", "color": "#111827", "align": "end", "weight": "bold", "flex": 2}
+                ]
+            })
 
+        # 2. ประกอบร่างโครงสร้างแบบคลีน
         return {
             "type": "bubble",
             "size": "giga",
@@ -500,6 +494,7 @@ class LineUtils:
                 "type": "box",
                 "layout": "vertical",
                 "contents": [
+                    # ส่วนหัวข้อและการจ่ายรอบนี้
                     {
                         "type": "text",
                         "text": title,
@@ -509,63 +504,58 @@ class LineUtils:
                     },
                     {
                         "type": "text",
-                        "text": f"฿{total:,.2f}",
+                        "text": f"฿{bill_total:,.2f}" if bill_total % 1 != 0 else f"฿{bill_total:,.0f}",
                         "weight": "bold",
                         "size": "xxl",
+                        "margin": "sm",
+                        "color": "#111827"
+                    },
+                    {"type": "text", "text": "ยอดรวมที่บันทึกในบิลนี้", "size": "xs", "color": "#9CA3AF"},
+                    
+                    {"type": "separator", "margin": "lg"},
+                    
+                    # แสดงผลแยกหมวดหมู่ทันที ไม่ต้องมีรายการย่อยมาคั่น
+                    {"type": "text", "text": "🗂️ แยกเข้าหมวดหมู่", "size": "xs", "weight": "bold", "color": "#1F2937", "margin": "md"},
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "margin": "sm",
+                        "spacing": "xs",
+                        "contents": cat_nodes,
+                    },
+                    
+                    {"type": "separator", "margin": "lg"},
+                    
+                    # Progress Bar ของเดือน
+                    {
+                        "type": "box",
+                        "layout": "vertical",
                         "margin": "md",
-                    },
-                    {"type": "text", "text": "ยอดใช้จ่ายรวมวันนี้", "size": "xs", "color": "#aaaaaa"},
-                    {"type": "separator", "margin": "lg"},
-                    # รายการล่าสุด
-                    {
-                        "type": "box",
-                        "layout": "vertical",
-                        "margin": "lg",
-                        "spacing": "sm",
-                        "contents": item_nodes,
-                    },
-                    {"type": "separator", "margin": "lg"},
-                    # Progress Bar ของงบประมาณเดือน
-                    {
-                        "type": "box",
-                        "layout": "vertical",
-                        "margin": "lg",
                         "contents": [
                             {
                                 "type": "box",
                                 "layout": "horizontal",
                                 "contents": [
-                                    {
-                                        "type": "text",
-                                        "text": "งบประมาณเดือนนี้",
-                                        "size": "xs",
-                                        "color": "#aaaaaa",
-                                    },
-                                    {
-                                        "type": "text",
-                                        "text": f"{percent:.1f}%",
-                                        "size": "xs",
-                                        "color": "#aaaaaa",
-                                        "align": "end",
-                                    },
+                                    {"type": "text", "text": f"งบเดือนนี้คงเหลือ: ฿{remaining:,.0f}", "size": "xs", "color": "#4B5563"},
+                                    {"type": "text", "text": f"ใช้ไป {percent:.1f}%", "size": "xs", "color": "#4B5563", "align": "end"}
                                 ],
                             },
                             {
                                 "type": "box",
                                 "layout": "vertical",
                                 "margin": "sm",
-                                "backgroundColor": "#F3F4F6",
-                                "height": "6px",
-                                "cornerRadius": "3px",
+                                "backgroundColor": "#E5E7EB",
+                                "height": "8px",
+                                "cornerRadius": "4px",
                                 "contents": [
                                     {
                                         "type": "box",
                                         "layout": "vertical",
                                         "width": f"{min(percent, 100)}%",
                                         "backgroundColor": bar_color,
-                                        "height": "6px",
-                                        "cornerRadius": "3px",
-                                        "contents": [],
+                                        "height": "8px",
+                                        "cornerRadius": "4px",
+                                        "contents": []
                                     }
                                 ],
                             },
@@ -581,7 +571,7 @@ class LineUtils:
                         "type": "button",
                         "action": {
                             "type": "uri",
-                            "label": "ดูรายละเอียดในแอป",
+                            "label": "ดูรายละเอียดและแยกรายการในแอป",
                             "uri": "https://liff.line.me/YOUR_LIFF_ID/dashboard/daily",
                         },
                         "style": "primary",

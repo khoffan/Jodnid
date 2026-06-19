@@ -4,38 +4,103 @@ import api from "../../../../common/lib/api";
 
 const testMode = import.meta.env.VITE_TEST_MODE;
 
-export const useWebAuthStore = create((set) => ({
-  isAuth: false,
+const extractUserId = (user) => {
+  if (!user) return null;
+  return user.user_id ?? user.id ?? user.userId ?? null;
+};
+
+export const useWebAuthStore = create((set, get) => ({
+  isAuth: false, 
   isWebApp: false,
   user: null,
   userId: null,
   error: null,
   loading: false,
+  onboardingCategories: [],
+  onboardingBudgets: {},
+  onboardingLoading: false,
 
   setLogin: (user) => {
-    set({ isAuth: true, user, error: null });
+    set({
+      isAuth: true,
+      user,
+      userId: extractUserId(user),
+      error: null,
+    });
   },
+
+  setOnboardingData: (categories, budgets) => {
+    set({
+      onboardingCategories: categories,
+      onboardingBudgets: budgets,
+    });
+  },
+
+  fetchOnboardingData: async (userId) => {
+    if (!userId) {
+      set({ onboardingCategories: [], onboardingBudgets: {}, onboardingLoading: false });
+      return { categories: [], budgets: {} };
+    }
+
+    set({ onboardingLoading: true });
+
+    try {
+      const [categoryRes, budgetRes] = await Promise.all([
+        api.get("/api/categories/parent"),
+        api.get(`/api/budgets/${userId}`),
+      ]);
+
+      const categories = categoryRes.data || [];
+      const budgets = {};
+
+      if (budgetRes.data?.success && Array.isArray(budgetRes.data.data)) {
+        budgetRes.data.data.forEach((b) => {
+          budgets[b.category_id] = b.amount?.toString() ?? "";
+        });
+      }
+
+      set({
+        onboardingCategories: categories,
+        onboardingBudgets: budgets,
+        onboardingLoading: false,
+      });
+
+      return { categories, budgets };
+    } catch (error) {
+      console.error("Failed to fetch onboarding data:", error);
+      set({ onboardingCategories: [], onboardingBudgets: {}, onboardingLoading: false });
+      return { categories: [], budgets: {} };
+    }
+  },
+
   // ฟังก์ชัน Initialize ระบบ
   initApp: async (navigate) => {
     set({ loading: true, error: null });
 
     const urlParams = new URLSearchParams(window.location.search);
-    const isWebApp = urlParams.get("webapp") === "true" || !liff.isInClient();
-    console.log("Initializing app - isWebApp:", isWebApp, "LIFF Context:", !liff.isInClient());
+    // const isWebApp = urlParams.get("webapp") === "true" || !liff.isInClient();
+    const isWebApp = false;
     // 🔹 กรณีเปิดผ่าน Web Browser / Desktop
     if (isWebApp) {
-      const user = sessionStorage.getItem("user_info");
-      if (!user) {
+      const storedUser = sessionStorage.getItem("user_info");
+      if (!storedUser) {
         set({
           isWebApp: true,
+          isAuth: false,
           error: "กรุณาเข้าสู่ระบบผ่าน LINE ก่อนใช้งาน",
           loading: false,
         });
         return;
       }
+
+      const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+      const parsedUserId = extractUserId(parsedUser);
+      await get().fetchOnboardingData(parsedUserId);
+
       set({
         isWebApp: true,
-        user: user ? JSON.parse(user) : null,
+        user: parsedUser,
+        userId: parsedUserId,
         isAuth: true,
         loading: false,
       });

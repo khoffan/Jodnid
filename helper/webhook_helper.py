@@ -189,7 +189,7 @@ async def handle_text_message(
             )
             LineUtils.send_line_reply_v3(reply_token, text="จดนิดกำลังวิเคราะห์รายการให้นะครับ... ⏳")
             # ส่งไปให้ Typhoon วิเคราะห์รายการ
-            final_transactions = extract_transactions(api_key, user_text)
+            final_transactions = extract_transactions(api_key, user_text, user_id, db)
             logger.info(
                 module="webhook_text_ai",
                 message=f"Extracted Transactions: {final_transactions}",
@@ -206,6 +206,7 @@ async def handle_text_message(
                 result = DBManagerTransactions.confirm_and_save_transaction(
                     db, items=items, user_id=user_id, skip_confirm=skip_confirm
                 )
+                print(f"Result from confirm_and_save_transaction: {result}")
 
                 logger.info(
                     module="webhook_bypass_mode_text", message=f"result: {result}", user_id=user_id

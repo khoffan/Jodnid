@@ -139,27 +139,6 @@ export default function AddTransactionPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col justify-between">
-      {/* Header / Navbar สำหรับ Web App */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <span
-              className="text-xl p-2 bg-green-50 text-green-600 rounded-xl cursor-pointer"
-              onClick={() => navigate("/")}
-            >
-              💼
-            </span>
-            <span className="font-bold text-gray-900 text-lg tracking-tight">JodNid</span>
-          </div>
-          <button
-            onClick={() => navigate("/")}
-            className="text-sm font-semibold text-gray-400 hover:text-gray-700 transition"
-          >
-            ย้อนกลับ
-          </button>
-        </div>
-      </header>
-
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
         <div className="mb-8">

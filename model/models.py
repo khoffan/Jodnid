@@ -47,21 +47,13 @@ class Categories(SQLModel, table=True):
     name: str = Field(max_length=100)
     icon: Optional[str] = None
     color_code: Optional[str] = None
-
-    # --- เพิ่มส่วน Parent-Child ---
-    # parent_id เป็น Nullable เพราะหมวดหมู่หลัก (Parent) จะไม่มีพ่อ
+    user_id: Optional[str] = Field(default=None, foreign_key="users.line_user_id")
     parent_id: Optional[int] = Field(default=None, foreign_key="categories.id")
-
-    # ความสัมพันธ์ชี้กลับมาที่ตัวเอง
     parent: Optional["Categories"] = Relationship(
         back_populates="children", sa_relationship_kwargs={"remote_side": "Categories.id"}
     )
     children: List["Categories"] = Relationship(back_populates="parent")
-
-    # ความสัมพันธ์กับ Transaction (เหมือนเดิม)
     transactions: List["Transactions"] = Relationship(back_populates="category")
-
-    # ความสัมพันธ์กับ UserBudget (สำหรับ Parent Category เท่านั้น)
     budgets: List["UserBudget"] = Relationship(back_populates="category")
 
 

@@ -66,8 +66,6 @@ const useTransactionStore = create((set) => ({
         amount: parseFloat(amount),
       });
 
-      console.log(`API Response for Budget Setup (${categoryId}):`, res.data);
-
       if (!res.data.success) {
         set({ loading: false }); // อย่าลืมปิด loading กรณีไม่สำเร็จ
         return {
@@ -89,8 +87,7 @@ const useTransactionStore = create((set) => ({
   },
 
   // เพิ่มฟังก์ชันสำหรับล้างค่า (Clear Store) เวลา Logout
-  clearStore: () =>
-    set({ transactions: [], summary: {}, totalAmount: 0, loading: false }),
+  clearStore: () => set({ transactions: [], summary: {}, totalAmount: 0, loading: false }),
 }));
 
 export default useTransactionStore;

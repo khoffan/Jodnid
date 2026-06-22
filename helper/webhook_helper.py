@@ -13,13 +13,15 @@ from ai.ocr import extract_text_from_image
 from ai.text_nlp import extract_transactions, is_transaction_message
 from helper.logger import JodNidLogger
 from helper.utils import LineUtils, Utilities
-from model.db_manament import DBManagerTransactions, DBManagerUsers
+from model.db_manament import DBManagerDashboard, DBManagerTransactions, DBManagerUsers
 from model.models import Users
 
 # Use DBManager classes' static methods and pass `db: Session` from callers
 
 
-def get_quick_reply(skip_confirmation: bool, undo_token: str = None) -> QuickReply:
+def get_quick_reply(
+    skip_confirmation: bool, undo_token: str = None, show_summary: bool = True
+) -> QuickReply:
     if skip_confirmation:
         button_text = "🛡️ ปิดโหมดบันทึกด่วน"
         postback_data = "action=set_bypass&value=false"
@@ -36,6 +38,17 @@ def get_quick_reply(skip_confirmation: bool, undo_token: str = None) -> QuickRep
             )
         )
     ]
+
+    if show_summary:
+        items.append(
+            QuickReplyItem(
+                action=PostbackAction(
+                    label="📊 สรุปยอดวันนี้",
+                    data="action=summary_daily",
+                    display_text="ขอสรุปยอดวันนี้หน่อยครับ",
+                )
+            )
+        )
 
     if undo_token is not None:
         items.append(
@@ -441,6 +454,33 @@ async def handle_postback(db: Session, postback_data: str, user_id: str, logger:
                     user_id=user_id,
                     content="ขออภัยครับ ไม่พบรายการที่สามารถยกเลิกได้ หรือรายการถูกยกเลิกไปแล้ว",
                     alt_text="ไม่สามารถยกเลิกได้",
+                )
+        elif action == "summary_daily":
+            logger.info(
+                module="webhook_postback",
+                message=f"processing summary_daily for user_id: {user_id}",
+                user_id=user_id,
+            )
+            summary = DBManagerDashboard.get_dashboard_data(db, user_id=user_id, type="daily")
+            if summary:
+                print(f"Summary data for user_id {user_id}: {summary}")
+                flex_summary = LineUtils.create_summary_flex(
+                    title="สรุปยอดวันนี้",
+                    data=summary,
+                    current_month_spent=summary.get("remaining_budget", 0.0),
+                    total_budget=summary.get("total_budget", 0.0),
+                )
+                print(f"Flex summary for user_id {user_id}: {flex_summary}")
+                LineUtils.send_push_notification(
+                    user_id=user_id,
+                    content=flex_summary,
+                    alt_text="สรุปยอดวันนี้",
+                )
+            else:
+                LineUtils.send_push_notification(
+                    user_id=user_id,
+                    content="ขออภัยครับ ไม่พบข้อมูลการใช้จ่ายวันนี้",
+                    alt_text="ไม่พบข้อมูลวันนี้",
                 )
     except Exception as e:
         logger.error(

@@ -78,6 +78,44 @@ class DBManagerUsers:
             print(f"Failed to update user config: {str(e)}")
             return False
 
+    @staticmethod
+    def set_user_onboarded(session: Session, line_user_id: str) -> bool:
+        try:
+            user = session.get(Users, line_user_id)
+
+            if not user:
+                print(f"User not found: {line_user_id}")
+                return False
+
+            # ถ้า onboarded แล้ว ไม่ต้องเขียน DB ซ้ำ
+            if user.is_onboarded:
+                return True
+
+            user.is_onboarded = True
+            session.add(user)
+            session.commit()
+            return True
+
+        except Exception as e:
+            print(f"Failed to update onboarding status: {str(e)}")
+            return False
+
+    @staticmethod
+    def get_user_onboarding_status(session: Session, line_user_id: str) -> Dict[str, Any]:
+        try:
+            user = session.get(Users, line_user_id)
+            if not user:
+                return {"success": False, "message": "User not found", "is_onboarded": False}
+
+            return {"success": True, "is_onboarded": bool(user.is_onboarded)}
+        except Exception as e:
+            print(f"Failed to get onboarding status: {str(e)}")
+            return {
+                "success": False,
+                "message": "Failed to get onboarding status",
+                "is_onboarded": False,
+            }
+
 
 class DBManagerTransactions:
     @staticmethod
@@ -556,6 +594,23 @@ class DBManagerBudget:
         except Exception as e:
             print(f"Error in get_user_budget: {str(e)}")
             return []
+
+    @staticmethod
+    def can_setup_budget_this_month(session: Session, user_id: str) -> bool:
+        try:
+            now = datetime.now()
+            statement = select(UserBudget).where(
+                UserBudget.user_id == user_id,
+                UserBudget.month == now.month,
+                UserBudget.year == now.year,
+            )
+            budget = session.exec(statement).first()
+
+            # ถ้าเดือนปัจจุบันยังไม่มีงบประมาณใน DB ให้คืนค่า True
+            return budget is None
+        except Exception as e:
+            print(f"Error in can_setup_budget_this_month: {str(e)}")
+            return False
 
     @staticmethod
     def setup_user_budget(session: Session, user_id: str, category_id: int, amount: float):

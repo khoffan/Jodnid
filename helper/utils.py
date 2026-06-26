@@ -458,9 +458,9 @@ class LineUtils:
         }
 
     @staticmethod
-    def create_summary_flex(
-        title: str, data: dict, current_month_spent: float, total_budget: float
-    ):
+    def create_summary_flex(title: str, data: dict, current_month_spent: float, total_budget: float):
+        line_liff_id = settings.LINE_LIFF_ID
+
         bill_total = float(data.get("total_amount", 0.0))
         summary_by_cat = data.get("summary", {})
 
@@ -603,7 +603,7 @@ class LineUtils:
                         "action": {
                             "type": "uri",
                             "label": "ดูรายละเอียดและแยกรายการในแอป",
-                            "uri": "https://liff.line.me/YOUR_LIFF_ID/dashboard/daily",
+                            "uri": f"https://liff.line.me/{line_liff_id}?path=/dashboard/daily",
                         },
                         "style": "primary",
                         "color": "#111827",

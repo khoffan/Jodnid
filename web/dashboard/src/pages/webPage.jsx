@@ -19,6 +19,7 @@ export default function WebPage() {
         <Route index element={<TransactionListPage />} />
         <Route path="/add" element={<AddTransactionPage />} />
         <Route path="/setup" element={<Onboarding userId={userId} />} />
+        <Route path="/setup" element={<Onboarding userId={userId} />} />
       </Route>
     </Routes>
   );

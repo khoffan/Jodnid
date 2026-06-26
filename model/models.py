@@ -16,6 +16,7 @@ class Users(SQLModel, table=True):
     email: Optional[str] = None
     picture_url: Optional[str] = None
     use_bypass_mode: bool = Field(default=False)
+    is_onboarded: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships

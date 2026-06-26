@@ -6,7 +6,7 @@ import api from "../../../../common/lib/api";
 export default function LineCallbackPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { initApp, setLogin } = useWebAuthStore();
+  const { setLogin } = useWebAuthStore();
 
   const [status, setStatus] = useState("กำลังตรวจสอบข้อมูล กรุณารอสักครู่...");
   const [error, setError] = useState(null);
@@ -26,7 +26,7 @@ export default function LineCallbackPage() {
       try {
         const res = await api.post("/api/user", {
           code,
-        })
+        });
         console.log("LINE Login Response:", res.data);
         const user = res.data.user_info;
         sessionStorage.setItem("id_token", res.data.id_token);
@@ -44,8 +44,13 @@ export default function LineCallbackPage() {
 
         // --- Mock การทำงาน ---
 
-        navigate("/");
+        const onboardingStatusRes = await api.get("/api/user/onboarding-status");
+        if (!onboardingStatusRes?.data?.is_onboarded) {
+          navigate("/setup", { replace: true });
+          return;
+        }
 
+        navigate("/", { replace: true });
       } catch (err) {
         console.error("LINE Login Error:", err);
         setError("เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย LINE");
@@ -53,7 +58,7 @@ export default function LineCallbackPage() {
     };
 
     handleCallback();
-  }, [location, navigate, initApp]);
+  }, [location, navigate, setLogin]);
 
   return (
     <div className="max-w-md mx-auto min-h-screen bg-white p-6 flex flex-col justify-center items-center text-center">

@@ -12,6 +12,7 @@ const extractUserId = (user) => {
 export const useWebAuthStore = create((set, get) => ({
   isAuth: false, 
   isWebApp: false,
+  isOnboarded: true,
   user: null,
   userId: null,
   error: null,
@@ -132,19 +133,33 @@ export const useWebAuthStore = create((set, get) => ({
         const idToken = liff.getIDToken();
         sessionStorage.setItem("id_token", idToken);
 
-        await api.post("/api/user", {
+        const userResponse = await api.post("/api/user", {
           id_token: idToken,
         });
+        const userInfo = userResponse?.data?.user_info;
+        if (userInfo) {
+          sessionStorage.setItem("user_info", JSON.stringify(userInfo));
+        }
+
+        const onboardingStatusResponse = await api.get("/api/user/onboarding-status");
+        const isOnboarded = !!onboardingStatusResponse?.data?.is_onboarded;
 
         set({
-          userId: context.userId,
+          user: userInfo || null,
+          userId: userInfo?.user_id || context.userId,
           isAuth: true,
+          isOnboarded,
           loading: false,
         });
 
         const targetPath = urlParams.get("path");
         if (targetPath) {
           navigate(targetPath);
+          return;
+        }
+
+        if (!isOnboarded) {
+          navigate("/setup", { replace: true });
         }
       } else {
         liff.login();
@@ -194,6 +209,7 @@ export const useWebAuthStore = create((set, get) => ({
       sessionStorage.removeItem("user_info");
       set({
         isAuth: false,
+        isOnboarded: true,
         user: null,
         userId: null,
         loading: false,
@@ -203,6 +219,21 @@ export const useWebAuthStore = create((set, get) => ({
     } else {
       liff.logout();
     }
-    set({ isAuth: false, user: null, loading: false, error: null });
+    set({ isAuth: false, isOnboarded: true, user: null, loading: false, error: null });
+  },
+
+  completeOnboarding: async () => {
+    try {
+      const response = await api.post("/api/user/onboarded");
+      if (!response?.data?.success) {
+        return false;
+      }
+
+      set({ isOnboarded: true });
+      return true;
+    } catch (error) {
+      console.error("Failed to complete onboarding:", error);
+      return false;
+    }
   },
 }));

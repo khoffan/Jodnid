@@ -1,7 +1,8 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlmodel import Session
-from datetime import datetime
 
 from core.config_settings import settings
 from helper.logger import JodNidLogger
@@ -90,6 +91,38 @@ class LiffApi:
                     "picture": user_payload.get("picture"),
                 },
             }
+
+        @router.post("/user/onboarded")
+        async def set_user_onboarded(
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            user_id = user.get("sub")
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid user token",
+                )
+
+            updated = DBManagerUsers.set_user_onboarded(db, line_user_id=user_id)
+            if not updated:
+                return {"success": False, "message": "ไม่สามารถอัปเดตสถานะ onboarding ได้"}
+
+            return {"success": True, "message": "อัปเดตสถานะ onboarding เรียบร้อยแล้ว"}
+
+        @router.get("/user/onboarding-status")
+        async def get_user_onboarding_status(
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            user_id = user.get("sub")
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid user token",
+                )
+
+            return DBManagerUsers.get_user_onboarding_status(db, line_user_id=user_id)
 
         @router.post("/web/transaction/add")
         async def add_transaction(
@@ -221,6 +254,7 @@ class LiffApi:
                     user_id=user_id,
                 )
                 return {"success": False, "message": "Error fetching budget remaining"}
+
             
         @router.get("/categories/parent")
         async def get_categories_parent(db: Session = Depends(get_session)):

@@ -4,8 +4,12 @@ import AuthGuard from "../common/guard/AuthGuard";
 import TransactionListPage from "../features/webapp/transaction/pages/TransactionListPage";
 import AddTransactionPage from "../features/webapp/transaction/pages/AddTransactionPage";
 import LoginCallbackPage from "../features/webapp/auth/pages/LineCallbackPage";
+import Onboarding from "../features/dashboard/pages/Onboarding";
+import { useWebAuthStore } from "../features/webapp/auth/store/web_auth.store";
 
-export default function webPage() {
+export default function WebPage() {
+  const { userId } = useWebAuthStore();
+
   const element = (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -13,6 +17,7 @@ export default function webPage() {
       <Route path="/" element={<AuthGuard />}>
         <Route index element={<TransactionListPage />} />
         <Route path="/add" element={<AddTransactionPage />} />
+        <Route path="/setup" element={<Onboarding userId={userId} />} />
       </Route>
     </Routes>
   );

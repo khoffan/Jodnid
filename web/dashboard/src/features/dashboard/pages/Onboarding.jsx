@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import useTransactionStore from "../../transactions/store/useTransectionStore";
 import api from "../../../common/lib/api";
+import { useWebAuthStore } from "../../webapp/auth/store/web_auth.store";
 
 const Onboarding = ({ userId }) => {
   // 1. สร้าง State เก็บรายการ Categories และยอดงบ (แยกตาม ID)
   const [categories, setCategories] = useState([]);
   const [budgets, setBudgets] = useState({}); // { "1": "5000", "2": "2000" }
   const { saveBudget, loading } = useTransactionStore();
+  const { completeOnboarding } = useWebAuthStore();
   const navigate = useNavigate();
 
   // 2. Fetch Parent Categories จาก API
@@ -40,7 +42,7 @@ const Onboarding = ({ userId }) => {
 
   const handleSave = async () => {
     // กรองเอาเฉพาะหมวดที่มีการกรอกตัวเลข
-    const budgetEntries = Object.entries(budgets).filter(([val]) => val > 0);
+    const budgetEntries = Object.entries(budgets).filter(([, val]) => Number(val) > 0);
 
     if (budgetEntries.length === 0) {
       return alert("กรุณาระบุงบประมาณอย่างน้อย 1 หมวดหมู่");
@@ -56,6 +58,11 @@ const Onboarding = ({ userId }) => {
       const allSuccess = results.every((res) => res.success);
 
       if (allSuccess) {
+        const onboardedSuccess = await completeOnboarding();
+        if (!onboardedSuccess) {
+          alert("บันทึกงบสำเร็จแล้ว แต่ยังอัปเดตสถานะ onboarding ไม่สำเร็จ กรุณาลองอีกครั้ง");
+          return;
+        }
         navigate("/");
       } else {
         alert("เกิดข้อผิดพลาดบางรายการ กรุณาลองใหม่");
@@ -70,12 +77,8 @@ const Onboarding = ({ userId }) => {
     <>
       <div className="flex-1 flex flex-col pt-8 overflow-y-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">
-            ตั้งเป้างบประมาณ 🎯
-          </h1>
-          <p className="text-gray-500 mt-2">
-            แยกงบตามหมวดหมู่เพื่อการคุมเงินที่แม่นยำขึ้น
-          </p>
+          <h1 className="text-3xl font-bold text-gray-800">ตั้งเป้างบประมาณ 🎯</h1>
+          <p className="text-gray-500 mt-2">แยกงบตามหมวดหมู่เพื่อการคุมเงินที่แม่นยำขึ้น</p>
         </div>
 
         <div className="space-y-6 pb-10">
@@ -108,9 +111,7 @@ const Onboarding = ({ userId }) => {
           onClick={handleSave}
           disabled={loading || categories.length === 0}
           className={`w-full py-4 rounded-2xl font-bold text-lg shadow-lg transition-all ${
-            loading
-              ? "bg-gray-300"
-              : "bg-green-500 hover:bg-green-600 text-white active:scale-95"
+            loading ? "bg-gray-300" : "bg-green-500 hover:bg-green-600 text-white active:scale-95"
           }`}
         >
           {loading ? "กำลังบันทึก..." : "เริ่มคุมงบเลย!"}

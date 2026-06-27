@@ -67,8 +67,19 @@ const Onboarding = ({ userId }) => {
     onboardingBudgets,
     fetchOnboardingData,
     onboardingLoading,
+    isOnboarded,
   } = useWebAuthStore();
   const navigate = useNavigate();
+  const setupBudgetOnly = isOnboarded;
+  const activeStepLabels = setupBudgetOnly ? [STEP_LABELS[STEP.BUDGET]] : STEP_LABELS;
+  const activeStepIcons = setupBudgetOnly ? [STEP_ICONS[STEP.BUDGET]] : STEP_ICONS;
+
+  useEffect(() => {
+    if (setupBudgetOnly) {
+      setStep(STEP.BUDGET);
+      setVisited(new Set([STEP.BUDGET]));
+    }
+  }, [setupBudgetOnly]);
 
   // ── fetch onboarding data ─────────────────────────────────────────────────
   useEffect(() => {
@@ -119,10 +130,13 @@ const Onboarding = ({ userId }) => {
   // ── helpers ───────────────────────────────────────────────────────────────
   const hasBudget = Object.values(budgets).some((v) => parseFloat(v) > 0);
 
-  const canConfirm =
-    mode === "quick"
+  const canConfirm = setupBudgetOnly
+    ? hasBudget
+    : mode === "quick"
       ? hasBudget
       : hasBudget && visited.has(STEP.CATEGORIES) && visited.has(STEP.REVIEW);
+
+  const isFinalStep = setupBudgetOnly || step === STEP.REVIEW;
 
   const goTo = (s) => {
     setStep(s);
@@ -207,44 +221,50 @@ const Onboarding = ({ userId }) => {
       <div className="flex items-center justify-between mb-6 mt-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">ตั้งค่าเริ่มต้น 🚀</h1>
-          <p className="text-gray-500 text-sm mt-1">ตั้งงบประมาณและหมวดหมู่ของคุณ</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {setupBudgetOnly ? "ตั้งงบประมาณของคุณ" : "ตั้งงบประมาณและหมวดหมู่ของคุณ"}
+          </p>
         </div>
-        <div className="flex items-center bg-gray-100 rounded-full p-1 gap-1">
-          <button
-            onClick={() => setMode("quick")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-              mode === "quick" ? "bg-white text-green-600 shadow-sm" : "text-gray-500"
-            }`}
-          >
-            ⚡ ด่วน
-          </button>
-          <button
-            onClick={() => setMode("strict")}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-              mode === "strict" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500"
-            }`}
-          >
-            📋 ครบถ้วน
-          </button>
-        </div>
-      </div>
-
-      {/* ── Mode hint ── */}
-      <div
-        className={`mb-5 px-4 py-2.5 rounded-2xl text-xs font-medium flex items-center gap-2 ${
-          mode === "strict" ? "bg-blue-50 text-blue-700" : "bg-green-50 text-green-700"
-        }`}
-      >
-        {mode === "strict" ? (
-          <>📋 โหมดครบถ้วน — ต้องทำครบทุกขั้นตอนก่อนกดยืนยัน</>
-        ) : (
-          <>⚡ โหมดด่วน — ตั้งงบเสร็จแล้วกดยืนยันได้เลย</>
+        {!setupBudgetOnly && (
+          <div className="flex items-center bg-gray-100 rounded-full p-1 gap-1">
+            <button
+              onClick={() => setMode("quick")}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                mode === "quick" ? "bg-white text-green-600 shadow-sm" : "text-gray-500"
+              }`}
+            >
+              ⚡ ด่วน
+            </button>
+            <button
+              onClick={() => setMode("strict")}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                mode === "strict" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500"
+              }`}
+            >
+              📋 ครบถ้วน
+            </button>
+          </div>
         )}
       </div>
 
+      {/* ── Mode hint ── */}
+      {!setupBudgetOnly && (
+        <div
+          className={`mb-5 px-4 py-2.5 rounded-2xl text-xs font-medium flex items-center gap-2 ${
+            mode === "strict" ? "bg-blue-50 text-blue-700" : "bg-green-50 text-green-700"
+          }`}
+        >
+          {mode === "strict" ? (
+            <>📋 โหมดครบถ้วน — ต้องทำครบทุกขั้นตอนก่อนกดยืนยัน</>
+          ) : (
+            <>⚡ โหมดด่วน — ตั้งงบเสร็จแล้วกดยืนยันได้เลย</>
+          )}
+        </div>
+      )}
+
       {/* ── Stepper ── */}
       <div className="flex items-center mb-8">
-        {STEP_LABELS.map((label, i) => (
+        {activeStepLabels.map((label, i) => (
           <div key={i} className="flex items-center flex-1 last:flex-none">
             <button
               onClick={() => visited.has(i) && goTo(i)}
@@ -259,7 +279,7 @@ const Onboarding = ({ userId }) => {
                       : "bg-gray-100 text-gray-400"
                 }`}
               >
-                {visited.has(i) && step !== i ? "✓" : STEP_ICONS[i]}
+                {visited.has(i) && step !== i ? "✓" : activeStepIcons[i]}
               </div>
               <span
                 className={`text-xs font-medium ${step === i ? "text-green-600" : "text-gray-400"}`}
@@ -267,7 +287,7 @@ const Onboarding = ({ userId }) => {
                 {label}
               </span>
             </button>
-            {i < STEP_LABELS.length - 1 && (
+            {i < activeStepLabels.length - 1 && (
               <div
                 className={`flex-1 h-0.5 mx-2 mb-5 transition-colors ${
                   visited.has(i + 1) ? "bg-green-300" : "bg-gray-200"
@@ -288,7 +308,7 @@ const Onboarding = ({ userId }) => {
             onInputChange={handleBudgetChange}
           />
         )}
-        {step === STEP.CATEGORIES && (
+        {!setupBudgetOnly && step === STEP.CATEGORIES && (
           <CategoriesStep
             categories={categories}
             newCatName={newCatName}
@@ -303,7 +323,7 @@ const Onboarding = ({ userId }) => {
             onAdd={handleAddCategory}
           />
         )}
-        {step === STEP.REVIEW && (
+        {!setupBudgetOnly && step === STEP.REVIEW && (
           <ReviewStep
             categories={categories}
             budgets={budgets}
@@ -317,7 +337,7 @@ const Onboarding = ({ userId }) => {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 pb-6 pt-3 z-10">
         <div className="max-w-lg mx-auto space-y-2">
           {/* Quick-mode skip link */}
-          {mode === "quick" && step === STEP.BUDGET && hasBudget && (
+          {!setupBudgetOnly && mode === "quick" && step === STEP.BUDGET && hasBudget && (
             <div className="text-center">
               <button
                 onClick={() => goTo(STEP.REVIEW)}
@@ -329,7 +349,7 @@ const Onboarding = ({ userId }) => {
           )}
 
           <div className="flex gap-3">
-            {step > 0 && (
+            {!setupBudgetOnly && step > 0 && (
               <button
                 onClick={() => goTo(step - 1)}
                 className="flex-1 py-3.5 rounded-2xl font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
@@ -338,7 +358,7 @@ const Onboarding = ({ userId }) => {
               </button>
             )}
 
-            {step < STEP_LABELS.length - 1 ? (
+            {!isFinalStep ? (
               <button
                 onClick={() => {
                   if (step === STEP.BUDGET && !hasBudget) {
@@ -366,7 +386,7 @@ const Onboarding = ({ userId }) => {
           </div>
 
           {/* strict-mode checklist hint on review step */}
-          {mode === "strict" && step === STEP.REVIEW && !canConfirm && (
+          {!setupBudgetOnly && mode === "strict" && step === STEP.REVIEW && !canConfirm && (
             <p className="text-xs text-center text-amber-600">
               {!hasBudget && "⚠️ ยังไม่ได้ตั้งงบ "}
               {!visited.has(STEP.CATEGORIES) && "⚠️ ยังไม่ได้เข้าขั้นตอนหมวดหมู่ "}

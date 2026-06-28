@@ -1,7 +1,8 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlmodel import Session
-from datetime import datetime
 
 from core.config_settings import settings
 from helper.logger import JodNidLogger
@@ -30,6 +31,12 @@ class LineLoginRequest(BaseModel):
 class LineWebTransactionRequest(BaseModel):
     total: float
     items: list[dict]
+
+class CategoryCreateRequest(BaseModel):
+    user_id: str | None = None
+    icon: str | None = None
+    name: str
+    parent_id: int | None = None
 
 
 # Use DBManager classes directly and pass `db: Session` from route dependencies
@@ -65,7 +72,6 @@ class LiffApi:
                 )
             channel_id = settings.LINE_CHANNEL_ID_TEST if is_test_mode else settings.LINE_CHANNEL_ID
             user_payload = await verify_id_token_with_line(id_token, channel_id)
-            print("user_payload: ", user_payload)
             DBManagerUsers.get_or_create_user(
                 db,
                 line_user_id=user_payload.get("sub"),
@@ -86,14 +92,44 @@ class LiffApi:
                 },
             }
 
+        @router.post("/user/onboarded")
+        async def set_user_onboarded(
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            user_id = user.get("sub")
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid user token",
+                )
+
+            updated = DBManagerUsers.set_user_onboarded(db, line_user_id=user_id)
+            if not updated:
+                return {"success": False, "message": "ไม่สามารถอัปเดตสถานะ onboarding ได้"}
+
+            return {"success": True, "message": "อัปเดตสถานะ onboarding เรียบร้อยแล้ว"}
+
+        @router.get("/user/onboarding-status")
+        async def get_user_onboarding_status(
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            user_id = user.get("sub")
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid user token",
+                )
+
+            return DBManagerUsers.get_user_onboarding_status(db, line_user_id=user_id)
+
         @router.post("/web/transaction/add")
         async def add_transaction(
             req: LineWebTransactionRequest,
             user: dict = Depends(get_current_user),
             db: Session = Depends(get_session),
         ):
-            print("user: ", user.get("sub"))
-            print("req: ", req)
             user_id = user.get("sub")
             logger.info(
                 module="transaction_add",
@@ -176,10 +212,7 @@ class LiffApi:
             confirme_data_from_edit(db, temp_id, user_id, items, logger)
             return {"success": True, "message": "Confirm bulk transaction"}
 
-        @router.get("/categories/parent")
-        async def get_categories_parent(db: Session = Depends(get_session)):
-            logger.info(module="categories", message="Fetching categories parent")
-            return DBManagerCategories.get_parent_categories(db)
+        
 
         @router.post("/budget/setup")
         async def setup_budget(data: dict, db: Session = Depends(get_session)):
@@ -213,7 +246,6 @@ class LiffApi:
             try:
                 now = datetime.now()
                 result = DBManagerBudget.get_user_budget(db, user_id, now.month, now.year)
-                print("Budget result: ", result)
                 return {"success": True, "data": result}
             except Exception as e:
                 logger.error(
@@ -222,3 +254,30 @@ class LiffApi:
                     user_id=user_id,
                 )
                 return {"success": False, "message": "Error fetching budget remaining"}
+
+            
+        @router.get("/categories/parent")
+        async def get_categories_parent(db: Session = Depends(get_session)):
+            logger.info(module="categories", message="Fetching categories parent")
+            return DBManagerCategories.get_parent_categories(db)
+
+        @router.post("/categories/add")
+        async def add_category(data: CategoryCreateRequest, db: Session = Depends(get_session)):
+            user_id = data.user_id
+            name = data.name
+            parent_id = data.parent_id
+            icon = data.icon
+            logger.info(
+                module="categories",
+                message=f"Adding category for user_id: {user_id} with name: {name} and parent_id: {parent_id}",
+                user_id=user_id,
+            )
+            if not user_id or not name:
+                logger.error(
+                    module="categories",
+                    message="Missing user_id or name",
+                    user_id=user_id,
+                )
+                return {"success": False, "message": "Missing user_id or name"}
+
+            return Utilities.handle_custom_category_creation(db, name, icon, user_id, parent_id)

@@ -3,10 +3,11 @@ import os
 from datetime import datetime
 from functools import lru_cache
 from io import BytesIO
-from typing import Optional
+from typing import List, Optional
 
 import cloudinary.uploader
 import requests
+from fastapi import HTTPException, status
 from linebot.v3.messaging import (
     ApiClient,
     Configuration,
@@ -20,11 +21,11 @@ from linebot.v3.messaging import (
     TextMessage,
 )
 from PIL import Image, ImageEnhance
-from sqlmodel import Session, extract, func, select
+from sqlmodel import Session, and_, extract, func, or_, select
 
 from core.config_settings import settings
 from helper.logger import JodNidLogger
-from model.db_manament import DBManagerBudget
+from model.db_manament import DBManagerBudget, DBManagerCategories
 from model.models import Categories, SystemConfiguration, Transactions, UserBudget, Users, engine
 
 is_test_mode = settings.TEST_MODE
@@ -34,10 +35,6 @@ if is_test_mode:
 else:
     line_access_token = settings.LINE_CHANNEL_ACCESS_TOKEN
 
-print(
-    f"DEBUG: Using Token prefix: {line_access_token[:5]}... (Length: {len(line_access_token) if line_access_token else 0})"
-)
-print(f"DEBUG: TEST_MODE is: {settings.TEST_MODE}")
 
 configuration = Configuration(access_token=line_access_token)
 
@@ -477,16 +474,32 @@ class LineUtils:
         for cat_name, cat_total in summary_by_cat.items():
             # ถ้าไม่มีการส่งไอคอนมา ให้ดึงไอคอนพื้นฐานตามความเหมาะสม
             cat_amount_str = f"฿{cat_total:,.2f}" if cat_total % 1 != 0 else f"฿{cat_total:,.0f}"
-            
-            cat_nodes.append({
-                "type": "box",
-                "layout": "horizontal",
-                "margin": "sm",
-                "contents": [
-                    {"type": "text", "text": f"📊 {cat_name}", "size": "sm", "color": "#4B5563", "flex": 4},
-                    {"type": "text", "text": cat_amount_str, "size": "sm", "color": "#111827", "align": "end", "weight": "bold", "flex": 2}
-                ]
-            })
+
+            cat_nodes.append(
+                {
+                    "type": "box",
+                    "layout": "horizontal",
+                    "margin": "sm",
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": f"📊 {cat_name}",
+                            "size": "sm",
+                            "color": "#4B5563",
+                            "flex": 4,
+                        },
+                        {
+                            "type": "text",
+                            "text": cat_amount_str,
+                            "size": "sm",
+                            "color": "#111827",
+                            "align": "end",
+                            "weight": "bold",
+                            "flex": 2,
+                        },
+                    ],
+                }
+            )
 
         # 2. ประกอบร่างโครงสร้างแบบคลีน
         return {
@@ -506,18 +519,25 @@ class LineUtils:
                     },
                     {
                         "type": "text",
-                        "text": f"฿{bill_total:,.2f}" if bill_total % 1 != 0 else f"฿{bill_total:,.0f}",
+                        "text": f"฿{bill_total:,.2f}"
+                        if bill_total % 1 != 0
+                        else f"฿{bill_total:,.0f}",
                         "weight": "bold",
                         "size": "xxl",
                         "margin": "sm",
-                        "color": "#111827"
+                        "color": "#111827",
                     },
                     {"type": "text", "text": "ยอดรวมที่บันทึกในบิลนี้", "size": "xs", "color": "#9CA3AF"},
-                    
                     {"type": "separator", "margin": "lg"},
-                    
                     # แสดงผลแยกหมวดหมู่ทันที ไม่ต้องมีรายการย่อยมาคั่น
-                    {"type": "text", "text": "🗂️ แยกเข้าหมวดหมู่", "size": "xs", "weight": "bold", "color": "#1F2937", "margin": "md"},
+                    {
+                        "type": "text",
+                        "text": "🗂️ แยกเข้าหมวดหมู่",
+                        "size": "xs",
+                        "weight": "bold",
+                        "color": "#1F2937",
+                        "margin": "md",
+                    },
                     {
                         "type": "box",
                         "layout": "vertical",
@@ -525,9 +545,7 @@ class LineUtils:
                         "spacing": "xs",
                         "contents": cat_nodes,
                     },
-                    
                     {"type": "separator", "margin": "lg"},
-                    
                     # Progress Bar ของเดือน
                     {
                         "type": "box",
@@ -538,8 +556,19 @@ class LineUtils:
                                 "type": "box",
                                 "layout": "horizontal",
                                 "contents": [
-                                    {"type": "text", "text": f"งบเดือนนี้คงเหลือ: ฿{remaining:,.0f}", "size": "xs", "color": "#4B5563"},
-                                    {"type": "text", "text": f"ใช้ไป {percent:.1f}%", "size": "xs", "color": "#4B5563", "align": "end"}
+                                    {
+                                        "type": "text",
+                                        "text": f"งบเดือนนี้คงเหลือ: ฿{remaining:,.0f}",
+                                        "size": "xs",
+                                        "color": "#4B5563",
+                                    },
+                                    {
+                                        "type": "text",
+                                        "text": f"ใช้ไป {percent:.1f}%",
+                                        "size": "xs",
+                                        "color": "#4B5563",
+                                        "align": "end",
+                                    },
                                 ],
                             },
                             {
@@ -557,7 +586,7 @@ class LineUtils:
                                         "backgroundColor": bar_color,
                                         "height": "8px",
                                         "cornerRadius": "4px",
-                                        "contents": []
+                                        "contents": [],
                                     }
                                 ],
                             },
@@ -649,7 +678,6 @@ class LineUtils:
 
             # 2. ส่ง Reply ยืนยันการบันทึกสำเร็จก่อน (เพื่อปิด Loading ของ LINE)
             text_confirm = f"✅ บันทึกสำเร็จ {count} รายการ\n💰 ยอดรวม ฿{total:,.2f}"
-            print(quick_reply)
             LineUtils.send_push_notification(
                 user_id=user_id, content=text_confirm, alt_text="บันทึกสำเร็จ", quick_reply=quick_reply
             )
@@ -766,7 +794,6 @@ class Utilities:
         )
 
         budget_results = session.exec(budget_statement).all()
-        print(budget_results)
         # จัดรูปแบบข้อมูล Categories สำหรับ Frontend
         # จะมีข้อมูลทั้ง limit, spent และ percentage เพื่อให้ Frontend วาด Progress Bar ได้ทันที
         categories_overview = []
@@ -872,3 +899,84 @@ class Utilities:
         เพื่อให้ระบบไปดึงค่าล่าสุดจาก DB
         """
         Utilities.get_config_value.cache_clear()
+
+    @staticmethod
+    def handle_custom_category_creation(
+        session: Session, name: str, icon: str, user_id: str, parent_id: int = None
+    ):
+        """
+        Utilities สำหรับจัดการและสกรีนความซ้ำซ้อนของหมวดหมู่ระดับ Only User ก่อนบันทึก
+        :param db_manager: คลาส DB Management ที่มีฟังก์ชัน insert_category
+        """
+        # 1. ปรับแต่งและล้างข้อมูลเบื้องต้น
+        clean_name = name.strip()
+        if not clean_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="ชื่อหมวดหมู่ต้องไม่เป็นช่องว่าง"
+            )
+
+        # 2. 🔍 ดักจับข้อมูลซ้ำใน Scope ของ User คนนี้ (Global + Only User)
+        statement = select(Categories).where(
+            and_(
+                Categories.name == clean_name,
+                or_(
+                    Categories.user_id == None,  # ซ้ำกับหมวดหมู่ส่วนกลางของระบบ
+                    Categories.user_id == user_id,  # ซ้ำกับหมวดหมู่ที่ตัวเองเคยสร้างไว้แล้ว
+                ),
+            )
+        )
+
+        duplicated_cat = session.exec(statement).first()
+
+        if duplicated_cat:
+            # 🚨 เจอชื่อซ้ำในระบบของเขา ส่ง HTTPException ตัดลูปออกไปทันที
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"คุณมีหมวดหมู่ '{clean_name}' อยู่ในระบบแล้ว ไม่จำเป็นต้องสร้างใหม่",
+            )
+
+        # 3. ✅ ตรวจสอบผ่านฉลุย ส่งต่อให้ DB Management ทำหน้าที่คุยกับตารางฐานข้อมูล
+        return DBManagerCategories.insert_category(
+            session=session, name=clean_name, icon=icon, parent_id=parent_id, user_id=user_id
+        )
+
+    @staticmethod
+    def get_user_accessible_categories(session: Session, user_id: str) -> List[Categories]:
+        """
+        ดึงหมวดหมู่หลัก (Parent) ทั้งหมดที่ผู้ใช้คนนี้สามารถใช้งานได้ (Global + ของตัวเอง)
+        """
+        try:
+            statement = select(Categories).where(
+                and_(
+                    Categories.parent_id.is_(None),  # โฟกัสที่หมวดหมู่หลักก่อน
+                    or_(
+                        Categories.user_id.is_(None),  # หมวดหมู่ระบบ (Global)
+                        Categories.user_id == user_id,  # หมวดหมู่ที่ User คนนี้ Custom เอง
+                    ),
+                )
+            )
+            return session.exec(statement).all()
+        except Exception as e:
+            print(f"Error in get_user_accessible_categories: {str(e)}")
+            return []
+
+    @staticmethod
+    def generate_system_prompt_categories(session: Session, user_id: str) -> str:
+        """
+        แปลงข้อมูลหมวดหมู่ของผู้ใช้ให้อยู่ในรูปแบบ Text List เพื่อนำไปใส่ใน System Prompt ของ AI
+        """
+        # 1. ดึงหมวดหมู่ทั้งหมดของ User คนนี้
+        categories = Utilities.get_user_accessible_categories(session, user_id)
+
+        if not categories:
+            # Fallback หากเกิดข้อผิดพลาดใน DB อย่างน้อยให้ AI รู้จักหมวดหมู่พื้นฐาน
+            return "- อาหารและเครื่องดื่ม\n- การเดินทาง\n- ช้อปปิ้ง\n- ที่อยู่อาศัย"
+
+        # 2. จัดรูปแบบให้อยู่ในข้อความแบบสแกนง่ายสำหรับ AI
+        category_lines = []
+        for cat in categories:
+            # แสดงผลในรูปแบบ: "- [ไอคอน] ชื่อหมวดหมู่"
+            icon_str = cat.icon if cat.icon else "📁"
+            category_lines.append(f"- {icon_str} {cat.name}")
+
+        return "\n".join(category_lines)

@@ -4,38 +4,104 @@ import api from "../../../../common/lib/api";
 
 const testMode = import.meta.env.VITE_TEST_MODE;
 
-export const useWebAuthStore = create((set) => ({
-  isAuth: false,
+const extractUserId = (user) => {
+  if (!user) return null;
+  return user.user_id ?? user.id ?? user.userId ?? null;
+};
+
+export const useWebAuthStore = create((set, get) => ({
+  isAuth: false, 
   isWebApp: false,
+  isOnboarded: true,
   user: null,
   userId: null,
   error: null,
   loading: false,
+  onboardingCategories: [],
+  onboardingBudgets: {},
+  onboardingLoading: false,
 
   setLogin: (user) => {
-    set({ isAuth: true, user, error: null });
+    set({
+      isAuth: true,
+      user,
+      userId: extractUserId(user),
+      error: null,
+    });
   },
+
+  setOnboardingData: (categories, budgets) => {
+    set({
+      onboardingCategories: categories,
+      onboardingBudgets: budgets,
+    });
+  },
+
+  fetchOnboardingData: async (userId) => {
+    if (!userId) {
+      set({ onboardingCategories: [], onboardingBudgets: {}, onboardingLoading: false });
+      return { categories: [], budgets: {} };
+    }
+
+    set({ onboardingLoading: true });
+
+    try {
+      const [categoryRes, budgetRes] = await Promise.all([
+        api.get("/api/categories/parent"),
+        api.get(`/api/budgets/${userId}`),
+      ]);
+
+      const categories = categoryRes.data || [];
+      const budgets = {};
+
+      if (budgetRes.data?.success && Array.isArray(budgetRes.data.data)) {
+        budgetRes.data.data.forEach((b) => {
+          budgets[b.category_id] = b.amount?.toString() ?? "";
+        });
+      }
+
+      set({
+        onboardingCategories: categories,
+        onboardingBudgets: budgets,
+        onboardingLoading: false,
+      });
+
+      return { categories, budgets };
+    } catch (error) {
+      console.error("Failed to fetch onboarding data:", error);
+      set({ onboardingCategories: [], onboardingBudgets: {}, onboardingLoading: false });
+      return { categories: [], budgets: {} };
+    }
+  },
+
   // ฟังก์ชัน Initialize ระบบ
   initApp: async (navigate) => {
     set({ loading: true, error: null });
 
     const urlParams = new URLSearchParams(window.location.search);
-    const isWebApp = urlParams.get("webapp") === "true" || !liff.isInClient();
-    console.log("Initializing app - isWebApp:", isWebApp, "LIFF Context:", !liff.isInClient());
+    // const isWebApp = urlParams.get("webapp") === "true" || !liff.isInClient();
+    const isWebApp = false;
     // 🔹 กรณีเปิดผ่าน Web Browser / Desktop
     if (isWebApp) {
-      const user = sessionStorage.getItem("user_info");
-      if (!user) {
+      const storedUser = sessionStorage.getItem("user_info");
+      if (!storedUser) {
         set({
           isWebApp: true,
+          isAuth: false,
           error: "กรุณาเข้าสู่ระบบผ่าน LINE ก่อนใช้งาน",
           loading: false,
         });
         return;
       }
+
+      const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+      const parsedUserId = extractUserId(parsedUser);
+      await get().fetchOnboardingData(parsedUserId);
+
       set({
         isWebApp: true,
-        user: user ? JSON.parse(user) : null,
+        user: parsedUser,
+        userId: parsedUserId,
         isAuth: true,
         loading: false,
       });
@@ -67,19 +133,33 @@ export const useWebAuthStore = create((set) => ({
         const idToken = liff.getIDToken();
         sessionStorage.setItem("id_token", idToken);
 
-        await api.post("/api/user", {
+        const userResponse = await api.post("/api/user", {
           id_token: idToken,
         });
+        const userInfo = userResponse?.data?.user_info;
+        if (userInfo) {
+          sessionStorage.setItem("user_info", JSON.stringify(userInfo));
+        }
+
+        const onboardingStatusResponse = await api.get("/api/user/onboarding-status");
+        const isOnboarded = !!onboardingStatusResponse?.data?.is_onboarded;
 
         set({
-          userId: context.userId,
+          user: userInfo || null,
+          userId: userInfo?.user_id || context.userId,
           isAuth: true,
+          isOnboarded,
           loading: false,
         });
 
         const targetPath = urlParams.get("path");
         if (targetPath) {
           navigate(targetPath);
+          return;
+        }
+
+        if (!isOnboarded) {
+          navigate("/setup", { replace: true });
         }
       } else {
         liff.login();
@@ -129,6 +209,7 @@ export const useWebAuthStore = create((set) => ({
       sessionStorage.removeItem("user_info");
       set({
         isAuth: false,
+        isOnboarded: true,
         user: null,
         userId: null,
         loading: false,
@@ -138,6 +219,21 @@ export const useWebAuthStore = create((set) => ({
     } else {
       liff.logout();
     }
-    set({ isAuth: false, user: null, loading: false, error: null });
+    set({ isAuth: false, isOnboarded: true, user: null, loading: false, error: null });
+  },
+
+  completeOnboarding: async () => {
+    try {
+      const response = await api.post("/api/user/onboarded");
+      if (!response?.data?.success) {
+        return false;
+      }
+
+      set({ isOnboarded: true });
+      return true;
+    } catch (error) {
+      console.error("Failed to complete onboarding:", error);
+      return false;
+    }
   },
 }));

@@ -2,13 +2,12 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List
 
-from sqlmodel import Session, and_, desc, extract, func, select
+from sqlmodel import Session, and_, desc, extract, func, or_, select
 
 from model.models import (
     Administrator,
     Attachments,
     Categories,
-    CategoryMapping,
     SystemConfiguration,
     TempTransactions,
     Transactions,
@@ -78,6 +77,44 @@ class DBManagerUsers:
         except Exception as e:
             print(f"Failed to update user config: {str(e)}")
             return False
+
+    @staticmethod
+    def set_user_onboarded(session: Session, line_user_id: str) -> bool:
+        try:
+            user = session.get(Users, line_user_id)
+
+            if not user:
+                print(f"User not found: {line_user_id}")
+                return False
+
+            # ถ้า onboarded แล้ว ไม่ต้องเขียน DB ซ้ำ
+            if user.is_onboarded:
+                return True
+
+            user.is_onboarded = True
+            session.add(user)
+            session.commit()
+            return True
+
+        except Exception as e:
+            print(f"Failed to update onboarding status: {str(e)}")
+            return False
+
+    @staticmethod
+    def get_user_onboarding_status(session: Session, line_user_id: str) -> Dict[str, Any]:
+        try:
+            user = session.get(Users, line_user_id)
+            if not user:
+                return {"success": False, "message": "User not found", "is_onboarded": False}
+
+            return {"success": True, "is_onboarded": bool(user.is_onboarded)}
+        except Exception as e:
+            print(f"Failed to get onboarding status: {str(e)}")
+            return {
+                "success": False,
+                "message": "Failed to get onboarding status",
+                "is_onboarded": False,
+            }
 
 
 class DBManagerTransactions:
@@ -169,6 +206,8 @@ class DBManagerTransactions:
             return False
 
     # บันทึกจากชั่วคร่าวเข้าตารางจริง (รองรับทั้งกรณีมี Temp และไม่มี Temp)
+
+
     @staticmethod
     def save_transaction(
         session: Session,
@@ -180,20 +219,25 @@ class DBManagerTransactions:
         attachment_id: str = None,
         undo_token: str = None,
     ):
-        # ดึงหมวด "อื่นๆ" ไว้รอเลย เผื่อต้องใช้ (Fallback)
+        # 🎯 หา user_id หลักที่จะใช้ในลูปนี้
+        current_user_id = temp.user_id if temp else user_id
+
+        # 1. ดึงหมวด "อื่นๆ" ของระบบ (Global Fallback)
         statement_other = select(Categories).where(
-            Categories.name == "อื่นๆ", Categories.parent_id.is_(None)
+            Categories.name == "อื่นๆ",
+            Categories.parent_id.is_(None),
+            Categories.user_id.is_(None),  # 🔒 ดึงเฉพาะของส่วนกลางเท่านั้น
         )
         default_parent = session.exec(statement_other).first()
         if not default_parent:
-            default_parent = Categories(name="อื่นๆ", icon="✨")
+            default_parent = Categories(name="อื่นๆ", icon="✨", user_id=None)
             session.add(default_parent)
             session.flush()
 
         total_amount = 0.0
         item_count = 0
-        updated_budgets_info = []  # เก็บข้อมูล Budget ที่ถูกอัปเดต
-        processed_parent_ids = set()  # ป้องกันการดึง Budget ซ้ำถ้ามีหลายรายการใน Parent เดียวกัน
+        updated_budgets_info = []
+        processed_parent_ids = set()
         now = datetime.now()
         batch_undo_token = undo_token or str(uuid.uuid4())
 
@@ -203,43 +247,54 @@ class DBManagerTransactions:
             raw_data = items
         else:
             raw_data = temp.raw_data.get("transactions", [])
+
+        new_tx = None
+
         for item in raw_data:
             if not item.get("is_actual_item", True) or item.get("priority", True):
                 continue
+
+            # ล้างช่องว่างหัวท้ายที่ AI อาจจะแถมมา
             raw_cat_name = str(item.get("category", "อื่นๆ")).strip()
-
-            # 2. ค้นหาใน Mapping Table ก่อน
-            # 1. ค้นหาใน Mapping Table (เช่น AI ส่ง "อาหาร" มา -> เจอ "อาหารและเครื่องดื่ม")
-            mapping = session.exec(
-                select(CategoryMapping).where(CategoryMapping.alias_name == raw_cat_name)
-            ).first()
-            if mapping:
-                target_cat = mapping.category
+            # 🧹 STEP SPACES SPLIT NORMALIZATION
+            # ถ้า AI ส่งมาเป็น "🍔 อาหารและเครื่องดื่ม" การ split(" ") จะได้เป็น ["🍔", "อาหารและเครื่องดื่ม"]
+            parts = raw_cat_name.split(" ")
+            
+            if len(parts) > 1:
+                # ถ้ารูปแบบมีช่องว่างคั่น ให้ดึงคำสุดท้ายที่เป็นชื่อหมวดหมู่ดิบๆ มาใช้
+                clean_cat_name = parts[-1].strip()
             else:
-                target_cat = session.exec(
-                    select(Categories).where(Categories.name == raw_cat_name)
-                ).first()
+                # ถ้าไม่มีช่องว่าง (ส่งมาแค่ชื่อปกติ) ก็ใช้ค่าเดิมได้เลย
+                clean_cat_name = raw_cat_name
 
-                if not target_cat:
-                    target_cat = default_parent
+            # 🚨 Fallback กันเหนียวเผื่อตัดแล้วได้ค่าว่าง
+            if not clean_cat_name:
+                clean_cat_name = "อื่นๆ"
 
-                    new_mapping = CategoryMapping(
-                        alias_name=raw_cat_name,
-                        category_id=default_parent.id,  # ผูกเข้ากับ ID ของ "อื่นๆ" หลัก
-                    )
-                    session.add(new_mapping)
+            # 2. 🎯 ค้นหาตรงๆ ในตาราง Categories (สโคปเฉพาะ Global + Only User)
+            target_cat = session.exec(
+                select(Categories).where(
+                    Categories.name == clean_cat_name,
+                    or_(
+                        Categories.user_id.is_(None),  # หมวดหมู่ส่วนกลาง
+                        Categories.user_id == current_user_id,  # หรือหมวดหมู่ Custom ของผู้ใช้คนนี้
+                    ),
+                )
+            ).first()
+            print(f"Matching category for '{raw_cat_name}': {target_cat.name if target_cat else 'Not Found'}")
+            # 3. ถ้า AI ดื้อหรือหลุดพิมพ์หมวดหมู่นอกเหนือจากที่สั่ง ให้หลุดเข้า "อื่นๆ" ของระบบ
+            if not target_cat:
+                target_cat = default_parent
 
+            # หา Parent ID เพื่อใช้ตัดงบ (กรณีในอนาคตมี Sub-category)
             parent_id = target_cat.parent_id if target_cat.parent_id else target_cat.id
 
-            # 2. บันทึก Transaction
+            # 4. บันทึก Transaction
             amount = float(item.get("amount", 0))
             new_tx = Transactions(
-                user_id=(temp.user_id if temp else user_id),
+                user_id=current_user_id,
                 amount=amount,
-                item_name=item.get("item")
-                or item.get("receiver")
-                or item.get("note")
-                or "ไม่ระบุรายการ",
+                item_name=item.get("item") or item.get("receiver") or item.get("note") or "ไม่ระบุรายการ",
                 transaction_type="expense",
                 category_id=target_cat.id,
                 transaction_date=now,
@@ -252,30 +307,29 @@ class DBManagerTransactions:
             )
             session.add(new_tx)
 
-            # 3. อัปเดต UserBudget (ตัดงบที่ Parent)
+            # 5. อัปเดต UserBudget (ตัดงบที่ Parent)
             statement_b = select(UserBudget).where(
-                UserBudget.user_id == (temp.user_id if temp else user_id),
+                UserBudget.user_id == current_user_id,
                 UserBudget.category_id == parent_id,
                 UserBudget.month == now.month,
                 UserBudget.year == now.year,
             )
             budget = session.exec(statement_b).first()
-
+            print(f"Budget before update: {budget}")
             if budget:
                 budget.current_spent += amount
                 session.add(budget)
-                # เก็บ ID ไว้เพื่อไปดึงข้อมูลสรุปหลัง commit
                 processed_parent_ids.add(budget.id)
 
             total_amount += amount
             item_count += 1
 
-        # 4. ลบ Temp และ Commit เพื่อให้ข้อมูลลง DB จริง
+        # ลบ Temp และ Commit
         if temp is not None:
             session.delete(temp)
         session.commit()
 
-        # 5. ดึงข้อมูล Budget ที่อัปเดตแล้วมาเตรียมส่งกลับ (ต้องดึงใหม่หลัง commit เพื่อความชัวร์)
+        # 6. ดึงข้อมูล Budget ที่อัปเดตแล้วส่งกลับไปแสดงผลบน LINE Flex Message
         for b_id in processed_parent_ids:
             b = session.get(UserBudget, b_id)
             if b:
@@ -289,11 +343,11 @@ class DBManagerTransactions:
                 )
 
         return {
-            "current_transaction_id": new_tx.id,
+            "current_transaction_id": new_tx.id if new_tx else None,
             "undo_token": batch_undo_token,
             "count": item_count,
             "total": total_amount,
-            "budgets": updated_budgets_info,  # ส่งข้อมูลสรุปงบกลับไป
+            "budgets": updated_budgets_info,
         }
 
     # --- 3. ย้ายข้อมูลจาก Temp ไปเป็น Transaction จริง (รองรับ Category และ Attachment) ---
@@ -419,10 +473,26 @@ class DBManagerCategories:
             return None
 
     @staticmethod
+    def insert_category(
+        session: Session, name: str, icon: str = "📁", parent_id: int = None, user_id: str = None
+    ):
+        try:
+            new_category = Categories(name=name, icon=icon, parent_id=parent_id, user_id=user_id)
+            session.add(new_category)
+            session.commit()
+            session.refresh(new_category)
+            return new_category
+        except Exception as e:
+            print(f"Error in insert_category: {str(e)}")
+            return None
+
+    @staticmethod
     def get_parent_categories(session: Session) -> List[Categories]:
         try:
             # เลือกเฉพาะรายการที่ไม่มี parent_id (เป็นรากของหมวดหมู่)
-            statement = select(Categories).where(Categories.parent_id.is_(None))
+            statement = select(Categories).where(
+                and_(Categories.parent_id.is_(None), Categories.user_id.is_(None))
+            )
             results = session.exec(statement).all()
 
             return results
@@ -526,6 +596,23 @@ class DBManagerBudget:
             return []
 
     @staticmethod
+    def can_setup_budget_this_month(session: Session, user_id: str) -> bool:
+        try:
+            now = datetime.now()
+            statement = select(UserBudget).where(
+                UserBudget.user_id == user_id,
+                UserBudget.month == now.month,
+                UserBudget.year == now.year,
+            )
+            budget = session.exec(statement).first()
+
+            # ถ้าเดือนปัจจุบันยังไม่มีงบประมาณใน DB ให้คืนค่า True
+            return budget is None
+        except Exception as e:
+            print(f"Error in can_setup_budget_this_month: {str(e)}")
+            return False
+
+    @staticmethod
     def setup_user_budget(session: Session, user_id: str, category_id: int, amount: float):
         try:
             now = datetime.now()
@@ -568,7 +655,6 @@ class DBManagerBudget:
         except Exception as e:
             print(f"Error in setup_user_budget: {str(e)}")
             return {"success": False, "message": "เกิดข้อผิดพลาดในการตั้งงบประมาณ กรุณาลองใหม่อีกครั้ง"}
-    
 
     @staticmethod
     def sync_user_budgets(session: Session, user_id: str, month: int, year: int):

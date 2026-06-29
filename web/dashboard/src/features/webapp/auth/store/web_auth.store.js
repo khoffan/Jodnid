@@ -10,7 +10,7 @@ const extractUserId = (user) => {
 };
 
 export const useWebAuthStore = create((set, get) => ({
-  isAuth: false, 
+  isAuth: false,
   isWebApp: false,
   isOnboarded: true,
   user: null,
@@ -35,6 +35,14 @@ export const useWebAuthStore = create((set, get) => ({
       onboardingCategories: categories,
       onboardingBudgets: budgets,
     });
+  },
+
+  setOnboardStatus: async () => {
+    try {
+      await api.post("/api/user/onboarded");
+    } catch (error) {
+      set({ error: error.message });
+    }
   },
 
   fetchOnboardingData: async (userId) => {
@@ -98,11 +106,15 @@ export const useWebAuthStore = create((set, get) => ({
       const parsedUserId = extractUserId(parsedUser);
       await get().fetchOnboardingData(parsedUserId);
 
+      const onboardingStatusResponse = await api.get("/api/user/onboarding-status");
+      const isOnboarded = !!onboardingStatusResponse?.data?.is_onboarded;
+
       set({
         isWebApp: true,
         user: parsedUser,
         userId: parsedUserId,
         isAuth: true,
+        isOnboarded,
         loading: false,
       });
       return;

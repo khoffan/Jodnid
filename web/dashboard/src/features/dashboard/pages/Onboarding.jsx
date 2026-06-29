@@ -68,6 +68,7 @@ const Onboarding = ({ userId }) => {
     fetchOnboardingData,
     onboardingLoading,
     isOnboarded,
+    setOnboardStatus
   } = useWebAuthStore();
   const navigate = useNavigate();
   const setupBudgetOnly = isOnboarded;
@@ -99,6 +100,7 @@ const Onboarding = ({ userId }) => {
           const [catRes, budRes] = await Promise.all([
             api.get("/api/categories/parent"),
             api.get(`/api/budgets/${userId}`),
+            
           ]);
 
           const cats = catRes.data || [];
@@ -202,6 +204,8 @@ const Onboarding = ({ userId }) => {
     setSaveResults(results);
     setSaving(false);
     setSaved(true);
+
+    await setOnboardStatus();
 
     if (Object.values(results).every((r) => r.success)) {
       setTimeout(() => navigate("/"), 1200);

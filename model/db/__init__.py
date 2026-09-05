@@ -10,6 +10,7 @@ from model.db.billable import BILLABLE_TOTAL_TOLERANCE, select_billable_items
 from model.db.budget import DBManagerBudget
 from model.db.categories import DBManagerCategories
 from model.db.dashboard import DBManagerDashboard
+from model.db.monitoring import DBManagerMonitoring
 from model.db.transactions import DBManagerTransactions
 from model.db.users import DBManagerUsers
 
@@ -19,6 +20,7 @@ __all__ = [
     "DBManagerBudget",
     "DBManagerCategories",
     "DBManagerDashboard",
+    "DBManagerMonitoring",
     "DBManagerTransactions",
     "DBManagerUsers",
     "select_billable_items",

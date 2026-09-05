@@ -2,12 +2,58 @@
 
 from typing import Any, Dict
 
-from sqlmodel import Session
+from sqlmodel import Session, col, desc, func, or_, select
 
 from model.models import Users
 
 
 class DBManagerUsers:
+    @staticmethod
+    def search_users(session: Session, search: str = None, limit: int = 50, offset: int = 0):
+        """ค้นหาผู้ใช้แบบแบ่งหน้า สำหรับหน้าจัดการผู้ใช้ใน admin console"""
+        limit = max(1, min(limit, 200))
+        conditions = []
+        if search:
+            conditions.append(
+                or_(
+                    col(Users.display_name).contains(search),
+                    col(Users.line_user_id).contains(search),
+                    col(Users.email).contains(search),
+                )
+            )
+
+        count_statement = select(func.count()).select_from(Users)
+        statement = select(Users).order_by(desc(Users.created_at))
+        for condition in conditions:
+            count_statement = count_statement.where(condition)
+            statement = statement.where(condition)
+
+        total = session.exec(count_statement).one()
+        users = session.exec(statement.offset(offset).limit(limit)).all()
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "items": [user.dict() for user in users],
+        }
+
+    @staticmethod
+    def set_user_bypass_mode(session: Session, line_user_id: str, enabled: bool):
+        """
+        เปิด-ปิดโหมดบันทึกด่วนให้ผู้ใช้จากฝั่ง admin
+
+        ใช้ตอนผู้ใช้แจ้งว่าระบบบันทึกยอดผิด จะได้บังคับให้กลับไปกดยืนยันทุกครั้งก่อน
+        """
+        user = session.get(Users, line_user_id)
+        if not user:
+            return {"success": False, "message": "ไม่พบผู้ใช้รายนี้"}
+
+        user.use_bypass_mode = bool(enabled)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return {"success": True, "data": user.dict()}
+
     @staticmethod
     def get_or_create_user(session: Session, line_user_id: str, profile: Dict = None) -> Users:
         display_name = profile["display_name"] if profile else "Unknown User"

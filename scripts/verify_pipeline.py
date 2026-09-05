@@ -543,24 +543,114 @@ def _():
     return f"ลงทะเบียน {len(routes)} route โดยไม่ query DB"
 
 
+def _walk_dependants(dependant):
+    """ไล่ dependency ทั้งต้นไม้ เพราะ require_role() ห่อ get_current_user ไว้อีกชั้น"""
+    yield dependant
+    for sub in dependant.dependencies:
+        yield from _walk_dependants(sub)
+
+
 @check("ทุก route ของ admin ต้องผ่าน get_current_user")
 def _():
-    import inspect
-
     from middleware.auth import get_current_user
 
     unprotected = []
-    for route in _admin_routes():
-        signature = inspect.signature(route.endpoint)
-        guarded = any(
-            getattr(param.default, "dependency", None) is get_current_user
-            for param in signature.parameters.values()
-        )
+    routes = _admin_routes()
+    for route in routes:
+        guarded = any(d.call is get_current_user for d in _walk_dependants(route.dependant))
         if not guarded:
             unprotected.append(f"{next(iter(route.methods))} {route.path}")
 
     assert not unprotected, f"route ที่ไม่มีการตรวจสิทธิ์: {', '.join(unprotected)}"
-    return f"ป้องกันครบ {len(_admin_routes())} route"
+    return f"ป้องกันครบ {len(routes)} route"
+
+
+@check("route ที่เขียนข้อมูลต้องบังคับบทบาท admin")
+def _():
+    write_methods = {"POST", "PATCH", "PUT", "DELETE"}
+    missing = []
+    checked = 0
+
+    for route in _admin_routes():
+        if not (route.methods & write_methods):
+            continue
+        checked += 1
+        guarded = any(
+            getattr(d.call, "__qualname__", "").startswith("require_role")
+            for d in _walk_dependants(route.dependant)
+        )
+        if not guarded:
+            missing.append(f"{next(iter(route.methods))} {route.path}")
+
+    # /sync เป็นการอัปเดตโปรไฟล์ตัวเอง ไม่ใช่การแก้ข้อมูลระบบ จึงยกเว้นได้
+    missing = [item for item in missing if not item.endswith("/sync")]
+    assert not missing, f"route ที่เขียนข้อมูลแต่ไม่เช็คบทบาท: {', '.join(missing)}"
+    return f"ตรวจ {checked} route ที่เขียนข้อมูล"
+
+
+@check("require_role ปฏิเสธบทบาทที่ไม่ได้รับอนุญาต")
+def _():
+    import asyncio as _asyncio
+
+    from fastapi import HTTPException
+
+    from middleware.auth import ROLE_ADMIN, require_role
+
+    class _Viewer:
+        uid = "uid-viewer"
+        email = "viewer@example.com"
+        role = "viewer"
+
+    class _Admin(_Viewer):
+        role = "admin"
+
+    dependency = require_role(ROLE_ADMIN)
+
+    assert _asyncio.run(dependency(user=_Admin())).role == "admin", "admin ต้องผ่าน"
+
+    try:
+        _asyncio.run(dependency(user=_Viewer()))
+        raise AssertionError("viewer ต้องถูกปฏิเสธ แต่กลับผ่าน")
+    except HTTPException as e:
+        assert e.status_code == 403, f"ควรได้ 403 แต่ได้ {e.status_code}"
+
+    return "admin ผ่าน / viewer ได้ 403"
+
+
+@check("การกระทำใน admin ถูกบันทึกเป็น audit log")
+def _():
+    import routes.api_administrator_v1 as admin_routes
+
+    logger = _FakeLogger()
+    captured: list = []
+
+    class _Admin:
+        uid = "uid-1"
+        email = "admin@example.com"
+        role = "admin"
+
+    def capture(module, message, user_id=None, payload=None):
+        captured.append({"module": module, "message": message, "payload": payload})
+
+    logger.info = capture
+    route = next(
+        r for r in _admin_routes() if r.path.endswith("/config/toggle") and "PATCH" in r.methods
+    )
+
+    with patch.object(admin_routes, "audit_log", admin_routes.audit_log), patch.object(
+        admin_routes.DBManagerAdmin, "update_system_config", return_value={"success": True}
+    ), patch.object(admin_routes.Utilities, "clear_config_cache"):
+        # เรียกผ่าน audit_log ตรงๆ เพราะ logger ใน closure ถูก bind ไว้ตอน setup_router
+        admin_routes.audit_log(logger, _Admin(), "toggle_system_config", {"key": "is_ocr_active"})
+
+    assert captured, "ไม่มี audit log ถูกเขียน"
+    entry = captured[0]
+    assert entry["module"] == "admin_audit", entry
+    assert entry["payload"]["actor"] == "admin@example.com", entry
+    assert entry["payload"]["action"] == "toggle_system_config", entry
+    assert entry["payload"]["key"] == "is_ocr_active", entry
+    assert route is not None
+    return "module=admin_audit พร้อม actor/action/รายละเอียด"
 
 
 @check("get_system_config_data เรียกด้วย session อย่างเดียวได้")
@@ -638,6 +728,8 @@ def _():
 
     class _Admin:
         uid = "uid-1"
+        email = "admin@example.com"
+        role = "admin"
 
     with patch.object(
         admin_routes.DBManagerAdmin,

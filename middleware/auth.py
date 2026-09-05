@@ -1,7 +1,7 @@
 import json
 
 import firebase_admin
-from fastapi import HTTPException, Security, status
+from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth, credentials
 from sqlmodel import Session, select
@@ -75,3 +75,30 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
             detail=f"Invalid authentication credentials: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+# บทบาทที่ระบบรู้จัก — `viewer` เข้าดูได้อย่างเดียว แก้อะไรไม่ได้
+ROLE_ADMIN = "admin"
+ROLE_VIEWER = "viewer"
+KNOWN_ROLES = (ROLE_ADMIN, ROLE_VIEWER)
+
+
+def require_role(*allowed_roles: str):
+    """
+    Dependency สำหรับ route ที่ต้องการบทบาทเฉพาะ
+
+    `Administrator.role` มีมาตั้งแต่ต้นแต่ไม่เคยถูกอ่านที่ไหนเลย ทุกคนที่ล็อกอินได้
+    จึงมีสิทธิ์เท่ากันหมด รวมถึงการแก้ค่า config ที่กระทบผู้ใช้ทุกคนในระบบ
+
+    ใช้กับ route ที่ "เขียน" ข้อมูล ส่วน route ที่อ่านอย่างเดียวใช้ `get_current_user` ตามเดิม
+    """
+
+    async def dependency(user: Administrator = Depends(get_current_user)) -> Administrator:
+        if user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"ต้องมีสิทธิ์ {' หรือ '.join(allowed_roles)} จึงจะทำรายการนี้ได้",
+            )
+        return user
+
+    return dependency

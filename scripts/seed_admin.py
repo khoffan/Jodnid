@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlmodel import Session, select  # noqa: E402
 
+from middleware.auth import KNOWN_ROLES  # noqa: E402
 from model.models import Administrator, engine  # noqa: E402
 
 
@@ -88,7 +89,11 @@ def main() -> int:
     parser.add_argument("--uid", help="Firebase UID ของผู้ใช้ที่จะให้สิทธิ์")
     parser.add_argument("--email", help="อีเมล (จำเป็นตอนสร้างใหม่)")
     parser.add_argument("--name", help="ชื่อที่แสดง")
-    parser.add_argument("--role", help="สิทธิ์ เช่น admin หรือ viewer (ค่าเริ่มต้น admin)")
+    parser.add_argument(
+        "--role",
+        choices=KNOWN_ROLES,
+        help="admin = แก้ไขได้ทุกอย่าง, viewer = เข้าดูได้อย่างเดียว (ค่าเริ่มต้น admin)",
+    )
     parser.add_argument("--list", action="store_true", help="แสดงผู้ดูแลระบบทั้งหมด")
     parser.add_argument("--deactivate", action="store_true", help="ปิดการใช้งานผู้ดูแลระบบคนนี้")
     parser.add_argument("--activate", action="store_true", help="เปิดการใช้งานผู้ดูแลระบบคนนี้")

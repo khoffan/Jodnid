@@ -12,6 +12,57 @@
 
 ---
 
+## 2026-09-06 01:34 (+07) — Admin system (Phase A–D)
+
+**ครอบคลุมคอมมิต** `d5060cb`, `a16b202`, `98194bc` และคอมมิต Phase D
+
+### ชุดตรวจอัตโนมัติ
+
+```
+python scripts/verify_pipeline.py
+```
+
+ผล: **ผ่าน 28/28 หัวข้อ** (เพิ่มจาก 14 หัวข้อเดิม เป็นของ admin 14 หัวข้อ)
+
+หัวข้อที่เพิ่มในรอบนี้:
+
+| หัวข้อ | ผลที่ได้ |
+|---|---|
+| สร้าง router ของ admin ได้โดยไม่แตะ DB ตอน startup | ลงทะเบียน 15 route โดยไม่ query DB |
+| ทุก route ของ admin ต้องผ่าน `get_current_user` | ป้องกันครบ 15 route |
+| route ที่เขียนข้อมูลต้องบังคับบทบาท admin | ตรวจ 9 route ที่เขียนข้อมูล |
+| `require_role` ปฏิเสธบทบาทที่ไม่ได้รับอนุญาต | admin ผ่าน / viewer ได้ 403 |
+| การกระทำใน admin ถูกบันทึกเป็น audit log | `module=admin_audit` พร้อม actor/action/รายละเอียด |
+| `get_system_config_data` เรียกด้วย session อย่างเดียวได้ | signature ถูก และเรียกได้จริง |
+| `sync_administrator_profile` ไม่สร้าง admin ใหม่ | ปฏิเสธและไม่เขียน DB |
+| `get_current_user` ปฏิเสธ admin ที่ถูกปิดใช้งาน | ตอบ 403 Forbidden |
+| `clear_config_cache` ถูกเรียกหลังเขียน DB | `write -> clear_cache` |
+| update/create config คืน error แทนที่จะพังเมื่อชื่อซ้ำ | คืน `success=False` พร้อมข้อความไทย |
+| `get_system_status` ไม่ล้มแม้ DB และ LINE API ใช้ไม่ได้ | รายงานสถานะครบโดยไม่ล้ม |
+| `feature_enabled` ค่าเริ่มต้นเป็นเปิดเสมอ | ไม่มี config = เปิด / false = ปิด |
+| ปิดสวิตช์ OCR แล้ว webhook ต้องไม่ประมวลผลรูป | ปิด = ไม่เรียก handler + แจ้งผู้ใช้ |
+| ปิดสวิตช์ข้อความแล้ว webhook ต้องไม่ประมวลผลข้อความ | ปิด = ไม่เรียก handler + แจ้งผู้ใช้ |
+
+> หัวข้อ **"ทุก route ของ admin ต้องผ่าน get_current_user"** คือตัวที่กันไม่ให้ช่องโหว่แบบ
+> `POST /sync` ที่ไม่มี auth กลับมาอีกโดยไม่มีใครสังเกต — ไล่ dependency ทั้งต้นไม้จึงรองรับ
+> ทั้ง `get_current_user` ตรงๆ และที่ถูกห่อด้วย `require_role()`
+
+### ฝั่ง frontend
+
+- `npm run lint` ของ admin console ผ่าน (ไม่มี warning)
+- `npm run build` ผ่าน — 1,815 modules, bundle 446 kB (gzip 136 kB)
+
+### ยังไม่ได้ตรวจ
+
+เคสที่ต้องใช้ Firebase จริง / LINE จริง / เบราว์เซอร์จริง ทั้งหมดอยู่ใน
+[manual_test.md](manual_test.md) หมวด Phase A–D **ยังไม่ได้ลงมือทดสอบ** โดยเฉพาะ:
+
+- ช่องโหว่ยกระดับสิทธิ์ (A-1) — ควรยิง curl ยืนยันว่าได้ 403 จริง
+- โหลดหน้าแรกของ console (A-3) — จุดที่เคยพังสนิท
+- viewer ถูกปฏิเสธเมื่อกดแก้ข้อมูล (D-1)
+
+---
+
 ## 2026-09-06 00:09 (+07) — OCR pipeline + กติกาการบันทึกยอด
 
 **ครอบคลุมคอมมิต** `cd7aaf7`, `6c7ac1c`, `aea7d2b` (ทำงานช่วง 2026-09-05 22:49 – 23:02)

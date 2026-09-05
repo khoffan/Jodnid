@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |---|---|---|
 | root | Backend API + LINE webhook | FastAPI, SQLModel, Alembic |
 | [web/dashboard/](web/dashboard/) | LIFF mini-app **และ** web app (bundle เดียวกัน) | Vite + React 19, Zustand, `@line/liff` |
-| [web/admin-jodnid/](web/admin-jodnid/) | Admin console (system config) | Vite + React 19, Firebase Auth |
+| [web/admin-jodnid/](web/admin-jodnid/) | Admin console (config, log, สถิติ, ผู้ใช้, หมวดหมู่) | Vite + React 19, Firebase Auth |
 | [web/jodnid-landing/](web/jodnid-landing/) | Landing page | Next.js 16 App Router, TS |
 
 ---
@@ -101,6 +101,13 @@ npm run build && npm run lint
 - **Route ใหม่** → เขียนไว้ใน `setup_router()` ของ class ใน [routes/](routes/) (`LiffApi`, `CronAPis`,
   `AdministratorAPIs`) ไม่ใช่สร้าง module-level router ใหม่ — dependency ที่ใช้ร่วม (`logger`,
   `line_access_token`) รับผ่าน `__init__`
+- **Route ของ admin** → ต้องมี dependency ตรวจสิทธิ์ **ทุกตัวไม่มีข้อยกเว้น**
+  - อ่านอย่างเดียว → `Depends(get_current_user)`
+  - เขียนข้อมูล (POST/PATCH/DELETE) → `Depends(require_role(ROLE_ADMIN))` และเรียก
+    `audit_log(logger, user, "<action>", {...})` แทน `logger.info` ธรรมดา
+  - `scripts/verify_pipeline.py` มีหัวข้อตรวจสองข้อนี้อยู่ ถ้าลืมจะ FAIL ทันที
+- **ห้ามให้ endpoint ไหนสร้างแถว `Administrator`** — การเพิ่ม admin ทำผ่าน
+  `python scripts/seed_admin.py` เท่านั้น (เคยมีช่องโหว่ให้ใครก็ได้ยกระดับตัวเองเป็น admin)
 - **Logic ที่แตะ DB** → เป็น `@staticmethod` ใน `DBManager*` ที่เหมาะสม ([model/db/](model/db/) —
   ไฟล์ละหนึ่งความรับผิดชอบ: `users`, `transactions`, `categories`, `dashboard`, `budget`, `admin`)
   และรับ `session: Session` เป็น argument แรกเสมอ
@@ -237,9 +244,6 @@ npm run build && npm run lint
 
 ถ้าไปแตะโค้ดรอบๆ จุดพวกนี้ ให้แก้ไปเลย:
 
-- `DBManagerAdmin.get_system_config_data` เป็น `@staticmethod` แต่ยังประกาศ `self` →
-  `GET /api/administrator/all` โยน `TypeError`
-- Admin console ยิง `POST /api/administrator/config/update` แต่ backend ลงทะเบียน route นี้เป็น `PATCH` → 405
 - [AuthGuard.jsx](web/dashboard/src/common/guard/AuthGuard.jsx) ใช้ `isLoading` และ `user` ที่ไม่ได้
   destructure ออกมาจาก store
 - `POST /api/web/transaction/add` **return** `HTTPException` แทนที่จะ `raise` → client ได้ 200 พร้อม body

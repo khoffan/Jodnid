@@ -3,7 +3,7 @@ from sqlmodel import Session
 
 from helper.logger import JodNidLogger
 from helper.utils import Utilities
-from middleware.auth import get_current_user
+from middleware.auth import ROLE_ADMIN, get_current_user, require_role
 from model.db import (
     DBManagerAdmin,
     DBManagerCategories,
@@ -11,6 +11,21 @@ from model.db import (
     DBManagerUsers,
 )
 from model.models import Administrator, get_session
+
+
+def audit_log(logger: JodNidLogger, user: Administrator, action: str, detail: dict = None):
+    """
+    บันทึกว่าใครทำอะไรใน admin console ลง SystemLog (module `admin_audit`)
+
+    ใช้ตารางเดิมที่มี `payload` เป็น JSON column อยู่แล้ว จึงไม่ต้องทำ migration
+    ดูย้อนหลังได้จากหน้า Logs โดยกรอง module = admin_audit
+    """
+    logger.info(
+        module="admin_audit",
+        message=f"{user.email} -> {action}",
+        user_id=user.uid,
+        payload={"action": action, "actor": user.email, "role": user.role, **(detail or {})},
+    )
 
 
 class AdministratorAPIs:
@@ -92,17 +107,18 @@ class AdministratorAPIs:
         def set_user_bypass(
             data: dict,
             db: Session = Depends(get_session),
-            user: Administrator = Depends(get_current_user),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
         ):
             line_user_id = data.get("line_user_id")
             if not line_user_id:
                 return {"success": False, "message": "Missing line_user_id"}
 
             enabled = bool(data.get("enabled"))
-            logger.info(
-                module="administrator",
-                message=f"set bypass_mode={enabled} for {line_user_id}",
-                user_id=user.uid,
+            audit_log(
+                logger,
+                user,
+                "set_user_bypass_mode",
+                {"line_user_id": line_user_id, "enabled": enabled},
             )
             return DBManagerUsers.set_user_bypass_mode(db, line_user_id, enabled)
 
@@ -117,13 +133,9 @@ class AdministratorAPIs:
         def create_global_category(
             data: dict,
             db: Session = Depends(get_session),
-            user: Administrator = Depends(get_current_user),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
         ):
-            logger.info(
-                module="administrator",
-                message=f"create global category: {data.get('name')}",
-                user_id=user.uid,
-            )
+            audit_log(logger, user, "create_global_category", {"name": data.get("name")})
             return DBManagerCategories.create_global_category(
                 db,
                 name=data.get("name"),
@@ -136,12 +148,13 @@ class AdministratorAPIs:
             category_id: int,
             data: dict,
             db: Session = Depends(get_session),
-            user: Administrator = Depends(get_current_user),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
         ):
-            logger.info(
-                module="administrator",
-                message=f"update global category {category_id}",
-                user_id=user.uid,
+            audit_log(
+                logger,
+                user,
+                "update_global_category",
+                {"category_id": category_id, "name": data.get("name")},
             )
             return DBManagerCategories.update_global_category(
                 db, category_id, name=data.get("name"), icon=data.get("icon")
@@ -151,17 +164,13 @@ class AdministratorAPIs:
         def delete_global_category(
             category_id: int,
             db: Session = Depends(get_session),
-            user: Administrator = Depends(get_current_user),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
         ):
-            logger.info(
-                module="administrator",
-                message=f"delete global category {category_id}",
-                user_id=user.uid,
-            )
+            audit_log(logger, user, "delete_global_category", {"category_id": category_id})
             return DBManagerCategories.delete_global_category(db, category_id)
 
         @router.post("/config/refresh-cache")
-        def refresh_config_cache(user: Administrator = Depends(get_current_user)):
+        def refresh_config_cache(user: Administrator = Depends(require_role(ROLE_ADMIN))):
             """
             ล้าง `@lru_cache` ของ `get_config_value` ด้วยมือ
 
@@ -169,7 +178,7 @@ class AdministratorAPIs:
             หรือเมื่อสงสัยว่าค่าที่ระบบใช้ไม่ตรงกับที่เห็นในตาราง
             """
             Utilities.clear_config_cache()
-            logger.info(module="administrator", message="config cache cleared", user_id=user.uid)
+            audit_log(logger, user, "refresh_config_cache")
             return {"success": True, "message": "ล้างแคชการตั้งค่าเรียบร้อยแล้ว"}
 
         # administrator service
@@ -204,7 +213,7 @@ class AdministratorAPIs:
         async def create_system_configuration(
             data: dict,
             db: Session = Depends(get_session),
-            user: Administrator = Depends(get_current_user),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
         ):
             name = data.get("name")
             key = data.get("key")
@@ -214,10 +223,11 @@ class AdministratorAPIs:
             if not name or not key or not value or not value_type:
                 return {"success": False, "message": "Missing name or key or value or value_type"}
 
-            logger.info(
-                module="app",
-                message=f"Creating system configuration for name: {name}, key: {key}, value: {value}, value_type: {value_type}, description: {description}",
-                user_id=user.uid,
+            audit_log(
+                logger,
+                user,
+                "create_system_config",
+                {"key": key, "name": name, "value": value, "value_type": value_type},
             )
             return DBManagerAdmin.create_system_config(
                 db, name, key, value, value_type, description
@@ -236,7 +246,7 @@ class AdministratorAPIs:
         def update_system_configuration(
             data: dict,
             db: Session = Depends(get_session),
-            user: Administrator = Depends(get_current_user),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
         ):
             key = data.get("key")
             value = data.get("value")
@@ -244,10 +254,11 @@ class AdministratorAPIs:
             description = data.get("description")
             if not key or not value:
                 return {"success": False, "message": "Missing key or value"}
-            logger.info(
-                module="app",
-                message=f"Updating system configuration for key: {key}, value: {value}, value_type: {value_type}, description: {description}",
-                user_id=user.uid,
+            audit_log(
+                logger,
+                user,
+                "update_system_config",
+                {"key": key, "value": value, "value_type": value_type},
             )
             result = DBManagerAdmin.update_system_config(
                 db, key, value, value_type, description, name=data.get("name")
@@ -260,17 +271,13 @@ class AdministratorAPIs:
         def toggle_system_configuration(
             data: dict,
             db: Session = Depends(get_session),
-            user: Administrator = Depends(get_current_user),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
         ):
             key = data.get("key")
             value = data.get("value")
             if not key or not value:
                 return {"success": False, "message": "Missing key or value"}
-            logger.info(
-                module="app",
-                message=f"Toggling system configuration for key: {key}, value: {value}",
-                user_id=user.uid,
-            )
+            audit_log(logger, user, "toggle_system_config", {"key": key, "value": value})
             result = DBManagerAdmin.update_system_config(db, key, value)
             Utilities.clear_config_cache()
             return result

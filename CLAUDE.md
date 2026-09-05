@@ -122,8 +122,14 @@ npm run build && npm run lint
   - เชื่อ flag `priority` จาก LLM ตรงๆ ไม่ได้ ใบเสร็จไทยมีทั้งแบบ **แยก VAT** (ต้องบวกเพิ่ม) และ
     **รวม VAT แล้ว** (บรรทัด VAT เป็นข้อมูลเฉยๆ) แต่ LLM ติด `priority=true` ให้เหมือนกันทั้งคู่
     จึงต้องเทียบผลรวมกับ `grand_total` เพื่อตัดสินว่าจะบวกหรือไม่ (วัดแล้ว `grand_total` แม่น 100%)
-  - ค่าที่คืนกลับมาตัวที่สองคือ `total_matched` — `False` แปลว่ายอดไม่ลงตัวสักทาง
-    `save_transaction()` ส่งต่อออกมาใน key `total_matched` ของ result
+  - ค่าที่คืนกลับมาตัวที่สองคือผลตรวจยอดแบบ 3 ค่า: `True` ลงตัว / `False` ไม่ลงตัวสักทาง /
+    `None` ไม่มี `grand_total` ให้เทียบ **ต้องเช็คด้วย `is False` เสมอ ห้ามใช้ `not matched`**
+    ไม่งั้นการจดด้วยข้อความสั้นๆ (ที่ไม่มียอดสุทธิ) จะถูกบังคับให้ยืนยันไปหมด
+    `save_transaction()` ส่งค่านี้ออกมาใน key `total_matched` ของ result
+- **โหมดบันทึกด่วน (bypass) ไม่ใช่คำสั่งเด็ดขาด** → ทั้ง `handle_text_message` และ
+  `handle_image_message` ต้องเรียก `resolve_confirmation()` แทนการอ่าน `user_record.use_bypass_mode`
+  ตรงๆ ถ้ายอดไม่ลงตัวให้พาไปเส้นทาง `TempTransactions` + เตือนผู้ใช้ด้วย `send_review_warning()`
+  ดีกว่าตัดงบผิดแบบเงียบๆ
 - **ด่านคัดว่าเป็นเอกสารการเงินไหม** → `looks_like_money_document()` (regex ตัวเลขเงิน + คำสำคัญ)
   ต้องรันก่อนเสมอ แล้วค่อยตกไปที่ `is_financial_document()` ที่เรียก LLM
   classifier ตัวเล็กตอบไม่คงที่ เคยตีสลิปโอนเงินที่ OCR อ่านครบถ้วนตกมาแล้ว — heuristic ตัดทั้ง
@@ -226,9 +232,6 @@ npm run build && npm run lint
 
 ถ้าไปแตะโค้ดรอบๆ จุดพวกนี้ ให้แก้ไปเลย:
 
-- `handle_text_message` ([helper/webhook_helper.py](helper/webhook_helper.py)) อ้าง `quick_reply` ใน branch
-  ที่ไม่ใช่ transaction และอ้าง `result` ใน branch ที่ไม่ใช่ bypass — ทั้งคู่ยังไม่ถูก bind
-  (`UnboundLocalError` / `NameError`)
 - `DBManagerAdmin.get_system_config_data` เป็น `@staticmethod` แต่ยังประกาศ `self` →
   `GET /api/administrator/all` โยน `TypeError`
 - Admin console ยิง `POST /api/administrator/config/update` แต่ backend ลงทะเบียน route นี้เป็น `PATCH` → 405

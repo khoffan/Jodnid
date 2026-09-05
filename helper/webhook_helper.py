@@ -13,7 +13,12 @@ from ai.ocr import extract_text_from_image
 from ai.text_nlp import extract_transactions, is_transaction_message
 from helper.logger import JodNidLogger
 from helper.utils import LineUtils, Utilities
-from model.db import DBManagerDashboard, DBManagerTransactions, DBManagerUsers
+from model.db import (
+    DBManagerDashboard,
+    DBManagerTransactions,
+    DBManagerUsers,
+    select_billable_items,
+)
 from model.models import Users
 
 # Use DBManager classes' static methods and pass `db: Session` from callers
@@ -62,6 +67,37 @@ def get_quick_reply(
         )
 
     return QuickReply(items=items)
+
+
+def resolve_confirmation(final_transactions: Any, user_record: Users) -> tuple[bool, bool]:
+    """
+    ตัดสินว่าจะบันทึกทันทีตามโหมดบันทึกด่วนได้ไหม คืน `(skip_confirm, needs_review)`
+
+    ต่อให้ผู้ใช้เปิดโหมดบันทึกด่วนไว้ ถ้าผลรวมของรายการไม่ลงตัวกับยอดสุทธิที่อ่านได้จากสลิป
+    แปลว่า AI อ่านตัวเลขเพี้ยน ต้องพาไปเส้นทางยืนยันก่อน ดีกว่าตัดงบผิดแบบเงียบๆ โดยผู้ใช้ไม่รู้ตัว
+    ส่วนกรณีที่ไม่มียอดสุทธิให้เทียบ (เช่นพิมพ์ว่า "ค่าข้าว 60") ถือว่าตรวจไม่ได้ ไม่บังคับยืนยัน
+    """
+    skip_confirm = bool(getattr(user_record, "use_bypass_mode", False))
+    if not isinstance(final_transactions, dict):
+        return skip_confirm, False
+
+    _billable_items, total_matched = select_billable_items(
+        final_transactions.get("transactions"), final_transactions.get("grand_total")
+    )
+    needs_review = total_matched is False
+    return (skip_confirm and not needs_review), needs_review
+
+
+def send_review_warning(user_id: str) -> None:
+    """เตือนผู้ใช้ว่ายอดที่อ่านได้ไม่ลงตัว ก่อนส่งบิลให้กดยืนยัน"""
+    LineUtils.send_push_notification(
+        user_id,
+        content=(
+            "⚠️ ยอดรวมที่จดนิดอ่านได้ไม่ตรงกับยอดสุทธิในสลิปครับ\n"
+            "รบกวนตรวจสอบตัวเลขก่อนกดบันทึกนะครับ"
+        ),
+        alt_text="ยอดรวมอาจไม่ถูกต้อง",
+    )
 
 
 async def process_webhook_event(
@@ -146,6 +182,8 @@ async def handle_text_message(
         ]
         GREETING_KEYWORDS = ["สวัสดี", "hello", "hi", "เริ่ม", "start", "start จดนิด"]
         user_text_lower = user_text.lower().strip()
+        # ต้องมีค่าตั้งแต่ต้น เพราะ branch ที่ไม่ใช่รายการรับ-จ่ายด้านล่างก็ใช้ตัวนี้
+        quick_reply = get_quick_reply(bool(getattr(user_record, "use_bypass_mode", False)))
         logger.info(
             module="webhook_text_ai",
             message=f"processing text message: {user_text_lower}",
@@ -208,7 +246,7 @@ async def handle_text_message(
                 message=f"Extracted Transactions: {final_transactions}",
                 user_id=user_id,
             )
-            skip_confirm = getattr(user_record, "use_bypass_mode", False)
+            skip_confirm, needs_review = resolve_confirmation(final_transactions, user_record)
             quick_reply = get_quick_reply(skip_confirm)
             if skip_confirm:
                 items = (
@@ -245,6 +283,14 @@ async def handle_text_message(
                     result=result, user_id=user_id, logger=logger, quick_reply=quick_reply
                 )
             else:
+                if needs_review:
+                    logger.info(
+                        module="webhook_text_ai",
+                        message="total mismatch: forcing manual confirmation",
+                        user_id=user_id,
+                    )
+                    send_review_warning(user_id)
+
                 temp_id = DBManagerTransactions.save_temp_transaction(
                     db, user_id, final_transactions
                 )
@@ -253,10 +299,7 @@ async def handle_text_message(
                     final_transactions, temp_id=temp_id
                 )
                 LineUtils.send_push_notification(
-                    user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ", quick_reply=quick_reply
-                )
-                LineUtils.reply_budget_for_use(
-                    result=result, user_id=user_id, logger=logger, quick_reply=quick_reply
+                    user_id, content=flex_msg, alt_text="ตรวจสอบรายการ", quick_reply=quick_reply
                 )
         else:
             logger.info(
@@ -341,7 +384,7 @@ async def handle_image_message(
             return
         ocr_result = ocr_json["text"]
         final_transactions = ocr_result
-        skip_confirm = getattr(user_record, "use_bypass_mode", False)
+        skip_confirm, needs_review = resolve_confirmation(final_transactions, user_record)
         quick_reply = get_quick_reply(skip_confirm)
         if skip_confirm:
             items = (
@@ -380,19 +423,26 @@ async def handle_image_message(
             )
             print("sending receipt flex message with bypass mode - done")
         else:
+            if needs_review:
+                logger.info(
+                    module="webhook_image_ai",
+                    message="total mismatch: forcing manual confirmation",
+                    user_id=user_id,
+                )
+                send_review_warning(user_id)
+
             temp_id = DBManagerTransactions.save_temp_transaction(
                 db, user_id, final_transactions, attachment_id=attachment_id, source_type="image"
             )
             flex_msg = LineUtils.create_dynamic_flex_receipt(final_transactions, temp_id=temp_id)
             LineUtils.send_push_notification(
-                user_id, content=flex_msg, alt_text="บันทึกรายการสำเร็จ", quick_reply=quick_reply
+                user_id, content=flex_msg, alt_text="ตรวจสอบรายการ", quick_reply=quick_reply
             )
     else:
         logger.error(module="webhook_image_ai", message="Failed to save image", user_id=user_id)
         LineUtils.send_push_notification(
             user_id,
             content="ขออภัยครับ ระบบไม่สามารถอ่านข้อมูลจากรูปนี้ได้ กรุณาลองใหม่อีกครั้งด้วยรูปที่ชัดเจนขึ้นครับ",
-            quick_reply=quick_reply,
         )
 
 

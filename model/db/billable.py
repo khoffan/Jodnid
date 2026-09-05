@@ -1,6 +1,6 @@
 """กติกาการเลือกรายการที่ต้องบันทึกจริงจากผลที่ LLM สกัดมา"""
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 BILLABLE_TOTAL_TOLERANCE = 1.0
@@ -17,7 +17,7 @@ def select_billable_items(
     transactions: List[Dict[str, Any]],
     grand_total: float = None,
     tolerance: float = BILLABLE_TOTAL_TOLERANCE,
-) -> tuple[List[Dict[str, Any]], bool]:
+) -> tuple[List[Dict[str, Any]], Optional[bool]]:
     """
     เลือกรายการที่ต้องบันทึกจริง โดยยึด `grand_total` เป็นตัวตัดสิน
 
@@ -27,8 +27,11 @@ def select_billable_items(
     LLM ติด `priority=true` ให้ทั้งสองแบบเหมือนกัน ถ้าบวกหมดใบแบบที่สองจะเกิน
     ถ้าไม่บวกเลยใบแบบแรกจะขาด จึงต้องเทียบผลรวมกับ `grand_total` (ซึ่งวัดแล้วแม่นกว่า flag มาก)
 
-    คืน (รายการที่ต้องบันทึก, ยอดตรงกับ grand_total หรือไม่)
-    `False` แปลว่าเลขไม่ลงตัวสักทาง ควรให้ผู้ใช้ยืนยันก่อนบันทึก
+    คืน (รายการที่ต้องบันทึก, ผลการตรวจยอด) โดยผลการตรวจยอดมี 3 ค่า
+    - `True`  ยอดลงตัวกับ `grand_total`
+    - `False` เลขไม่ลงตัวสักทาง = AI อ่านตัวเลขเพี้ยน ควรให้ผู้ใช้ยืนยันก่อนบันทึก
+    - `None`  ไม่มี `grand_total` ให้เทียบ (เช่นข้อความสั้นๆ อย่าง "ค่าข้าว 60") จึงตรวจไม่ได้
+      ต้องแยกจาก `False` ให้ชัด ไม่งั้นการจดด้วยข้อความทุกครั้งจะถูกบังคับให้ยืนยันไปหมด
     """
     base: List[Dict[str, Any]] = []
     extra: List[Dict[str, Any]] = []
@@ -43,7 +46,7 @@ def select_billable_items(
         # ที่เหลือคือบรรทัดสรุปยอด (Subtotal) ซึ่งซ้ำกับรายการอื่นอยู่แล้ว ตัดทิ้งได้
 
     if grand_total is None:
-        return base + extra, False
+        return base + extra, None
 
     total_base = sum(_amount_of(item) for item in base)
     total_extra = sum(_amount_of(item) for item in extra)

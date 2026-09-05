@@ -50,6 +50,13 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
                     headers={"WWW-Authenticate": "Bearer"},
                 )
 
+            # ต้องเช็คด้วย ไม่งั้นการปิดใช้งาน admin ในตารางจะไม่มีผลอะไรเลย
+            if not userAdmin.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Administrator account is disabled",
+                )
+
             return userAdmin
 
     except auth.ExpiredIdTokenError:
@@ -58,6 +65,10 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    except HTTPException:
+        # ต้องดักก่อน `except Exception` ไม่งั้นผลการตรวจสิทธิ์ด้านบนจะถูกกลืน
+        # แล้วกลายเป็น 401 "Invalid authentication credentials" ทุกกรณี
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

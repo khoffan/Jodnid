@@ -17,35 +17,33 @@ class AdministratorAPIs:
     def setup_router(self):
         router = self.router
         logger = self.logger
-        users = Utilities.get_all_users(next(get_session()))
-        user_id = None
-        for user in users:
-            user_id = user.line_user_id
 
         # administrator service
         @router.post("/sync")
         async def sync_data(
             data: dict,
             db: Session = Depends(get_session),
+            user: Administrator = Depends(get_current_user),
         ):
-            logger.info(
-                module="app", message=f"Syncing data for user_id: {user_id}", user_id=user_id
+            """
+            อัปเดตโปรไฟล์ของ admin ให้ตรงกับ Firebase หลังล็อกอิน
+
+            ยึด uid จาก token ที่ verify แล้วเท่านั้น ไม่เชื่อค่าใน body เพราะเป็น endpoint
+            ที่ตัดสินสิทธิ์ และตัว `sync_administrator_profile` จะไม่สร้าง admin ใหม่ให้
+            """
+            result = DBManagerAdmin.sync_administrator_profile(
+                db,
+                uid=user.uid,
+                email=data.get("email"),
+                name=data.get("name"),
+                phone=data.get("phone"),
+                profile=data.get("profile"),
             )
-            email = data.get("email")
-            uid = data.get("uid")
-            if not email or not uid:
-                return {"success": False, "message": "Missing email or uid or name"}
-            result = DBManagerAdmin.update_administrator_data_system(db, uid, email)
             logger.info(
                 module="administrator",
-                message=f"Data sync for uid: {uid} result: {result}",
-                user_id=uid,
+                message=f"profile sync for uid: {user.uid} success: {result.get('success')}",
+                user_id=user.uid,
             )
-            if result.get("success") == False:
-                logger.info(
-                    module="administrator", message=f"Data sync failed for uid: {uid}", user_id=uid
-                )
-                return {"success": False, "message": "Data sync failed"}
             return result
 
         @router.post("/config/create")
@@ -92,13 +90,17 @@ class AdministratorAPIs:
             description = data.get("description")
             if not key or not value:
                 return {"success": False, "message": "Missing key or value"}
-            Utilities.clear_config_cache()
             logger.info(
                 module="app",
                 message=f"Updating system configuration for key: {key}, value: {value}, value_type: {value_type}, description: {description}",
                 user_id=user.uid,
             )
-            return DBManagerAdmin.update_system_config(db, key, value, value_type, description)
+            result = DBManagerAdmin.update_system_config(
+                db, key, value, value_type, description, name=data.get("name")
+            )
+            # ต้องล้าง cache "หลัง" เขียน DB เสร็จ ไม่งั้นมีช่วงที่ค่าเก่าถูกอ่านกลับเข้า cache
+            Utilities.clear_config_cache()
+            return result
 
         @router.patch("/config/toggle")
         def toggle_system_configuration(
@@ -110,10 +112,11 @@ class AdministratorAPIs:
             value = data.get("value")
             if not key or not value:
                 return {"success": False, "message": "Missing key or value"}
-            Utilities.clear_config_cache()
             logger.info(
                 module="app",
                 message=f"Toggling system configuration for key: {key}, value: {value}",
                 user_id=user.uid,
             )
-            return DBManagerAdmin.update_system_config(db, key, value)
+            result = DBManagerAdmin.update_system_config(db, key, value)
+            Utilities.clear_config_cache()
+            return result

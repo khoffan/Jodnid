@@ -10,7 +10,7 @@ export const SystemConfiguration = () => {
   const [isConfigModalOpen, setConfigModalOpen] = useState(false);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState(null);
-  const { configs, fetchConfigs, toggleConfig } = useConfigStore();
+  const { configs, fetchConfigs, toggleConfig, updateConfig } = useConfigStore();
 
   useEffect(() => {
     fetchConfigs();
@@ -22,9 +22,17 @@ export const SystemConfiguration = () => {
   };
 
   const handleSave = async (updatedData) => {
-    // ยิง API PATCH/POST ที่นี่
-    console.log("Saving data...", updatedData);
     setConfigModalOpen(false);
+    const result = await updateConfig(updatedData.key, {
+      name: updatedData.name,
+      value: updatedData.value,
+      value_type: updatedData.value_type,
+      description: updatedData.description,
+    });
+
+    if (!result.success) {
+      alert("ไม่สามารถบันทึกการแก้ไขได้: " + result.error);
+    }
   };
 
   const handleToggleConfig = async (key, newValue) => {

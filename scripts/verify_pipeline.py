@@ -490,6 +490,204 @@ def _():
     return "บันทึกทันที + ผูก attachment"
 
 
+# ----------------------------------------------------------- Admin console
+
+
+class _FakeQuery:
+    def __init__(self, result):
+        self._result = result
+
+    def first(self):
+        return self._result
+
+    def all(self):
+        return self._result or []
+
+
+class _FakeSession:
+    """session ปลอมไว้ตรวจ logic ของ DBManagerAdmin โดยไม่แตะฐานข้อมูลจริง"""
+
+    def __init__(self, result=None):
+        self._result = result
+        self.added: list = []
+        self.commits = 0
+
+    def exec(self, _statement):
+        return _FakeQuery(self._result)
+
+    def add(self, obj):
+        self.added.append(obj)
+
+    def commit(self):
+        self.commits += 1
+
+    def refresh(self, _obj):
+        pass
+
+    def rollback(self):
+        pass
+
+
+def _admin_routes():
+    from routes.api_administrator_v1 import AdministratorAPIs
+
+    api = AdministratorAPIs(logger=_FakeLogger(), line_access_token="fake-token")
+    api.setup_router()
+    return api.router.routes
+
+
+@check("สร้าง router ของ admin ได้โดยไม่แตะฐานข้อมูลตอน startup")
+def _():
+    routes = _admin_routes()
+    assert routes, "ไม่มี route ถูกลงทะเบียน"
+    return f"ลงทะเบียน {len(routes)} route โดยไม่ query DB"
+
+
+@check("ทุก route ของ admin ต้องผ่าน get_current_user")
+def _():
+    import inspect
+
+    from middleware.auth import get_current_user
+
+    unprotected = []
+    for route in _admin_routes():
+        signature = inspect.signature(route.endpoint)
+        guarded = any(
+            getattr(param.default, "dependency", None) is get_current_user
+            for param in signature.parameters.values()
+        )
+        if not guarded:
+            unprotected.append(f"{next(iter(route.methods))} {route.path}")
+
+    assert not unprotected, f"route ที่ไม่มีการตรวจสิทธิ์: {', '.join(unprotected)}"
+    return f"ป้องกันครบ {len(_admin_routes())} route"
+
+
+@check("get_system_config_data เรียกด้วย session อย่างเดียวได้")
+def _():
+    import inspect
+
+    from model.db import DBManagerAdmin
+
+    params = list(inspect.signature(DBManagerAdmin.get_system_config_data).parameters)
+    assert params == ["session"], f"signature ผิด: {params}"
+
+    result = DBManagerAdmin.get_system_config_data(_FakeSession([]))
+    assert result["success"] is True, result
+    return "signature ถูก และเรียกได้จริง"
+
+
+@check("sync_administrator_profile ไม่สร้าง admin ใหม่ให้ uid ที่ไม่มีสิทธิ์")
+def _():
+    from model.db import DBManagerAdmin
+
+    session = _FakeSession(None)  # ไม่พบ uid นี้ในตาราง
+    result = DBManagerAdmin.sync_administrator_profile(
+        session, uid="uid-ที่ไม่เคยมี", email="attacker@example.com"
+    )
+    assert result["success"] is False, "ต้องปฏิเสธ ไม่ใช่สร้างให้"
+    assert not session.added, "ห้ามเขียนแถวใหม่ลงตาราง Administrator"
+    assert session.commits == 0, "ห้าม commit อะไรทั้งสิ้น"
+    return "ปฏิเสธและไม่เขียน DB"
+
+
+@check("get_current_user ปฏิเสธ admin ที่ถูกปิดใช้งาน")
+def _():
+    import asyncio as _asyncio
+
+    from fastapi import HTTPException
+
+    import middleware.auth as auth_module
+
+    class _Credentials:
+        credentials = "fake-token"
+
+    class _DisabledAdmin:
+        uid = "uid-1"
+        is_active = False
+
+    class _FakeDBSession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def exec(self, _statement):
+            return _FakeQuery(_DisabledAdmin())
+
+    with patch.object(auth_module.auth, "verify_id_token", return_value={"uid": "uid-1"}), \
+         patch.object(auth_module, "Session", lambda _engine: _FakeDBSession()):
+        try:
+            _asyncio.run(auth_module.get_current_user(_Credentials()))
+            raise AssertionError("ต้องปฏิเสธ แต่กลับผ่าน")
+        except HTTPException as e:
+            assert e.status_code == 403, f"ควรได้ 403 แต่ได้ {e.status_code}: {e.detail}"
+
+    return "ตอบ 403 Forbidden"
+
+
+@check("clear_config_cache ถูกเรียกหลังเขียน DB เสร็จ")
+def _():
+    import routes.api_administrator_v1 as admin_routes
+
+    order: list[str] = []
+    route = next(
+        r for r in _admin_routes() if r.path.endswith("/config/update") and "PATCH" in r.methods
+    )
+
+    class _Admin:
+        uid = "uid-1"
+
+    with patch.object(
+        admin_routes.DBManagerAdmin,
+        "update_system_config",
+        side_effect=lambda *a, **k: order.append("write") or {"success": True},
+    ), patch.object(
+        admin_routes.Utilities,
+        "clear_config_cache",
+        side_effect=lambda: order.append("clear_cache"),
+    ):
+        route.endpoint(
+            data={"key": "is_maintenance_mode", "value": "true"},
+            db=_FakeSession(),
+            user=_Admin(),
+        )
+
+    assert order == ["write", "clear_cache"], f"ลำดับผิด: {order}"
+    return " -> ".join(order)
+
+
+@check("update/create system config คืน error แทนที่จะพังเมื่อชื่อซ้ำ")
+def _():
+    from sqlalchemy.exc import IntegrityError
+
+    from model.db import DBManagerAdmin
+
+    class _ConflictSession(_FakeSession):
+        def commit(self):
+            raise IntegrityError("duplicate", None, Exception("duplicate"))
+
+    class _Existing:
+        key = "k"
+        value = "v"
+        value_type = "string"
+        description = None
+        name = "old"
+        updated_at = None
+
+    result = DBManagerAdmin.update_system_config(
+        _ConflictSession(_Existing()), key="k", value="v", name="ชื่อซ้ำ"
+    )
+    assert result["success"] is False and "ถูกใช้ไปแล้ว" in result["message"], result
+
+    created = DBManagerAdmin.create_system_config(
+        _ConflictSession(), "ชื่อซ้ำ", "k", "v", "string", None
+    )
+    assert created["success"] is False, created
+    return "คืน success=False พร้อมข้อความภาษาไทย"
+
+
 def main() -> int:
     passed = sum(1 for _n, ok, _d in RESULTS if ok)
     width = max(len(name) for name, _ok, _d in RESULTS)

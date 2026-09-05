@@ -39,6 +39,11 @@ npm run build && npm run lint
 - `migrations/` อยู่ใน `.gitignore` แต่ถูก track ไว้แล้ว → ไฟล์ revision ใหม่ต้อง `git add -f`
 - Webhook ต้องมี public URL ตอน dev — โดเมน ngrok ที่ผูกกับ LINE channel อยู่ใน [domain.txt](domain.txt)
 - **ไม่มี test suite** (ไม่มีไฟล์เทส ไม่มี pytest/vitest config ไม่มี CI) → ห้ามอ้างว่า "เทสผ่าน" ให้ตรวจด้วยการรันจริงผ่าน LINE chat / LIFF / admin console
+- มีสคริปต์ตรวจสอบที่รันซ้ำได้ 2 ตัว (ไม่ใช่ test framework ไม่มี dependency เพิ่ม):
+  `python scripts/verify_pipeline.py` (ออฟไลน์ ไม่ต้องต่อ API/DB) และ
+  `python scripts/ocr_bench.py` (วัดคุณภาพ OCR จริง) → **แก้เส้นทางรับ-จ่ายเมื่อไหร่ ให้รัน
+  `verify_pipeline.py` ก่อนเสมอ** แล้วบันทึกผลลง [docs/verification-log.md](docs/verification-log.md)
+  พร้อมวันที่-เวลา (รายการใหม่ไว้บนสุด)
 
 ---
 

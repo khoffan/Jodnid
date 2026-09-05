@@ -30,7 +30,12 @@ from typing import Any, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ai.ocr import is_financial_document, run_ocr, summarize_extraction  # noqa: E402
+from ai.ocr import (  # noqa: E402
+    is_financial_document,
+    looks_like_money_document,
+    run_ocr,
+    summarize_extraction,
+)
 from ai.text_nlp import extract_transactions  # noqa: E402
 from core.config_settings import settings  # noqa: E402
 from helper.utils import Utilities  # noqa: E402
@@ -141,7 +146,15 @@ def run_one(
     }
 
     if ocr_result["success"] and stage == "full":
-        row["is_financial"] = is_financial_document(settings.TYPHOON_API_KEY, ocr_result["text"])
+        # ต้องเดินด่านเดียวกับ extract_text_from_image: heuristic ก่อน แล้วค่อยถาม LLM
+        if looks_like_money_document(ocr_result["text"]):
+            row["is_financial"] = True
+            row["financial_check"] = "heuristic"
+        else:
+            row["financial_check"] = "llm"
+            row["is_financial"] = is_financial_document(
+                settings.TYPHOON_API_KEY, ocr_result["text"]
+            )
         if row["is_financial"]:
             extracted = extract_transactions(
                 settings.TYPHOON_API_KEY, ocr_result["text"], user_id, db_session

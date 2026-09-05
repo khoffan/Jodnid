@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Optional
@@ -10,6 +11,7 @@ from sqlmodel import Session
 from ai.text_nlp import extract_transactions
 from helper.logger import JodNidLogger
 from helper.utils import Utilities
+from model.db_manament import select_billable_items
 
 OCR_TIMEOUT_SECONDS = 45
 OCR_MAX_PARALLEL_WORKERS = 3
@@ -132,40 +134,67 @@ def summarize_extraction(data: Any) -> dict[str, Any]:
     """
     สรุปตัวเลขของผลลัพธ์ที่ LLM สกัดมา ไว้ใช้วัดคุณภาพ pipeline
 
-    `amount_saved` คำนวณด้วยเงื่อนไขเดียวกับ `save_transaction()` เป๊ะๆ
-    (`if not is_actual_item or priority: continue`) จึงเป็นยอดที่จะถูกตัดจากงบผู้ใช้จริง
-    ถ้าค่านี้ไม่ตรงกับ `grand_total` แปลว่ายอดที่ผู้ใช้เห็นกับยอดที่ระบบตัดไม่ตรงกัน
+    `amount_saved` คำนวณด้วย `select_billable_items()` ตัวเดียวกับที่ `save_transaction()` ใช้
+    จึงเป็นยอดที่จะถูกตัดจากงบผู้ใช้จริง ถ้าไม่ตรงกับ `grand_total` แปลว่ายอดที่ผู้ใช้เห็น
+    กับยอดที่ระบบตัดไม่ตรงกัน
     """
     items = data.get("transactions") if isinstance(data, dict) else data
     if not isinstance(items, list):
         items = []
 
     grand_total = _to_float(data.get("grand_total")) if isinstance(data, dict) else None
-    amount_all = 0.0
-    amount_saved = 0.0
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        amount = _to_float(item.get("amount")) or 0.0
-        amount_all += amount
-        if not item.get("is_actual_item", True) or item.get("priority", True):
-            continue
-        amount_saved += amount
+    amount_all = sum(_to_float(item.get("amount")) or 0.0 for item in items if isinstance(item, dict))
 
-    summary = {
+    billable_items, total_matched = select_billable_items(items, grand_total)
+    amount_saved = sum(_to_float(item.get("amount")) or 0.0 for item in billable_items)
+
+    return {
         "item_count": len(items),
+        "billable_count": len(billable_items),
         "grand_total": grand_total,
         "amount_all": round(amount_all, 2),
         "amount_saved": round(amount_saved, 2),
-        "total_diff": None,
-        "total_matched": None,
+        "total_diff": None if grand_total is None else round(amount_saved - grand_total, 2),
+        "total_matched": total_matched,
     }
-    if grand_total is not None:
-        diff = round(amount_saved - grand_total, 2)
-        summary["total_diff"] = diff
-        summary["total_matched"] = abs(diff) <= 1.0
 
-    return summary
+
+# ตัวเลขเงินที่มีทศนิยม 2 ตำแหน่ง เช่น 2,800.00 หรือ 269.00
+_MONEY_PATTERN = re.compile(r"\d{1,3}(?:,\d{3})*\.\d{2}")
+_MONEY_KEYWORDS = (
+    "บาท",
+    "฿",
+    "thb",
+    "จำนวนเงิน",
+    "ยอด",
+    "รวม",
+    "สุทธิ",
+    "total",
+    "amount",
+    "ใบเสร็จ",
+    "ใบกำกับ",
+    "โอนเงิน",
+    "ชำระ",
+    "เงินสด",
+    "ภาษี",
+    "vat",
+    "cash",
+    "ราคา",
+)
+
+
+def looks_like_money_document(ocr_text: str) -> bool:
+    """
+    ด่านตรวจแบบ deterministic: ถ้าข้อความมีทั้งตัวเลขเงินและคำที่บ่งบอกว่าเป็นเรื่องเงิน
+    ให้ถือว่าเป็นเอกสารการเงินได้เลย ไม่ต้องถาม LLM ซ้ำ
+
+    จำเป็นเพราะ classifier ตัวเล็กตอบไม่คงที่ เคยตีสลิปโอนเงินที่ OCR อ่านได้ครบถ้วนตกมาแล้ว
+    ผู้ใช้จะเจอข้อความ "อ่านรูปไม่ได้" ทั้งที่ระบบอ่านได้ — ตัดทิ้งได้ทั้งความผิดพลาดและ 1 request
+    """
+    if not ocr_text or not _MONEY_PATTERN.search(ocr_text):
+        return False
+    lowered = ocr_text.lower()
+    return any(keyword in lowered for keyword in _MONEY_KEYWORDS)
 
 
 def is_financial_document(api_key: str, ocr_text: str) -> bool:
@@ -307,9 +336,13 @@ def extract_text_from_image(
     full_text = ocr_result["text"]
     meta["raw_text"] = full_text[:OCR_RAW_TEXT_LOG_LIMIT]
 
-    if not is_financial_document(api_key, full_text):
-        meta["fail_reason"] = "not a financial document"
-        return _finish({"success": False, "error": "Not a financial document"})
+    if looks_like_money_document(full_text):
+        meta["financial_check"] = "heuristic"
+    else:
+        meta["financial_check"] = "llm"
+        if not is_financial_document(api_key, full_text):
+            meta["fail_reason"] = "not a financial document"
+            return _finish({"success": False, "error": "Not a financial document"})
 
     response = extract_transactions(api_key, full_text, user_id, session)
     if response is None:

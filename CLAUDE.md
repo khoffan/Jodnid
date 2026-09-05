@@ -111,9 +111,20 @@ npm run build && npm run lint
   (`current_spent` เป็นยอดสะสมแบบ denormalized; `undo_transaction` ทำย้อนกลับพร้อม clamp ที่ 0;
   `sync_user_budgets()` คือเครื่องมือซ่อมเมื่อค่าเพี้ยน)
 - **ตัดงบที่ parent category** → `category.parent_id or category.id` เสมอ เพื่อให้ sub-category รวมยอดขึ้นแม่
-- **filter `is_actual_item` / `priority`** → `save_transaction()` และ `create_dynamic_flex_receipt()`
-  ใช้เงื่อนไข `if not is_actual_item or priority: continue` เหมือนกัน — แก้ที่หนึ่งต้องแก้อีกที่ด้วย
-  ไม่งั้นบิลที่ผู้ใช้เห็นกับยอดที่บันทึกจะไม่ตรงกัน
+- **เลือกรายการที่จะบันทึก** → ใช้ `select_billable_items(transactions, grand_total)`
+  ([model/db_manament.py](model/db_manament.py)) **ที่เดียวเท่านั้น** ห้ามเขียนเงื่อนไข
+  `is_actual_item` / `priority` เองซ้ำที่อื่น ตอนนี้ `save_transaction()`,
+  `create_dynamic_flex_receipt()` (ทั้งยอดรวมและรายการ) และ `summarize_extraction()` เรียกตัวนี้ร่วมกัน
+  ถ้าแยกกันเขียนเมื่อไหร่ บิลที่ผู้ใช้เห็นกับยอดที่ตัดจากงบจะเพี้ยนทันที
+  - เชื่อ flag `priority` จาก LLM ตรงๆ ไม่ได้ ใบเสร็จไทยมีทั้งแบบ **แยก VAT** (ต้องบวกเพิ่ม) และ
+    **รวม VAT แล้ว** (บรรทัด VAT เป็นข้อมูลเฉยๆ) แต่ LLM ติด `priority=true` ให้เหมือนกันทั้งคู่
+    จึงต้องเทียบผลรวมกับ `grand_total` เพื่อตัดสินว่าจะบวกหรือไม่ (วัดแล้ว `grand_total` แม่น 100%)
+  - ค่าที่คืนกลับมาตัวที่สองคือ `total_matched` — `False` แปลว่ายอดไม่ลงตัวสักทาง
+    `save_transaction()` ส่งต่อออกมาใน key `total_matched` ของ result
+- **ด่านคัดว่าเป็นเอกสารการเงินไหม** → `looks_like_money_document()` (regex ตัวเลขเงิน + คำสำคัญ)
+  ต้องรันก่อนเสมอ แล้วค่อยตกไปที่ `is_financial_document()` ที่เรียก LLM
+  classifier ตัวเล็กตอบไม่คงที่ เคยตีสลิปโอนเงินที่ OCR อ่านครบถ้วนตกมาแล้ว — heuristic ตัดทั้ง
+  false negative และ request ทิ้งได้ในตัวเดียว
 - **หมวดหมู่ใหม่** → เพิ่มแถวในตาราง `Categories` (`user_id IS NULL` = global, มี `user_id` = ของผู้ใช้คนนั้น)
   prompt จะดึงไปเองผ่าน `generate_system_prompt_categories()`
 

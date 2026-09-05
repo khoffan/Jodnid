@@ -217,7 +217,15 @@ async def handle_text_message(
                     else final_transactions
                 )
                 result = DBManagerTransactions.confirm_and_save_transaction(
-                    db, items=items, user_id=user_id, skip_confirm=skip_confirm
+                    db,
+                    items=items,
+                    user_id=user_id,
+                    skip_confirm=skip_confirm,
+                    grand_total=(
+                        final_transactions.get("grand_total")
+                        if isinstance(final_transactions, dict)
+                        else None
+                    ),
                 )
                 print(f"Result from confirm_and_save_transaction: {result}")
 
@@ -347,6 +355,11 @@ async def handle_image_message(
                 user_id=user_id,
                 skip_confirm=skip_confirm,
                 attachment_id=attachment_id,
+                grand_total=(
+                    final_transactions.get("grand_total")
+                    if isinstance(final_transactions, dict)
+                    else None
+                ),
             )
             print(f"Result from confirm_and_save_transaction: {result}")
 

@@ -25,7 +25,7 @@ from sqlmodel import Session, and_, extract, func, or_, select
 
 from core.config_settings import settings
 from helper.logger import JodNidLogger
-from model.db_manament import DBManagerBudget, DBManagerCategories
+from model.db_manament import DBManagerBudget, DBManagerCategories, select_billable_items
 from model.models import Categories, SystemConfiguration, Transactions, UserBudget, Users, engine
 
 is_test_mode = settings.TEST_MODE
@@ -155,18 +155,15 @@ class LineUtils:
         transactions = data.get("transactions")
         line_liff_id = settings.LINE_LIFF_ID
 
+        # ใช้ตัวเลือกรายการชุดเดียวกับ save_transaction() เพื่อให้บิลที่ผู้ใช้เห็นตรงกับยอดที่บันทึกเสมอ
+        billable_items, _total_matched = select_billable_items(transactions, grand_total)
+
         try:
-            total = sum(
-                float(t.get("amount", 0))
-                for t in transactions
-                if t.get("is_actual_item", True) or t.get("priority", True)
-            )
+            total = sum(float(t.get("amount", 0)) for t in billable_items)
             if grand_total is not None and grand_total > 0:
                 diff = total - grand_total
                 if diff > 0:
                     total = total - diff
-            else:
-                total = total
         except Exception as e:
             print(f"Error calculating total from transactions: {str(e)}")
             total = 0.0
@@ -192,9 +189,7 @@ class LineUtils:
         }
 
         item_rows = []
-        for t in transactions:
-            if not t.get("is_actual_item", True) or t.get("priority", True):
-                continue
+        for t in billable_items:
             name = str(t.get("item") or t.get("receiver") or "ไม่ระบุ")
             amount = float(t.get("amount", 0))
             # ดึงหมวดหมู่ที่ AI วิเคราะห์มาให้ (ถ้าไม่มีให้เป็น other)

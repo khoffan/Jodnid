@@ -15,6 +15,59 @@ from model.models import (
     Users,
 )
 
+# ยอมให้ผลรวมต่างจาก grand_total ได้เท่านี้ (บาท) เผื่อการปัดเศษของ VAT
+BILLABLE_TOTAL_TOLERANCE = 1.0
+
+
+def _amount_of(item: Dict[str, Any]) -> float:
+    try:
+        return float(str(item.get("amount", 0)).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def select_billable_items(
+    transactions: List[Dict[str, Any]],
+    grand_total: float = None,
+    tolerance: float = BILLABLE_TOTAL_TOLERANCE,
+) -> tuple[List[Dict[str, Any]], bool]:
+    """
+    เลือกรายการที่ต้องบันทึกจริง โดยยึด `grand_total` เป็นตัวตัดสิน
+
+    เชื่อ flag `priority` จาก LLM อย่างเดียวไม่ได้ เพราะใบเสร็จไทยมีสองแบบปนกัน
+    - แบบแยก VAT: ราคาสินค้ายังไม่รวม VAT ต้องบวกบรรทัด VAT เพิ่มถึงจะได้ยอดสุทธิ
+    - แบบรวม VAT: ราคาสินค้ารวม VAT แล้ว บรรทัด VAT แสดงไว้เพื่อบอกข้อมูลเฉยๆ
+    LLM ติด `priority=true` ให้ทั้งสองแบบเหมือนกัน ถ้าบวกหมดใบแบบที่สองจะเกิน
+    ถ้าไม่บวกเลยใบแบบแรกจะขาด จึงต้องเทียบผลรวมกับ `grand_total` (ซึ่งวัดแล้วแม่นกว่า flag มาก)
+
+    คืน (รายการที่ต้องบันทึก, ยอดตรงกับ grand_total หรือไม่)
+    `False` แปลว่าเลขไม่ลงตัวสักทาง ควรให้ผู้ใช้ยืนยันก่อนบันทึก
+    """
+    base: List[Dict[str, Any]] = []
+    extra: List[Dict[str, Any]] = []
+    for item in transactions or []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("priority", False):
+            # ยอดเสริมที่ "อาจ" ต้องบวกเพิ่ม เช่น VAT / Service Charge ที่แยกบรรทัดมา
+            extra.append(item)
+        elif item.get("is_actual_item", True):
+            base.append(item)
+        # ที่เหลือคือบรรทัดสรุปยอด (Subtotal) ซึ่งซ้ำกับรายการอื่นอยู่แล้ว ตัดทิ้งได้
+
+    if grand_total is None:
+        return base + extra, False
+
+    total_base = sum(_amount_of(item) for item in base)
+    total_extra = sum(_amount_of(item) for item in extra)
+
+    if abs(total_base + total_extra - grand_total) <= tolerance:
+        return base + extra, True  # ใบแบบแยก VAT: บวกยอดเสริมแล้วลงตัวพอดี
+    if abs(total_base - grand_total) <= tolerance:
+        return base, True  # ใบแบบรวม VAT: ราคาสินค้ารวมทุกอย่างแล้ว
+
+    return base + extra, False
+
 
 class DBManagerUsers:
     @staticmethod
@@ -218,6 +271,7 @@ class DBManagerTransactions:
         skip_confirm: bool = False,
         attachment_id: str = None,
         undo_token: str = None,
+        grand_total: float = None,
     ):
         # 🎯 หา user_id หลักที่จะใช้ในลูปนี้
         current_user_id = temp.user_id if temp else user_id
@@ -247,12 +301,21 @@ class DBManagerTransactions:
             raw_data = items
         else:
             raw_data = temp.raw_data.get("transactions", [])
+            if grand_total is None:
+                grand_total = temp.raw_data.get("grand_total")
+
+        # เผื่อผู้เรียกส่งก้อน dict เต็มๆ มาแทนที่จะแกะ transactions ออกมาก่อน
+        if isinstance(raw_data, dict):
+            if grand_total is None:
+                grand_total = raw_data.get("grand_total")
+            raw_data = raw_data.get("transactions", [])
+
+        # ยึด grand_total เป็นตัวตัดสินว่าจะบวกยอด VAT ที่แยกบรรทัดหรือไม่ (ดู select_billable_items)
+        billable_items, total_matched = select_billable_items(raw_data, grand_total)
 
         new_tx = None
 
-        for item in raw_data:
-            if not item.get("is_actual_item", True) or item.get("priority", True):
-                continue
+        for item in billable_items:
 
             # ล้างช่องว่างหัวท้ายที่ AI อาจจะแถมมา
             raw_cat_name = str(item.get("category", "อื่นๆ")).strip()
@@ -348,6 +411,8 @@ class DBManagerTransactions:
             "count": item_count,
             "total": total_amount,
             "budgets": updated_budgets_info,
+            # False = ผลรวมไม่ตรงกับ grand_total ที่อ่านได้จากสลิป ควรให้ผู้ใช้ตรวจสอบ
+            "total_matched": total_matched,
         }
 
     # --- 3. ย้ายข้อมูลจาก Temp ไปเป็น Transaction จริง (รองรับ Category และ Attachment) ---
@@ -361,6 +426,7 @@ class DBManagerTransactions:
         attachment_id: str = None,
         skip_confirm: bool = False,
         undo_token: str = None,
+        grand_total: float = None,
     ):
         try:
             # 1. ดึงข้อมูลชั่วคราว
@@ -374,6 +440,7 @@ class DBManagerTransactions:
                     skip_confirm=skip_confirm,
                     attachment_id=attachment_id,
                     undo_token=undo_token,
+                    grand_total=grand_total,
                 )
             else:
                 temp = session.get(TempTransactions, temp_id)

@@ -688,6 +688,111 @@ def _():
     return "คืน success=False พร้อมข้อความภาษาไทย"
 
 
+@check("get_system_status ไม่ล้มแม้ DB และ LINE API ใช้ไม่ได้")
+def _():
+    from model.db import DBManagerAdmin
+
+    class _BrokenSession:
+        def exec(self, _statement):
+            raise RuntimeError("database is down")
+
+    status = DBManagerAdmin.get_system_status(_BrokenSession(), line_access_token=None)
+    assert status["database"]["ok"] is False, "ต้องรายงานว่า DB ล่ม ไม่ใช่โยน exception"
+    assert status["line_api"]["ok"] is False, "ไม่มี token ต้องรายงานว่าใช้ไม่ได้"
+    assert set(status["features"]) == {
+        "is_ocr_active",
+        "is_text_active",
+        "is_maintenance_mode",
+    }, status["features"]
+    return "รายงานสถานะครบโดยไม่ล้ม"
+
+
+@check("feature_enabled ค่าเริ่มต้นเป็นเปิดเสมอ")
+def _():
+    import helper.webhook_helper as wh
+
+    with patch.object(wh.Utilities, "get_config_value", side_effect=lambda key, default: default):
+        assert wh.feature_enabled("is_ocr_active") is True, "ยังไม่ได้สร้าง config ต้องถือว่าเปิด"
+
+    with patch.object(wh.Utilities, "get_config_value", return_value=False):
+        assert wh.feature_enabled("is_ocr_active") is False, "ตั้งเป็น false ต้องปิด"
+
+    return "ไม่มี config = เปิด / false = ปิด"
+
+
+def _run_webhook_event(message: dict, disabled_key: str | None):
+    """เรียก process_webhook_event จริง โดยปิดสวิตช์ฟีเจอร์ที่ระบุ"""
+    import helper.webhook_helper as wh
+
+    logger = _FakeLogger()
+    pushes: list = []
+    handled: list = []
+
+    def fake_config(key, default=None):
+        if key == disabled_key:
+            return False
+        return default if default is not None else True
+
+    async def record_text(*_a, **_k):
+        handled.append("text")
+
+    async def record_image(*_a, **_k):
+        handled.append("image")
+
+    patches = [
+        patch.object(wh.LineUtils, "get_line_profile", return_value={"displayName": "ผู้ใช้ทดสอบ"}),
+        patch.object(wh.DBManagerUsers, "get_or_create_user", return_value=_FakeUser(False)),
+        patch.object(wh.Utilities, "get_config_value", side_effect=fake_config),
+        patch.object(wh, "handle_text_message", side_effect=record_text),
+        patch.object(wh, "handle_image_message", side_effect=record_image),
+        patch.object(
+            wh.LineUtils,
+            "send_push_notification",
+            side_effect=lambda *a, **k: pushes.append(k.get("content") or a[1]),
+        ),
+    ]
+    for p in patches:
+        p.start()
+    try:
+        asyncio.run(
+            wh.process_webhook_event(
+                None,
+                {"type": "message", "message": message},
+                "U1",
+                "reply",
+                "ltoken",
+                "key",
+                logger,
+            )
+        )
+    finally:
+        for p in patches:
+            p.stop()
+    return pushes, handled
+
+
+@check("ปิดสวิตช์ OCR แล้ว webhook ต้องไม่ประมวลผลรูป")
+def _():
+    pushes, handled = _run_webhook_event({"type": "image", "id": "m1"}, "is_ocr_active")
+    assert not handled, "ยังเรียก handler ทั้งที่ปิดสวิตช์แล้ว"
+    assert any("ปิดปรับปรุงชั่วคราว" in str(p) for p in pushes), f"ต้องแจ้งผู้ใช้: {pushes}"
+
+    pushes, handled = _run_webhook_event({"type": "image", "id": "m1"}, None)
+    assert handled == ["image"], "เปิดสวิตช์แล้วต้องประมวลผลตามปกติ"
+    return "ปิด=ไม่ประมวลผล+แจ้งผู้ใช้ / เปิด=ทำงานปกติ"
+
+
+@check("ปิดสวิตช์ข้อความแล้ว webhook ต้องไม่ประมวลผลข้อความ")
+def _():
+    pushes, handled = _run_webhook_event({"type": "text", "text": "ค่าข้าว 60"}, "is_text_active")
+    assert not handled, "ยังเรียก handler ทั้งที่ปิดสวิตช์แล้ว"
+    assert any("ปิดปรับปรุงชั่วคราว" in str(p) for p in pushes), f"ต้องแจ้งผู้ใช้: {pushes}"
+
+    pushes, handled = _run_webhook_event({"type": "text", "text": "ค่าข้าว 60"}, None)
+    assert handled == ["text"], "เปิดสวิตช์แล้วต้องประมวลผลตามปกติ"
+    return "ปิด=ไม่ประมวลผล+แจ้งผู้ใช้ / เปิด=ทำงานปกติ"
+
+
 def main() -> int:
     passed = sum(1 for _n, ok, _d in RESULTS if ok)
     width = max(len(name) for name, _ok, _d in RESULTS)

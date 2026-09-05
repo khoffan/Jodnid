@@ -69,6 +69,19 @@ def get_quick_reply(
     return QuickReply(items=items)
 
 
+FEATURE_DISABLED_MESSAGE = "ขออภัยครับ ฟีเจอร์นี้ปิดปรับปรุงชั่วคราว กรุณาลองใหม่อีกครั้งภายหลัง"
+
+
+def feature_enabled(key: str) -> bool:
+    """
+    อ่านสวิตช์เปิด-ปิดฟีเจอร์จากตาราง SystemConfiguration ผ่าน admin console
+
+    ค่าเริ่มต้นคือ "เปิด" เสมอ เพื่อให้ระบบยังทำงานได้แม้ยังไม่ได้สร้าง config ตัวนั้น
+    (ชื่อ key อ่านว่า `is_..._active` = true คือเปิดใช้งาน ไม่ใช่ปิดปรับปรุง)
+    """
+    return bool(Utilities.get_config_value(key=key, default=True))
+
+
 def resolve_confirmation(final_transactions: Any, user_record: Users) -> tuple[bool, bool]:
     """
     ตัดสินว่าจะบันทึกทันทีตามโหมดบันทึกด่วนได้ไหม คืน `(skip_confirm, needs_review)`
@@ -127,10 +140,14 @@ async def process_webhook_event(
             logger.info(
                 module="webhook", message=f"handle text message: {user_text}", user_id=user_id
             )
-            # is_text_active = get_config_value(key="is_text_active")
-            # if is_text_active:
-            #     send_push_notification(user_id, content="ระบบกำลังปรับปรุง กรุณาลองใหม่อีกครั้งในภายหลัง")
-            #     return
+            if not feature_enabled("is_text_active"):
+                logger.info(
+                    module="webhook", message="text feature is disabled", user_id=user_id
+                )
+                LineUtils.send_push_notification(
+                    user_id, content=FEATURE_DISABLED_MESSAGE, alt_text="ปิดปรับปรุงชั่วคราว"
+                )
+                return
             # Logic: เช็ค Keywords และเรียก AI (ย้ายจาก Webhook มาที่นี่)
             await handle_text_message(
                 db, user_id, user_text, reply_token, line_access_token, api_key, logger, user_data
@@ -142,10 +159,12 @@ async def process_webhook_event(
             logger.info(
                 module="webhook", message=f"handle image message id: {message_id}", user_id=user_id
             )
-            # is_ocr_active = get_config_value(key="is_ocr_active")
-            # if is_ocr_active:
-            #     send_push_notification(user_id, content="ระบบกำลังปรับปรุง กรุณาลองใหม่อีกครั้งในภายหลัง")
-            #     return
+            if not feature_enabled("is_ocr_active"):
+                logger.info(module="webhook", message="ocr feature is disabled", user_id=user_id)
+                LineUtils.send_push_notification(
+                    user_id, content=FEATURE_DISABLED_MESSAGE, alt_text="ปิดปรับปรุงชั่วคราว"
+                )
+                return
             # ย้าย Logic การทำ OCR และ Extract ไปไว้ในฟังก์ชันย่อย
             await handle_image_message(
                 db, user_id, message_id, reply_token, line_access_token, api_key, logger, user_data

@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+import requests
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, desc, select
 
@@ -62,6 +63,51 @@ class DBManagerAdmin:
 
         session.refresh(system_configuration)
         return {"success": True, "data": system_configuration}
+
+    @staticmethod
+    def get_system_status(session: Session, line_access_token: str = None):
+        """
+        เช็คสถานะจริงของระบบ ไม่ใช่ค่าคงที่
+
+        ทุกด่านห้ามโยน exception ออกไป เพราะหน้า console ต้องแสดงผลได้เสมอ
+        แม้ระบบใดระบบหนึ่งจะล่ม (นั่นคือข้อมูลที่ admin ต้องการเห็นพอดี)
+        """
+        from helper.utils import Utilities
+
+        # --- ฐานข้อมูล ---
+        try:
+            session.exec(select(SystemConfiguration).limit(1)).first()
+            database = {"ok": True, "detail": "Connected"}
+        except Exception as e:
+            database = {"ok": False, "detail": f"Error: {type(e).__name__}"}
+
+        # --- LINE Messaging API ---
+        line_status = {"ok": False, "detail": "No token"}
+        if line_access_token:
+            try:
+                response = requests.get(
+                    "https://api.line.me/v2/bot/info",
+                    headers={"Authorization": f"Bearer {line_access_token}"},
+                    timeout=5,
+                )
+                if response.status_code == 200:
+                    line_status = {"ok": True, "detail": response.json().get("displayName", "Online")}
+                else:
+                    line_status = {"ok": False, "detail": f"HTTP {response.status_code}"}
+            except Exception as e:
+                line_status = {"ok": False, "detail": f"Error: {type(e).__name__}"}
+
+        # --- สวิตช์ฟีเจอร์ (ค่าเริ่มต้นตรงกับที่ webhook ใช้จริง) ---
+        features = {
+            key: bool(Utilities.get_config_value(key=key, default=default))
+            for key, default in (
+                ("is_ocr_active", True),
+                ("is_text_active", True),
+                ("is_maintenance_mode", False),
+            )
+        }
+
+        return {"database": database, "line_api": line_status, "features": features}
 
     @staticmethod
     def get_system_config_data(session: Session):

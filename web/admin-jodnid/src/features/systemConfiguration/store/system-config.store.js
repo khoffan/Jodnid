@@ -3,6 +3,7 @@ import api from "../../../common/lib/api";
 
 const useConfigStore = create((set, get) => ({
   configs: [],
+  status: null,
   isLoading: false,
   error: null,
 
@@ -14,6 +15,27 @@ const useConfigStore = create((set, get) => ({
       set({ configs: response.data.data, isLoading: false, error: null });
     } catch (err) {
       set({ error: err, isLoading: false });
+    }
+  },
+
+  // Action: ดึงสถานะจริงของระบบมาแสดงบนการ์ดด้านบน
+  fetchStatus: async () => {
+    try {
+      const response = await api.get("/api/administrator/status");
+      set({ status: response.data.data });
+    } catch {
+      set({ status: null });
+    }
+  },
+
+  refreshCache: async () => {
+    try {
+      await api.post("/api/administrator/config/refresh-cache");
+      await get().fetchConfigs();
+      await get().fetchStatus();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   },
 

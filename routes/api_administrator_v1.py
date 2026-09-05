@@ -17,6 +17,31 @@ class AdministratorAPIs:
     def setup_router(self):
         router = self.router
         logger = self.logger
+        line_access_token = self.line_access_token
+
+        @router.get("/status")
+        def get_system_status(
+            db: Session = Depends(get_session),
+            user: Administrator = Depends(get_current_user),
+        ):
+            """สถานะจริงของระบบสำหรับการ์ดบนหน้าแรกของ console (เดิมเป็นค่า hardcode)"""
+            logger.info(module="administrator", message="fetching status", user_id=user.uid)
+            return {
+                "success": True,
+                "data": DBManagerAdmin.get_system_status(db, line_access_token),
+            }
+
+        @router.post("/config/refresh-cache")
+        def refresh_config_cache(user: Administrator = Depends(get_current_user)):
+            """
+            ล้าง `@lru_cache` ของ `get_config_value` ด้วยมือ
+
+            ปกติ endpoint ที่แก้ config ล้างให้อยู่แล้ว ตัวนี้ไว้ใช้ตอนแก้ค่าใน DB ตรงๆ
+            หรือเมื่อสงสัยว่าค่าที่ระบบใช้ไม่ตรงกับที่เห็นในตาราง
+            """
+            Utilities.clear_config_cache()
+            logger.info(module="administrator", message="config cache cleared", user_id=user.uid)
+            return {"success": True, "message": "ล้างแคชการตั้งค่าเรียบร้อยแล้ว"}
 
         # administrator service
         @router.post("/sync")

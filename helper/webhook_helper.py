@@ -310,13 +310,21 @@ async def handle_image_message(
         )
         # ตัวอย่าง Flow:
         # image_bytes = download_line_image(message_id)
-        ocr_json = extract_text_from_image(processing_image, f"{message_id}.jpg", api_key)
+        ocr_json = extract_text_from_image(
+            processing_image,
+            f"{message_id}.jpg",
+            api_key,
+            user_id=user_id,
+            session=db,
+            logger=logger,
+        )
         status = ocr_json.get("success")
         if not status:
             logger.error(
                 module="webhook_image_ai",
                 message=f"OCR failed: {ocr_json.get('error')}",
                 user_id=user_id,
+                payload=ocr_json.get("meta"),
             )
             LineUtils.send_push_notification(
                 user_id,

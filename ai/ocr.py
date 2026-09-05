@@ -11,7 +11,7 @@ from sqlmodel import Session
 from ai.text_nlp import extract_transactions
 from helper.logger import JodNidLogger
 from helper.utils import Utilities
-from model.db_manament import select_billable_items
+from model.db import select_billable_items
 
 OCR_TIMEOUT_SECONDS = 45
 OCR_MAX_PARALLEL_WORKERS = 3

@@ -96,8 +96,11 @@ npm run build && npm run lint
 - **Route ใหม่** → เขียนไว้ใน `setup_router()` ของ class ใน [routes/](routes/) (`LiffApi`, `CronAPis`,
   `AdministratorAPIs`) ไม่ใช่สร้าง module-level router ใหม่ — dependency ที่ใช้ร่วม (`logger`,
   `line_access_token`) รับผ่าน `__init__`
-- **Logic ที่แตะ DB** → เป็น `@staticmethod` ใน `DBManager*` ที่เหมาะสม
-  ([model/db_manament.py](model/db_manament.py)) และรับ `session: Session` เป็น argument แรกเสมอ
+- **Logic ที่แตะ DB** → เป็น `@staticmethod` ใน `DBManager*` ที่เหมาะสม ([model/db/](model/db/) —
+  ไฟล์ละหนึ่งความรับผิดชอบ: `users`, `transactions`, `categories`, `dashboard`, `budget`, `admin`)
+  และรับ `session: Session` เป็น argument แรกเสมอ
+- **import DBManager** → `from model.db import DBManagerXxx` เท่านั้น ไม่ต้องอ้างชื่อไฟล์ย่อย
+  ถ้าเพิ่ม manager ใหม่ ต้อง re-export ใน [model/db/__init__.py](model/db/__init__.py) ด้วย
 - **Session ใน route** → `db: Session = Depends(get_session)`
 - **ค่า config** → `from core.config_settings import settings` แล้วใช้ `settings.XXX`
 - **Feature flag ตอน runtime** → `Utilities.get_config_value(key=...)` และ **ทุกครั้งที่เขียนค่า config
@@ -112,7 +115,7 @@ npm run build && npm run lint
   `sync_user_budgets()` คือเครื่องมือซ่อมเมื่อค่าเพี้ยน)
 - **ตัดงบที่ parent category** → `category.parent_id or category.id` เสมอ เพื่อให้ sub-category รวมยอดขึ้นแม่
 - **เลือกรายการที่จะบันทึก** → ใช้ `select_billable_items(transactions, grand_total)`
-  ([model/db_manament.py](model/db_manament.py)) **ที่เดียวเท่านั้น** ห้ามเขียนเงื่อนไข
+  ([model/db/billable.py](model/db/billable.py)) **ที่เดียวเท่านั้น** ห้ามเขียนเงื่อนไข
   `is_actual_item` / `priority` เองซ้ำที่อื่น ตอนนี้ `save_transaction()`,
   `create_dynamic_flex_receipt()` (ทั้งยอดรวมและรายการ) และ `summarize_extraction()` เรียกตัวนี้ร่วมกัน
   ถ้าแยกกันเขียนเมื่อไหร่ บิลที่ผู้ใช้เห็นกับยอดที่ตัดจากงบจะเพี้ยนทันที

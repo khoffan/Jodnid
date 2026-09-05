@@ -4,7 +4,7 @@ from sqlmodel import Session
 from helper.logger import JodNidLogger
 from helper.utils import Utilities
 from middleware.auth import get_current_user
-from model.db_manament import DBManagerAdmin
+from model.db import DBManagerAdmin
 from model.models import Administrator, get_session
 
 

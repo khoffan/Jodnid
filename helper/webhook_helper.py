@@ -13,7 +13,7 @@ from ai.ocr import extract_text_from_image
 from ai.text_nlp import extract_transactions, is_transaction_message
 from helper.logger import JodNidLogger
 from helper.utils import LineUtils, Utilities
-from model.db_manament import DBManagerDashboard, DBManagerTransactions, DBManagerUsers
+from model.db import DBManagerDashboard, DBManagerTransactions, DBManagerUsers
 from model.models import Users
 
 # Use DBManager classes' static methods and pass `db: Session` from callers

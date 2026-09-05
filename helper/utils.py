@@ -25,7 +25,7 @@ from sqlmodel import Session, and_, extract, func, or_, select
 
 from core.config_settings import settings
 from helper.logger import JodNidLogger
-from model.db_manament import DBManagerBudget, DBManagerCategories, select_billable_items
+from model.db import DBManagerBudget, DBManagerCategories, select_billable_items
 from model.models import Categories, SystemConfiguration, Transactions, UserBudget, Users, engine
 
 is_test_mode = settings.TEST_MODE

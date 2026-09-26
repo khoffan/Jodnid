@@ -9,6 +9,7 @@ from helper.logger import JodNidLogger
 from helper.utils import Utilities
 from helper.webhook_helper import confirme_data_from_edit
 from middleware.line_auth import (
+    ensure_same_user,
     exchange_code_for_tokens,
     get_current_user,
     verify_id_token_with_line,
@@ -51,10 +52,6 @@ class LiffApi:
     def setup_router(self):
         router = self.router
         logger = self.logger
-        users = Utilities.get_all_users(next(get_session()))
-        user_id = None
-        for user in users:
-            user_id = user.line_user_id
 
         @router.post("/user")
         async def update_user_profile(req: LineLoginRequest, db: Session = Depends(get_session)):
@@ -148,7 +145,7 @@ class LiffApi:
         async def get_transaction_web(
             user: dict = Depends(get_current_user), db: Session = Depends(get_session)
         ):
-            data = DBManagerTransactions.get_Transactions(db)
+            data = DBManagerTransactions.get_Transactions(db, user_id=user.get("sub"))
             return {"success": True, "data": data}
 
         @router.get("/dashboard/{user_id}")
@@ -158,8 +155,10 @@ class LiffApi:
             day: int = None,
             month: int = None,
             year: int = None,
+            user: dict = Depends(get_current_user),
             db: Session = Depends(get_session),
         ):
+            user_id = ensure_same_user(user, user_id)
             logger.info(
                 module="dashboard",
                 message=f"User ID: {user_id}, Type: {type}, Month: {month}, Year: {year}",
@@ -171,10 +170,12 @@ class LiffApi:
             )
 
         @router.post("/overview/stats")
-        async def overview_stat(data: dict, db: Session = Depends(get_session)):
-            user_id = data.get("user_id")
-            if not user_id:
-                return {"success": False, "message": "Missing user_id"}
+        async def overview_stat(
+            data: dict,
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            user_id = ensure_same_user(user, data.get("user_id"))
 
             logger.info(
                 module="app",
@@ -190,20 +191,40 @@ class LiffApi:
             return {"success": True, "data": data}
 
         @router.get("/temp-transaction/{temp_id}")
-        async def get_temp_transaction(temp_id: str, db: Session = Depends(get_session)):
-            data = DBManagerTransactions.get_temp_transaction_data(db, temp_id)
+        async def get_temp_transaction(
+            temp_id: str,
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            user_id = ensure_same_user(user)
+            data = DBManagerTransactions.get_user_temp_transaction(db, temp_id, user_id)
             logger.info(
                 module="transaction_edit",
-                message=f"temp_id: {temp_id}, data: {data}",
+                message=f"temp_id: {temp_id}, found: {data is not None}",
                 user_id=user_id,
             )
+            if data is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="ไม่พบรายการนี้ หรือรายการหมดอายุ/ถูกบันทึกไปแล้ว",
+                )
             return data
 
         @router.post("/transactions/confirm-bulk")
-        async def confirme_transaction_bulk_edit(data: dict, db: Session = Depends(get_session)):
-            user_id = data.get("user_id")
+        async def confirme_transaction_bulk_edit(
+            data: dict,
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            user_id = ensure_same_user(user, data.get("user_id"))
             items = data.get("items")
             temp_id = data.get("temp_id")
+            # 🔒 ต้องเป็น temp ของผู้ใช้คนนี้ที่ยังไม่หมดอายุ — ข้อความ LINE จะถูกส่งหา user_id นี้
+            if DBManagerTransactions.get_user_temp_transaction(db, temp_id, user_id) is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="ไม่พบรายการนี้ หรือรายการหมดอายุ/ถูกบันทึกไปแล้ว",
+                )
             logger.info(
                 module="transaction_confirm_edit",
                 message=f"Confirming bulk transaction for user_id: {user_id} with temp_id: {temp_id}",
@@ -215,8 +236,12 @@ class LiffApi:
         
 
         @router.post("/budget/setup")
-        async def setup_budget(data: dict, db: Session = Depends(get_session)):
-            user_id = data.get("user_id")
+        async def setup_budget(
+            data: dict,
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            user_id = ensure_same_user(user, data.get("user_id"))
             amount = data.get("amount")
             category_id = data.get("category_id")
             logger.info(
@@ -232,12 +257,23 @@ class LiffApi:
                 )
                 return {"success": False, "message": "Missing user_id or amount or category_id"}
 
+            if not DBManagerCategories.can_use_category(db, category_id, user_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="ไม่สามารถตั้งงบให้หมวดหมู่นี้ได้",
+                )
+
             return DBManagerBudget.setup_user_budget(
                 db, user_id, category_id=category_id, amount=amount
             )
 
         @router.get("/budgets/{user_id}")
-        async def get_user_budgets(user_id: str, db: Session = Depends(get_session)):
+        async def get_user_budgets(
+            user_id: str,
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            user_id = ensure_same_user(user, user_id)
             logger.info(
                 module="budget",
                 message=f"Fetching budget remaining for user_id: {user_id}",
@@ -262,8 +298,12 @@ class LiffApi:
             return DBManagerCategories.get_parent_categories(db)
 
         @router.post("/categories/add")
-        async def add_category(data: CategoryCreateRequest, db: Session = Depends(get_session)):
-            user_id = data.user_id
+        async def add_category(
+            data: CategoryCreateRequest,
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            user_id = ensure_same_user(user, data.user_id)
             name = data.name
             parent_id = data.parent_id
             icon = data.icon
@@ -279,5 +319,13 @@ class LiffApi:
                     user_id=user_id,
                 )
                 return {"success": False, "message": "Missing user_id or name"}
+
+            if parent_id is not None and not DBManagerCategories.can_use_category(
+                db, parent_id, user_id
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="ไม่สามารถใช้หมวดหมู่หลักนี้ได้",
+                )
 
             return Utilities.handle_custom_category_creation(db, name, icon, user_id, parent_id)

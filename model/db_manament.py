@@ -423,10 +423,29 @@ class DBManagerTransactions:
             return None
 
     @staticmethod
-    def get_Transactions(session: Session):
+    def get_user_temp_transaction(session: Session, temp_id: str, user_id: str):
+        """คืน temp ที่ยังไม่หมดอายุและเป็นของ `user_id` เท่านั้น ไม่งั้นคืน None
+
+        ไม่แยกกรณี "ไม่มี" กับ "เป็นของคนอื่น" เพื่อไม่ให้เดา temp_id ของคนอื่นได้
+        """
+        temp = session.get(TempTransactions, temp_id)
+        if not temp or temp.user_id != user_id:
+            return None
+        if temp.expires_at and temp.expires_at < datetime.utcnow():
+            return None
+        return temp
+
+    @staticmethod
+    def get_Transactions(session: Session, user_id: str):
         try:
             # ทำการ Join ระหว่าง Transactions และ Category โดยใช้ category_id
-            statement = select(Transactions, Categories).join(Categories)
+            # 🔒 กรองเฉพาะของผู้ใช้คนนี้ (เดิมคืนรายการของทุกคน)
+            statement = (
+                select(Transactions, Categories)
+                .join(Categories)
+                .where(Transactions.user_id == user_id)
+                .order_by(Transactions.transaction_date.desc())
+            )
             results = session.exec(statement).all()
 
             # แปลงผลลัพธ์ให้อยู่ในรูปแบบที่นำไปใช้งานต่อได้ง่าย (เช่น รวมข้อมูลเข้าด้วยกัน)
@@ -485,6 +504,12 @@ class DBManagerCategories:
         except Exception as e:
             print(f"Error in insert_category: {str(e)}")
             return None
+
+    @staticmethod
+    def can_use_category(session: Session, category_id: int, user_id: str) -> bool:
+        """หมวดใช้ได้เมื่อเป็นหมวดส่วนกลาง (`user_id IS NULL`) หรือเป็นของผู้ใช้คนนี้"""
+        category = session.get(Categories, category_id)
+        return category is not None and category.user_id in (None, user_id)
 
     @staticmethod
     def get_parent_categories(session: Session) -> List[Categories]:

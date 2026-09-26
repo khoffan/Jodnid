@@ -355,7 +355,22 @@ class DBManagerTransactions:
             return None
 
     @staticmethod
-    def get_Transactions(session: Session, user_id: str):
+    def get_user_temp_transaction(
+        session: Session, temp_id: str, user_id: str
+    ) -> TempTransactions | None:
+        """คืน temp ที่ยังไม่หมดอายุและเป็นของ `user_id` เท่านั้น ไม่งั้นคืน None
+
+        ไม่แยกกรณี "ไม่มี" กับ "เป็นของคนอื่น" เพื่อไม่ให้เดา temp_id ของคนอื่นได้
+        """
+        temp = session.get(TempTransactions, temp_id)
+        if not temp or temp.user_id != user_id:
+            return None
+        if temp.expires_at and temp.expires_at < datetime.utcnow():
+            return None
+        return temp
+
+    @staticmethod
+    def get_Transactions(session: Session, user_id: str) -> List[Dict[str, Any]]:
         try:
             # ทำการ Join ระหว่าง Transactions และ Category โดยใช้ category_id
             # 🔒 กรองเฉพาะของผู้ใช้คนนี้ (เดิมคืนรายการของทุกคน)

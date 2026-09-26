@@ -565,6 +565,46 @@ def _():
     return f"ป้องกันครบ {len(routes)} route"
 
 
+# route ของ LIFF ที่ตั้งใจให้เรียกได้โดยไม่มี token: login (แลก token เอง) และหมวดส่วนกลาง
+_LIFF_PUBLIC_ROUTES = {"POST /api/user", "GET /api/categories/parent"}
+
+
+@check("ทุก route ของ LIFF ต้องผ่าน get_current_user (ยกเว้น login/หมวดส่วนกลาง)")
+def _():
+    from middleware.line_auth import get_current_user
+    from routes.api_liff_v1 import LiffApi
+
+    api = LiffApi(logger=_FakeLogger(), line_access_token="fake-token")
+    api.setup_router()
+    unprotected = []
+    for route in api.router.routes:
+        key = f"{next(iter(route.methods))} {route.path}"
+        guarded = any(d.call is get_current_user for d in _walk_dependants(route.dependant))
+        if not guarded and key not in _LIFF_PUBLIC_ROUTES:
+            unprotected.append(key)
+
+    assert not unprotected, f"route ที่ไม่ตรวจ token: {', '.join(unprotected)}"
+    return f"ป้องกันครบ {len(api.router.routes) - len(_LIFF_PUBLIC_ROUTES)} route"
+
+
+@check("ensure_same_user ยึด sub และปฏิเสธ user_id ของคนอื่น")
+def _():
+    from fastapi import HTTPException
+
+    from middleware.line_auth import ensure_same_user
+
+    assert ensure_same_user({"sub": "U_A"}) == "U_A"
+    assert ensure_same_user({"sub": "U_A"}, "U_A") == "U_A"
+    for user, claimed, expected in [({"sub": "U_A"}, "U_B", 403), ({}, None, 401)]:
+        try:
+            ensure_same_user(user, claimed)
+        except HTTPException as e:
+            assert e.status_code == expected, f"ได้ {e.status_code} แทน {expected}"
+        else:
+            raise AssertionError(f"{user} / {claimed} ต้องถูกปฏิเสธ")
+    return "ตรงกัน = คืน sub / คนอื่น = 403 / ไม่มี sub = 401"
+
+
 @check("route ที่เขียนข้อมูลต้องบังคับบทบาท admin")
 def _():
     write_methods = {"POST", "PATCH", "PUT", "DELETE"}

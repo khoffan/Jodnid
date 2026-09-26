@@ -1,8 +1,12 @@
 import { create } from "zustand";
 import liff from "@line/liff";
-import api from "../../../../common/lib/api";
+import api, { setUnauthorizedHandler } from "../../../../common/lib/api";
 
 const testMode = import.meta.env.VITE_TEST_MODE;
+
+const AUTH_RECOVER_KEY = "auth_recover_at";
+const AUTH_RECOVER_COOLDOWN_MS = 60_000;
+let isRecovering = false;
 
 const extractUserId = (user) => {
   if (!user) return null;
@@ -184,6 +188,8 @@ export const useWebAuthStore = create((set, get) => ({
         set({ loading: false, isAuth: false });
       }
     } catch (error) {
+      // 401 = token หมดอายุ → interceptor เรียก recoverSession ไปแล้ว อย่าเขียนทับข้อความของมัน
+      if (error.response?.status === 401) return;
       console.error("LIFF Initialization failed:", error);
       set({ error: error.message, loading: false });
     }
@@ -220,6 +226,36 @@ export const useWebAuthStore = create((set, get) => ({
     }
   },
 
+  // LINE ID token อายุ ~1 ชม. และ liff.getIDToken() คืนตัวที่ cache ไว้แม้หมดอายุแล้ว
+  // → logout เพื่อล้าง cache แล้ว reload ให้ initApp เรียก liff.login() ขอ token ใหม่
+  // ลองได้ครั้งเดียวต่อ 1 นาที กัน reload วนไม่รู้จบถ้า token ใหม่ก็ยังใช้ไม่ได้
+  recoverSession: () => {
+    if (isRecovering) return;
+
+    const lastTry = Number(sessionStorage.getItem(AUTH_RECOVER_KEY) || 0);
+    if (Date.now() - lastTry < AUTH_RECOVER_COOLDOWN_MS) {
+      set({ error: "เซสชันหมดอายุ กรุณาปิดแล้วเปิดหน้านี้ใหม่อีกครั้ง", loading: false });
+      return;
+    }
+
+    isRecovering = true;
+    sessionStorage.setItem(AUTH_RECOVER_KEY, String(Date.now()));
+    sessionStorage.removeItem("id_token");
+
+    if (get().isWebApp) {
+      sessionStorage.removeItem("user_info");
+      window.location.href = "/login";
+      return;
+    }
+
+    try {
+      if (liff.isLoggedIn()) liff.logout();
+    } catch {
+      // liff.init ยังไม่สำเร็จ — reload ก็พอ
+    }
+    window.location.reload();
+  },
+
   logout: async () => {
     if (!liff.isInClient()) {
       sessionStorage.removeItem("id_token");
@@ -254,3 +290,5 @@ export const useWebAuthStore = create((set, get) => ({
     }
   },
 }));
+
+setUnauthorizedHandler(() => useWebAuthStore.getState().recoverSession());

@@ -12,6 +12,33 @@
 
 ---
 
+## 2026-09-26 19:05 (+07) — merge `hotfix/liff-auth` เข้า `feature/update-ocr`
+
+- ปิดช่องโหว่ endpoint ของ LIFF ที่เชื่อ `user_id` จาก path/body: ทุก route ต้องมี token และผ่าน
+  `ensure_same_user` (ไม่ตรง = 403), temp ต้องเป็นของตัวเองและยังไม่หมดอายุ (404),
+  ตั้งงบ/สร้างหมวดได้เฉพาะหมวดส่วนกลางหรือของตัวเอง, LIFF ขอ token ใหม่เองเมื่อได้ 401
+- conflict: `model/db_manament.py` ถูกลบบน branch นี้ → ย้าย `get_user_temp_transaction` ไป
+  `model/db/transactions.py` และ `can_use_category` ไป `model/db/categories.py`
+
+### ชุดตรวจอัตโนมัติ
+
+- `python scripts/verify_pipeline.py` → **30/30** (เพิ่ม 2 หัวข้อ: ทุก route ของ LIFF ต้องผ่าน
+  `get_current_user` ยกเว้น `_LIFF_PUBLIC_ROUTES`, และ `ensure_same_user` ปฏิเสธ user_id ของคนอื่น)
+  - ลองลบ `get_current_user` ออกจาก `/api/dashboard/{user_id}` ชั่วคราว → หัวข้อนี้ FAIL ชี้ route ถูกตัว
+- สคริปต์ TestClient + SQLite ชั่วคราว (override `get_current_user`, mock push ของ LINE):
+  - ช่องโหว่ LIFF **27/27** — ก่อนแก้ (บน master) รันแล้วเห็นช่องโหว่จริง เช่น เขียนทับงบของคนอื่นได้
+    และข้อความ LINE ถูกส่งไปหาคนที่ระบุใน body
+  - web endpoint เดิม **14/14**
+- `npm run lint` / `npm run build` ของ dashboard ผ่าน
+
+### ยังไม่ได้ตรวจ
+
+- **การขอ token ใหม่เมื่อได้ 401 บนมือถือจริง** — เปิด LIFF ใน LINE ค้าง > 1 ชม. แล้วกดใช้งาน ต้องได้หน้าที่
+  โหลดใหม่พร้อมข้อมูล ถ้าเห็น "⚠️ เซสชันหมดอายุ" แปลว่า LIFF คืน token เก่าหลัง `liff.logout()`
+- ทุก request ของ LIFF เรียก LINE verify API หนึ่งครั้ง — ดู latency หลัง deploy
+
+---
+
 ## 2026-09-26 16:39 (+07) — แก้รายรับ/วันที่จากหน้า web ถูกบันทึกเป็นรายจ่ายวันนี้
 
 - `save_transaction()` อ่าน `type` (เฉพาะ `"income"` เท่านั้นที่เป็นรายรับ — LLM ส่ง `expense`/`tax`

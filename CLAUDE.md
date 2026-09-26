@@ -123,7 +123,10 @@ npm run build && npm run lint
   `logger.error(...)` — `module` ควรบอกจุดเกิดจริง เช่น `"webhook_text_ai"`, `"webhook_postback"`
 - **แก้ SQLModel ใน [model/models.py](model/models.py)** → สร้าง Alembic revision ในคอมมิตเดียวกันเสมอ
 - **งานที่ใช้เวลา** (LLM, OCR, ส่ง push หลายคน) → ผ่าน `BackgroundTasks` หรือ endpoint cron
-- **user_id** → เอาจาก `user["sub"]` ของ `Depends(get_current_user)`
+- **user_id** → เอาจาก `user["sub"]` ของ `Depends(get_current_user)` — route ของ LIFF ที่ยังรับ `user_id`
+  ใน path/body (เพื่อให้ frontend เก่าใช้ได้) ต้องผ่าน `ensure_same_user(user, claimed)`
+  ([middleware/line_auth.py](middleware/line_auth.py)) แล้วใช้ค่าที่คืนมาเท่านั้น
+  `verify_pipeline.py` ตรวจว่าทุก route ของ LIFF มี `get_current_user` ยกเว้นที่อยู่ใน `_LIFF_PUBLIC_ROUTES`
 - **ทุกครั้งที่สร้างหรือลบแถว `Transactions`** → ต้องปรับ `UserBudget.current_spent` ให้ตรงกัน
   (`current_spent` เป็นยอดสะสมแบบ denormalized; `undo_transaction` ทำย้อนกลับพร้อม clamp ที่ 0;
   `sync_user_budgets()` คือเครื่องมือซ่อมเมื่อค่าเพี้ยน)
@@ -248,8 +251,6 @@ npm run build && npm run lint
 รายการเต็มพร้อม `file:line` อยู่ใน [docs/backlog.md](docs/backlog.md) แบ่งตาม branch ที่จะใช้แก้
 **ห้ามถือว่าโค้ดเดิมเป็นตัวอย่างที่ถูก** จุดที่ยังผิดกฎข้างบนอยู่:
 
-- endpoint ของ LIFF หลายตัวเชื่อ `user_id` จาก path/body และไม่มี `get_current_user` —
-  endpoint ใหม่ต้องยึด `sub` เสมอ
 - `sync_user_budgets` ไม่รวมยอดหมวดย่อยขึ้นแม่ และถูกเรียกจากหน้า overview (GET ที่เขียน DB)
 - โค้ด frontend หลายไฟล์ใส่ `Authorization` เอง, `console.log` ข้อมูล token, และใช้ `alert()`
 - แก้ข้อไหนแล้ว ให้ลบออกจาก backlog ในคอมมิตเดียวกัน

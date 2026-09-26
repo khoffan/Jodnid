@@ -8,24 +8,11 @@ web app เป็นตัวช่วยบนคอม (ไม่ใช่เ�
 
 ---
 
-## 1. `hotfix/liff-auth` — แตกจาก `master` แล้ว deploy ก่อน
+## 1. `hotfix/liff-auth` — แก้แล้ว (เหลือข้อเดียว)
 
-endpoint ของ LIFF เชื่อ `user_id` จาก path/body และไม่มี `get_current_user` → ใครรู้ LINE user id ของคนอื่น
-ก็อ่าน/เขียนข้อมูลเงินของคนนั้นได้ แก้โดย **คง URL เดิม** แต่เทียบ `user_id` กับ `sub` (ไม่ตรง = 403)
-เพื่อไม่ให้ LIFF เวอร์ชันเก่าที่ผู้ใช้เปิดค้างไว้พัง
-
-- `GET /api/dashboard/{user_id}` — อ่านสรุปของคนอื่นได้ `routes/api_liff_v1.py:156-173`
-- `POST /api/overview/stats` — เชื่อ body `user_id` `routes/api_liff_v1.py:175-192`
-- `POST /api/budget/setup` — เขียนทับงบของคนอื่นได้ `routes/api_liff_v1.py:219-239`
-- `GET /api/budgets/{user_id}` `routes/api_liff_v1.py:241-258`
-- `POST /api/categories/add` — สร้างหมวดใส่บัญชีคนอื่น + ไม่ตรวจเจ้าของ `parent_id` `routes/api_liff_v1.py:266-285`
-- `GET /api/temp-transaction/{temp_id}` — ไม่ตรวจเจ้าของ, ไม่ตรวจ `expires_at`, log `data` ทั้งก้อน
-  และใช้ `user_id` ค้างจาก startup `routes/api_liff_v1.py:54-57,194-202`
-- `POST /api/transactions/confirm-bulk` — ไม่มี auth, push ข้อความไปหา body `user_id` (ส่งหาใครก็ได้),
-  ตอบ `success: true` เสมอแม้ temp หายหรือยืนยันไปแล้ว `routes/api_liff_v1.py:204-215`,
-  `helper/webhook_helper.py:606,642`
-- บังคับ auth แล้วจะเกิดอาการใหม่: LIFF ที่เปิดค้างเกิน ~1 ชม. ได้ 401 แล้วแสดง ฿0 เงียบๆ →
-  ต้องขอ token ใหม่ผ่าน LIFF แล้ว reload หนึ่งครั้ง `web/dashboard/src/common/lib/api.js:21-32`
+- `POST /api/transactions/confirm-bulk` ยังตอบ `success: true` เสมอ — ตรวจเจ้าของ/อายุ temp ก่อนแล้ว
+  แต่ถ้ากดยืนยันซ้ำพร้อมกันจนหลุดด่านไป `confirme_data_from_edit` ไม่คืนผลให้รู้ว่าล้มเหลว
+  `helper/webhook_helper.py` (`confirme_data_from_edit`)
 
 ## 2. ก่อน merge `feature/update-ocr`
 

@@ -18,17 +18,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// api.interceptors.response.use(
-//   (response) => {
-//     return response;
-//   },
-//   (error) => {
-//     if (error.response.status === 401) {
-//       sessionStorage.removeItem("id_token");
-//       window.location.href = "/";
-//     }
-//     return Promise.reject(error);
-//   },
-// );
+// token หมดอายุ → ให้ web_auth.store เป็นคนจัดการ (LIFF SDK เรียกได้ที่ store นั้นที่เดียว)
+let onUnauthorized = null;
+export const setUnauthorizedHandler = (handler) => {
+  onUnauthorized = handler;
+};
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && onUnauthorized) {
+      onUnauthorized();
+    }
+    return Promise.reject(error);
+  },
+);
 
 export default api;

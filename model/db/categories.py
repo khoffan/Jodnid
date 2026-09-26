@@ -146,6 +146,12 @@ class DBManagerCategories:
         return {"success": True, "message": f"ลบหมวดหมู่ '{category.name}' แล้ว"}
 
     @staticmethod
+    def can_use_category(session: Session, category_id: int, user_id: str) -> bool:
+        """หมวดใช้ได้เมื่อเป็นหมวดส่วนกลาง (`user_id IS NULL`) หรือเป็นของผู้ใช้คนนี้"""
+        category = session.get(Categories, category_id)
+        return category is not None and category.user_id in (None, user_id)
+
+    @staticmethod
     def get_parent_categories(session: Session) -> List[Categories]:
         try:
             # เลือกเฉพาะรายการที่ไม่มี parent_id (เป็นรากของหมวดหมู่)

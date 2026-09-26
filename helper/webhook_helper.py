@@ -586,7 +586,11 @@ def confirme_data_from_edit(
     user_id: str,
     items: List[Dict[str, Any]] = None,
     logger: JodNidLogger = None,
-):
+) -> bool | None:
+    """บันทึกรายการที่ผู้ใช้แก้ใน LIFF แล้วแจ้งผลทาง LINE
+
+    คืน True = บันทึกแล้ว, False = ไม่พบ temp (หมดอายุ/บันทึกไปแล้ว), None = เกิดข้อผิดพลาด
+    """
     if logger is None:
         logger = JodNidLogger()
 
@@ -664,4 +668,4 @@ def confirme_data_from_edit(
             user_id=user_id,
         )
         LineUtils.send_push_notification(user_id, content="ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล")
-        return False
+        return None

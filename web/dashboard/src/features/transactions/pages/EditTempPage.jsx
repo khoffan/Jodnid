@@ -51,7 +51,8 @@ export const EditTempPage = ({ userId }) => {
         }));
         setCategories(categoryRes.data || []);
         setItems(editable);
-        setGrandTotal(tempRes.data.grand_total ?? null);
+        const receiptTotal = parseFloat(tempRes.data.grand_total);
+        setGrandTotal(Number.isFinite(receiptTotal) ? receiptTotal : null);
       } catch (e) {
         console.error(e);
         setLoadError(errorDetail(e, "ไม่สามารถดึงข้อมูลได้"));

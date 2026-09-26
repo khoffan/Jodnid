@@ -5,6 +5,9 @@ import useTransactionStore from "../store/useTransectionStore";
 import LoadingSkeleton from "../../../common/components/loading/LoadindSkeleton";
 import SelectField from "../../../common/components/dropdown/SelectFields";
 
+// วันสุดท้ายของเดือน (month เริ่มที่ 1): วันที่ 0 ของเดือนถัดไป
+const daysIn = (year, month) => new Date(year, month, 0).getDate();
+
 const Dashboard = ({ userId }) => {
   const { type } = useParams();
   const { fetchDashboard, loading, dashboardData, transactions, error } =
@@ -73,8 +76,7 @@ const Dashboard = ({ userId }) => {
     label: `พ.ศ. ${now.getFullYear() - offset + 543}`,
     value: now.getFullYear() - offset,
   }));
-  // จำนวนวันจริงของเดือนที่เลือก (วันที่ 0 ของเดือนถัดไป = วันสุดท้ายของเดือนนี้)
-  const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+  const daysInMonth = daysIn(selectedYear, selectedMonth);
   const daysOptions = Array.from({ length: daysInMonth }, (_, i) => ({
     label: `${i + 1}`,
     value: i + 1,
@@ -91,7 +93,7 @@ const Dashboard = ({ userId }) => {
             value={selectedYear}
             onChange={(year) => {
               setSelectedYear(year);
-              setSelectedDay((day) => Math.min(day, new Date(year, selectedMonth, 0).getDate()));
+              setSelectedDay((day) => Math.min(day, daysIn(year, selectedMonth)));
             }}
             className="flex-1"
           />
@@ -102,7 +104,7 @@ const Dashboard = ({ userId }) => {
             onChange={(month) => {
               setSelectedMonth(month);
               // เช่นเลือก 31 แล้วเปลี่ยนเป็นกุมภาพันธ์ → ขยับเป็นวันสุดท้ายของเดือน
-              setSelectedDay((day) => Math.min(day, new Date(selectedYear, month, 0).getDate()));
+              setSelectedDay((day) => Math.min(day, daysIn(selectedYear, month)));
             }}
             className="flex-[1.5]"
           />

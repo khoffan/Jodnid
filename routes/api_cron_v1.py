@@ -40,7 +40,8 @@ class CronAPis:
 
         # ซ่อม UserBudget.current_spent ของทุกคนให้ตรงกับรายการจริง (ตั้งให้รันทุกคืน)
         @router.post("/sync-budgets")
-        async def sync_budgets(db: Session = Depends(get_session)):
+        # ใช้ def ธรรมดา → FastAPI รันใน threadpool งาน DB ยาวๆ จึงไม่บล็อก event loop
+        def sync_budgets(db: Session = Depends(get_session)):
             now = datetime.now()
             result = DBManagerBudget.sync_all_budgets(db, now.month, now.year)
             logger.info(module="cron_sync_budgets", message=f"sync budgets: {result}")

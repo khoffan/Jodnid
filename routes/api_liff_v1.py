@@ -20,6 +20,7 @@ from model.db import (
     DBManagerDashboard,
     DBManagerTransactions,
     DBManagerUsers,
+    build_temp_edit_view,
 )
 from model.models import get_session
 
@@ -41,6 +42,13 @@ class CategoryCreateRequest(BaseModel):
 
 
 # Use DBManager classes directly and pass `db: Session` from route dependencies
+
+
+def _temp_not_found() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="ไม่พบรายการนี้ หรือรายการหมดอายุ/ถูกบันทึกไปแล้ว",
+    )
 
 
 class LiffApi:
@@ -206,14 +214,11 @@ class LiffApi:
                 user_id=user_id,
             )
             if data is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="ไม่พบรายการนี้ หรือรายการหมดอายุ/ถูกบันทึกไปแล้ว",
-                )
+                raise _temp_not_found()
             # คง field เดิม (raw_data ฯลฯ) ไว้ให้ LIFF เวอร์ชันเก่า + เพิ่มมุมมองสำหรับหน้าแก้ไข
             return {
                 **data.model_dump(),
-                **DBManagerTransactions.build_temp_edit_view(data.raw_data),
+                **build_temp_edit_view(data.raw_data),
             }
 
         @router.delete("/temp-transaction/{temp_id}")
@@ -224,12 +229,11 @@ class LiffApi:
         ):
             user_id = ensure_same_user(user)
             if DBManagerTransactions.get_user_temp_transaction(db, temp_id, user_id) is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="ไม่พบรายการนี้ หรือรายการหมดอายุ/ถูกบันทึกไปแล้ว",
-                )
+                raise _temp_not_found()
             DBManagerTransactions.delete_temp_transaction(db, temp_id=temp_id)
-            logger.info(module="transaction_edit", message=f"cancel temp_id: {temp_id}", user_id=user_id)
+            logger.info(
+                module="transaction_edit", message=f"cancel temp_id: {temp_id}", user_id=user_id
+            )
             return {"success": True, "message": "ยกเลิกรายการแล้ว"}
 
         @router.post("/transactions/confirm-bulk")
@@ -243,16 +247,19 @@ class LiffApi:
             temp_id = data.get("temp_id")
             # 🔒 ต้องเป็น temp ของผู้ใช้คนนี้ที่ยังไม่หมดอายุ — ข้อความ LINE จะถูกส่งหา user_id นี้
             if DBManagerTransactions.get_user_temp_transaction(db, temp_id, user_id) is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="ไม่พบรายการนี้ หรือรายการหมดอายุ/ถูกบันทึกไปแล้ว",
-                )
+                raise _temp_not_found()
             logger.info(
                 module="transaction_confirm_edit",
                 message=f"Confirming bulk transaction for user_id: {user_id} with temp_id: {temp_id}",
                 user_id=user_id,
             )
-            if not confirme_data_from_edit(db, temp_id, user_id, items, logger):
+            saved = confirme_data_from_edit(db, temp_id, user_id, items, logger)
+            if saved is None:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="เกิดข้อผิดพลาดในการบันทึก กรุณาลองใหม่อีกครั้ง",
+                )
+            if not saved:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="บันทึกไม่สำเร็จ รายการนี้อาจถูกบันทึกไปแล้ว",

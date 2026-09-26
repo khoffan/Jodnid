@@ -1038,7 +1038,7 @@ def _():
 
 @check("ข้อมูล temp สำหรับหน้าแก้ไข คืนเฉพาะบรรทัดที่จะบันทึก + ยอดสุทธิ")
 def _():
-    from model.db import DBManagerTransactions
+    from model.db import build_temp_edit_view
 
     raw = {
         "grand_total": 107.0,
@@ -1048,13 +1048,13 @@ def _():
             {"item": "VAT", "amount": 7, "is_actual_item": False, "priority": True},
         ],
     }
-    view = DBManagerTransactions.build_temp_edit_view(raw)
+    view = build_temp_edit_view(raw)
     items = [i["item"] for i in view["items"]]
     assert items == ["ข้าว", "VAT"], f"ได้ {items}"
     assert view["grand_total"] == 107.0 and view["total_matched"] is True, f"ได้ {view}"
     # รายการที่ผู้ใช้แก้แล้วต้องถูกบันทึกทุกบรรทัด ไม่ถูกคัดซ้ำด้วย flag เดิม
     assert all(i["is_actual_item"] and not i["priority"] for i in view["items"]), view["items"]
-    legacy = DBManagerTransactions.build_temp_edit_view(raw["transactions"])  # temp รุ่นเก่าเป็น list
+    legacy = build_temp_edit_view(raw["transactions"])  # temp รุ่นเก่าเป็น list
     assert legacy["grand_total"] is None and len(legacy["items"]) == 2, legacy
     return "ข้าว + VAT (ตัดบรรทัดยอดรวม), ยอดสุทธิ 107 ลงตัว"
 

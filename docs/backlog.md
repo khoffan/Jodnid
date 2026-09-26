@@ -28,8 +28,6 @@ web app เป็นตัวช่วยบนคอม (ไม่ใช่เ�
 
 ## 5. `feature/web-app` — แก้แล้ว (เหลือเล็กน้อย)
 
-- Onboarding: footer แบบ fixed ใช้ `max-w-lg` ในหน้า web ที่กว้าง `max-w-7xl` เลยไม่ตรงแนวบนจอคอม
-  `web/dashboard/src/features/dashboard/pages/Onboarding.jsx`
 - วันที่ทั้งระบบเก็บแบบไม่มี timezone และใช้ `datetime.now()` ของเครื่อง server — server ต้องตั้งเป็น
   Asia/Bangkok ไม่งั้นรายการช่วง 00:00–07:00 จะตกไปวัน/เดือนก่อน (ทั้ง LINE, LIFF และเว็บ)
 - login บนเว็บอยู่ได้เฉพาะแท็บเดิม (`sessionStorage`) และไม่เกินอายุ ID token (~1 ชม.) — ตั้งใจตามกฎ

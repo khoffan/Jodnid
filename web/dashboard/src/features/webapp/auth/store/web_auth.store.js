@@ -23,9 +23,6 @@ export const useWebAuthStore = create((set, get) => ({
   userId: null,
   error: null,
   loading: false,
-  onboardingCategories: [],
-  onboardingBudgets: {},
-  onboardingLoading: false,
 
   // บันทึกว่า onboard แล้ว และอัปเดต store ด้วย — ไม่งั้น guard จะพากลับ /setup และหน้า /setup
   // ครั้งถัดไปจะแสดงขั้นเลือกหมวดซ้ำ
@@ -38,43 +35,6 @@ export const useWebAuthStore = create((set, get) => ({
     } catch (error) {
       console.error("Failed to complete onboarding:", error);
       return false;
-    }
-  },
-
-  fetchOnboardingData: async (userId) => {
-    if (!userId) {
-      set({ onboardingCategories: [], onboardingBudgets: {}, onboardingLoading: false });
-      return { categories: [], budgets: {} };
-    }
-
-    set({ onboardingLoading: true });
-
-    try {
-      const [categoryRes, budgetRes] = await Promise.all([
-        api.get("/api/categories/parent"),
-        api.get(`/api/budgets/${userId}`),
-      ]);
-
-      const categories = categoryRes.data || [];
-      const budgets = {};
-
-      if (budgetRes.data?.success && Array.isArray(budgetRes.data.data)) {
-        budgetRes.data.data.forEach((b) => {
-          budgets[b.category_id] = b.amount?.toString() ?? "";
-        });
-      }
-
-      set({
-        onboardingCategories: categories,
-        onboardingBudgets: budgets,
-        onboardingLoading: false,
-      });
-
-      return { categories, budgets };
-    } catch (error) {
-      console.error("Failed to fetch onboarding data:", error);
-      set({ onboardingCategories: [], onboardingBudgets: {}, onboardingLoading: false });
-      return { categories: [], budgets: {} };
     }
   },
 
@@ -107,7 +67,6 @@ export const useWebAuthStore = create((set, get) => ({
         const parsedUserId = extractUserId(parsedUser);
         const onboardingStatusResponse = await api.get("/api/user/onboarding-status");
         const isOnboarded = !!onboardingStatusResponse?.data?.is_onboarded;
-        await get().fetchOnboardingData(parsedUserId);
 
         set({
           isWebApp: true,
@@ -279,7 +238,6 @@ export const useWebAuthStore = create((set, get) => ({
 
       const statusRes = await api.get("/api/user/onboarding-status");
       const isOnboarded = !!statusRes?.data?.is_onboarded;
-      await get().fetchOnboardingData(extractUserId(user));
       set({
         isWebApp: true,
         isAuth: true,

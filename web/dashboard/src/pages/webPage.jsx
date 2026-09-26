@@ -4,7 +4,7 @@ import AuthGuard from "../common/guard/AuthGuard";
 import TransactionListPage from "../features/webapp/transaction/pages/TransactionListPage";
 import AddTransactionPage from "../features/webapp/transaction/pages/AddTransactionPage";
 import LoginCallbackPage from "../features/webapp/auth/pages/LineCallbackPage";
-import Onboarding from "../features/dashboard/pages/Onboarding";
+import { WebOnboarding } from "../features/dashboard/pages/WebOnboarding";
 import WebNavbar from "../common/components/webComponent/WebNavbar";
 import { useWebAuthStore } from "../features/webapp/auth/store/web_auth.store";
 import { useWebTransaction } from "../features/webapp/transaction/store/web.transaction.store";
@@ -27,7 +27,7 @@ export default function WebPage() {
       <Route path="/" element={<AuthGuard />}>
         <Route index element={<TransactionListPage />} />
         <Route path="/add" element={<AddTransactionPage />} />
-        <Route path="/setup" element={<Onboarding userId={userId} />} />
+        <Route path="/setup" element={<WebOnboarding userId={userId} />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

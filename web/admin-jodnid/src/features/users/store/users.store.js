@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import api from "../../../common/lib/api";
+import api, { errorMessage } from "../../../common/lib/api";
 
 const PAGE_SIZE = 50;
 
@@ -41,7 +41,22 @@ const useUsersStore = create((set, get) => ({
       await get().fetchUsers(get().offset);
       return { success: true };
     } catch (err) {
-      return { success: false, error: err.message };
+      return { success: false, error: errorMessage(err, "ไม่สำเร็จ") };
+    }
+  },
+
+  // ซ่อม UserBudget.current_spent เดือนนี้ของผู้ใช้ให้ตรงกับรายการจริง
+  syncBudgets: async (lineUserId) => {
+    try {
+      const response = await api.post("/api/administrator/users/sync-budgets", {
+        line_user_id: lineUserId,
+      });
+      if (!response.data.success) {
+        return { success: false, error: response.data.message ?? "ไม่สำเร็จ" };
+      }
+      return { success: true, updated: response.data.data.updated };
+    } catch (err) {
+      return { success: false, error: errorMessage(err, "ไม่สำเร็จ") };
     }
   },
 

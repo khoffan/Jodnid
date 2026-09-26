@@ -1,53 +1,77 @@
 import { create } from "zustand";
 import { auth } from "../../../common/firebase/firebase_config";
-import {
-  signInWithEmailAndPassword,
-  signOut,
-  createUserWithEmailAndPassword,
-} from "firebase/auth";
-import api from "../../../common/lib/api";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import api, { errorMessage } from "../../../common/lib/api";
+
 const useAuthStore = create((set) => ({
+  // แถว Administrator จาก backend เท่านั้น — มีค่าเมื่อผ่าน /sync แล้ว (ไม่ใช่แค่ login Firebase ได้)
   user: null,
-  isLoading: true,
-  signIn: async (email, password) => {
+  isLoading: true, // กำลังตรวจสถานะตอนเปิดแอป
+  isVerifying: false, // กำลังตรวจสิทธิ์หลังกดเข้าสู่ระบบ
+  authError: "",
+
+  // เรียกทุกครั้งที่สถานะ Firebase เปลี่ยน: ต้องมีแถว Administrator ที่ยังเปิดใช้งานอยู่ถึงเข้าได้
+  // Firebase account ที่สมัครเองได้ (API key อยู่ใน bundle) จึงต้องตรวจกับ backend ทุกครั้ง
+  verifyAdmin: async (firebaseUser) => {
+    if (!firebaseUser) {
+      set({ user: null, isLoading: false, isVerifying: false });
+      return;
+    }
+    let response;
     try {
-      set({ isLoading: true });
-      const result = await signInWithEmailAndPassword(auth, email, password);
-      console.log(result);
-      const idToken = await result.user.getIdToken();
-      sessionStorage.setItem("token", idToken);
-      const res = await api.post("/api/administrator/sync", {
-        uid: result.user.uid,
-        email: result.user.email,
-        name: result.user.displayName,
-        phone: result.user.phoneNumber,
-        profile: result.user.photoURL,
+      response = await api.post("/api/administrator/sync", {
+        name: firebaseUser.displayName,
+        phone: firebaseUser.phoneNumber,
+        profile: firebaseUser.photoURL,
       });
-      const user = res.data.data;
-      console.log(user);
-      set({ user: user, isLoading: false });
-      return { success: true };
     } catch (error) {
-      set({ isLoading: false });
-      return { success: false, error: error };
+      const status = error?.response?.status;
+      set({ user: null, isLoading: false, isVerifying: false });
+      if (status === 401 || status === 403) {
+        // ไม่มีสิทธิ์ (ไม่มีแถว Administrator / ถูกปิดใช้งาน) → ออกจาก Firebase ด้วย
+        set({ authError: errorMessage(error, "บัญชีนี้ไม่มีสิทธิ์เข้าใช้งาน console") });
+        await signOut(auth);
+      } else {
+        // backend ล่ม/timeout ไม่ได้แปลว่าไม่มีสิทธิ์ — ไม่ sign out ให้ลองใหม่ได้
+        set({ authError: errorMessage(error, "เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่อีกครั้ง") });
+      }
+      return;
     }
+
+    // ระหว่างรอ /sync ผู้ใช้อาจกดออกจากระบบหรือเปลี่ยนบัญชีไปแล้ว — ห้ามตั้ง user จากผลที่มาช้า
+    if (auth.currentUser?.uid !== firebaseUser.uid) return;
+
+    if (!response.data?.success) {
+      set({
+        user: null,
+        isLoading: false,
+        isVerifying: false,
+        authError: response.data?.message || "บัญชีนี้ไม่มีสิทธิ์เข้าใช้งาน console",
+      });
+      await signOut(auth);
+      return;
+    }
+    set({ user: response.data.data, isLoading: false, isVerifying: false, authError: "" });
   },
-  signUp: async (name, email, password) => {
+
+  // สำเร็จแล้ว onAuthStateChanged → verifyAdmin จะตัดสินต่อว่าเข้าได้หรือไม่
+  signIn: async (email, password) => {
+    set({ isVerifying: true, authError: "" });
     try {
-      set({ isLoading: true });
-      await createUserWithEmailAndPassword(auth, email, password);
-      set({ isLoading: false });
-    } catch (error) {
-      set({ isLoading: false });
-      throw error;
+      await signInWithEmailAndPassword(auth, email, password);
+      return true;
+    } catch {
+      set({ isVerifying: false, authError: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
+      return false;
     }
   },
+
+  setUser: (user) => set({ user }),
+
   signOut: async () => {
     await signOut(auth);
-    set({ user: null, isLoading: false });
+    set({ user: null, isLoading: false, authError: "" });
   },
 }));
-
-// Listen for auth state changes
 
 export default useAuthStore;

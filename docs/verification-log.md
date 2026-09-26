@@ -12,6 +12,37 @@
 
 ---
 
+## 2026-09-26 19:29 (+07) — `feature/admin-fixes` (backlog ก้อนที่ 4)
+
+- **เข้า console:** Firebase login อย่างเดียวไม่พอแล้ว ต้องผ่าน `/sync` (มีแถว `Administrator` ที่เปิดใช้งาน)
+  ไม่ผ่าน = sign out + แสดง `detail` จาก backend; ข้อความ error ตอน login ขึ้นจริง; คนที่ login แล้วเข้า
+  `/login` ถูกพาไปหน้าแรก
+- **token:** ขอจาก `auth.currentUser.getIdToken()` ทุก request (Firebase refresh ให้เอง) เลิกเก็บใน
+  `sessionStorage`; Firebase persistence เป็น session; ลบ `console.log` ที่พิมพ์ credential และ `signUp`
+- **backend:** audit log เขียนหลังทำงานเสร็จพร้อม `success`, `/sync` ไม่รับ email จาก body (actor ปลอมไม่ได้),
+  401 ไม่แนบข้อความ exception, config ตรวจค่าตาม `value_type` + แก้เป็นค่าว่างได้, Firebase init
+  ล้มแล้ว raise `RuntimeError` แทน `HTTPException` ตอน import
+- **หน้า config:** store เช็ค `{success:false}`, ช่องแก้ชื่อพิมพ์ได้, modal ปิดเมื่อบันทึกสำเร็จเท่านั้น,
+  ฟอร์มสร้างไม่มีช่องซ้อน / boolean ส่ง `"true"` / ล้างฟอร์มเมื่อปิด
+- **ผู้ใช้/หมวด/โปรไฟล์:** error จาก backend แสดงทุก store, ปุ่ม "ซ่อมยอดงบ" + กันกดซ้ำ,
+  โปรไฟล์บันทึกชื่อ/เบอร์ลง `Administrator`
+
+### ชุดตรวจอัตโนมัติ
+
+- `python scripts/verify_pipeline.py` → **42/42** (เพิ่ม 6 หัวข้อ: audit หลังทำงาน + success,
+  ตรวจชนิดค่า config, สร้าง/แก้ config ผิดชนิดถูกปฏิเสธ + ค่าว่างได้, `/sync` ไม่แก้อีเมล,
+  401 ไม่แนบ exception, import ตัวพิมพ์ตรงชื่อไฟล์) — 5 หัวข้อแรก FAIL ก่อนแก้ตามคาด
+  - หัวข้อ import: ลองเปลี่ยนกลับเป็น `./common/guard/authGuard` → FAIL ชี้ไฟล์ถูกตัว
+- `npm run lint` / `npm run build` ของ admin console และ dashboard ผ่าน
+
+### ยังไม่ได้ตรวจ
+
+- login ด้วย Firebase จริง: บัญชีที่ไม่ใช่ admin ต้องเห็นข้อความและเข้าไม่ได้ (manual test A-1, A-6),
+  ใช้ console ต่อเนื่องเกิน 1 ชม. ต้องไม่เจอ 401, สร้าง/แก้ config ผ่านหน้าเว็บ (A-4)
+- **หลัง deploy admin ที่ login ค้างอยู่จะต้อง login ใหม่หนึ่งครั้ง** (เปลี่ยน persistence เป็น session)
+
+---
+
 ## 2026-09-26 19:18 (+07) — `feature/liff-fixes` (backlog ก้อนที่ 3)
 
 - `sync_user_budgets` รวมยอดหมวดลูกขึ้นแม่ + reset หมวดที่ไม่มีรายจ่ายเป็น 0 และเลิกถูกเรียกจากหน้า

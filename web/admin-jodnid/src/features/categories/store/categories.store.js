@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import api from "../../../common/lib/api";
+import api, { errorMessage } from "../../../common/lib/api";
 
 const useCategoriesStore = create((set, get) => ({
   categories: [],
@@ -25,7 +25,7 @@ const useCategoriesStore = create((set, get) => ({
       await get().fetchCategories();
       return { success: true };
     } catch (err) {
-      return { success: false, error: err.message };
+      return { success: false, error: errorMessage(err, "ไม่สำเร็จ") };
     }
   },
 
@@ -38,7 +38,7 @@ const useCategoriesStore = create((set, get) => ({
       await get().fetchCategories();
       return { success: true };
     } catch (err) {
-      return { success: false, error: err.message };
+      return { success: false, error: errorMessage(err, "ไม่สำเร็จ") };
     }
   },
 
@@ -51,7 +51,7 @@ const useCategoriesStore = create((set, get) => ({
       await get().fetchCategories();
       return { success: true };
     } catch (err) {
-      return { success: false, error: err.message };
+      return { success: false, error: errorMessage(err, "ไม่สำเร็จ") };
     }
   },
 }));

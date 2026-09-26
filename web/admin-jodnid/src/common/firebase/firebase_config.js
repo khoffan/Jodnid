@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { browserSessionPersistence, initializeAuth } from "firebase/auth";
 import { config } from "../config/config";
 
 const firebaseConfig = {
@@ -14,5 +14,6 @@ const firebaseConfig = {
 
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+// เก็บสถานะ login แค่ใน session ของแท็บ (ค่าเริ่มต้นของ getAuth คือ IndexedDB ที่อยู่ข้ามการปิดเบราว์เซอร์)
+export const auth = initializeAuth(app, { persistence: browserSessionPersistence });
 

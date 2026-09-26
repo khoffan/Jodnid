@@ -23,8 +23,8 @@ export const SystemConfiguration = () => {
     setConfigModalOpen(true);
   };
 
+  // คืนผลให้ modal — ปิด modal เฉพาะเมื่อบันทึกสำเร็จ ค่าที่แก้จะได้ไม่หายเมื่อ backend ปฏิเสธ
   const handleSave = async (updatedData) => {
-    setConfigModalOpen(false);
     const result = await updateConfig(updatedData.key, {
       name: updatedData.name,
       value: updatedData.value,
@@ -35,6 +35,7 @@ export const SystemConfiguration = () => {
     if (!result.success) {
       alert("ไม่สามารถบันทึกการแก้ไขได้: " + result.error);
     }
+    return result;
   };
 
   const handleToggleConfig = async (key, newValue) => {

@@ -1074,6 +1074,170 @@ def _():
     return f"ตรวจ {len(paths)} path กับ {len(patterns)} route"
 
 
+
+# ---------------------------------------------------------------------------
+# admin console: audit log ต้องสะท้อนผลจริง, config ต้องตรวจชนิดค่า
+# ---------------------------------------------------------------------------
+
+
+class _AuditAdmin:
+    uid = "uid-1"
+    email = "admin@example.com"
+    role = "admin"
+
+
+def _admin_route(path_suffix: str, method: str):
+    return next(r for r in _admin_routes() if r.path.endswith(path_suffix) and method in r.methods)
+
+
+@check("audit log ของ admin ถูกเขียนหลังทำงานเสร็จ และบอกผลสำเร็จ/ล้มเหลว")
+def _():
+    import routes.api_administrator_v1 as admin_routes
+
+    order: list[str] = []
+    audits: list[dict] = []
+
+    def fake_audit(_logger, _user, action, detail=None):
+        order.append("audit")
+        audits.append({"action": action, **(detail or {})})
+
+    cases = [
+        ("/config/update", "PATCH", "update_system_config",
+         dict(data={"key": "k", "value": "v"}, db=_FakeSession(), user=_AuditAdmin())),
+        ("/categories/{category_id}", "DELETE", "delete_global_category",
+         dict(category_id=1, db=_FakeSession(), user=_AuditAdmin())),
+    ]
+    with patch.object(admin_routes, "audit_log", fake_audit),          patch.object(admin_routes.Utilities, "clear_config_cache"):
+        for suffix, method, db_fn, kwargs in cases:
+            order.clear()
+            target = admin_routes.DBManagerAdmin if "config" in suffix                 else admin_routes.DBManagerCategories
+            with patch.object(target, db_fn, side_effect=lambda *a, **k: order.append("write")
+                              or {"success": False, "message": "x"}):
+                _admin_route(suffix, method).endpoint(**kwargs)
+            assert order[:2] == ["write", "audit"], f"{suffix}: ลำดับผิด {order}"
+
+    assert all(a.get("success") is False for a in audits), f"ไม่บันทึกว่าล้มเหลว: {audits}"
+    return "write → audit และบันทึก success=False เมื่อทำไม่สำเร็จ"
+
+
+@check("ค่า config ถูกตรวจตามชนิด (boolean/int/json)")
+def _():
+    from model.db.admin import validate_config_value
+
+    ok = [("true", "boolean"), ("False", "boolean"), ("12", "int"), ('{"a": 1}', "json"),
+          ("", "string"), ("อะไรก็ได้", "string")]
+    bad = [("yes", "boolean"), ("1.5", "int"), ("abc", "int"), ("{bad", "json"), ("x", "float")]
+    wrong_ok = [c for c in ok if validate_config_value(*c) is not None]
+    wrong_bad = [c for c in bad if validate_config_value(*c) is None]
+    assert not wrong_ok and not wrong_bad, f"ปฏิเสธผิด {wrong_ok} / ปล่อยผ่านผิด {wrong_bad}"
+    return f"ผ่าน {len(ok)} / ปฏิเสธ {len(bad)}"
+
+
+@check("สร้าง/แก้ config ที่ค่าไม่ตรงชนิดถูกปฏิเสธ และแก้เป็นค่าว่างได้")
+def _():
+    from model.db import DBManagerAdmin
+
+    with _sqlite_session() as s:
+        created = DBManagerAdmin.create_system_config(s, "เปิด OCR", "is_ocr", "maybe", "boolean", None)
+        assert created["success"] is False, f"สร้าง boolean='maybe' ได้: {created}"
+        created = DBManagerAdmin.create_system_config(s, "ข้อความ", "msg", "สวัสดี", "string", None)
+        assert created["success"], created
+        updated = DBManagerAdmin.update_system_config(s, "msg", "", None, None)
+        assert updated["success"], f"แก้เป็นค่าว่างไม่ได้: {updated}"
+        DBManagerAdmin.create_system_config(s, "จำนวน", "limit", "5", "int", None)
+        updated = DBManagerAdmin.update_system_config(s, "limit", "ห้า", None, None)
+        assert updated["success"] is False, f"แก้ int เป็น 'ห้า' ได้: {updated}"
+
+    import routes.api_administrator_v1 as admin_routes
+
+    called = []
+    with patch.object(admin_routes, "audit_log"),          patch.object(admin_routes.Utilities, "clear_config_cache"),          patch.object(admin_routes.DBManagerAdmin, "update_system_config",
+                      side_effect=lambda *a, **k: called.append(a) or {"success": True}):
+        _admin_route("/config/update", "PATCH").endpoint(
+            data={"key": "msg", "value": ""}, db=_FakeSession(), user=_AuditAdmin()
+        )
+    assert called, "route ปฏิเสธค่าว่างก่อนถึง DB"
+    return "boolean 'maybe' / int 'ห้า' ถูกปฏิเสธ, string ว่างได้"
+
+
+@check("/sync ไม่เปลี่ยนอีเมล (actor ของ audit) ตามที่ client ส่งมา")
+def _():
+    import asyncio as _asyncio
+
+    import routes.api_administrator_v1 as admin_routes
+
+    captured = {}
+    with patch.object(admin_routes.DBManagerAdmin, "sync_administrator_profile",
+                      side_effect=lambda *a, **k: captured.update(k) or {"success": True}):
+        _asyncio.run(_admin_route("/sync", "POST").endpoint(
+            data={"email": "someone-else@example.com", "name": "ชื่อ"},
+            db=_FakeSession(), user=_AuditAdmin(),
+        ))
+    assert captured.get("email") in (None, _AuditAdmin.email), f"อีเมลถูกเปลี่ยนเป็น {captured}"
+    assert captured.get("name") == "ชื่อ", captured
+    return "อีเมลไม่ถูกแก้, ชื่อยังอัปเดตได้"
+
+
+@check("token ของ admin ที่ไม่ถูกต้องไม่ส่งข้อความ exception ภายในออกไป")
+def _():
+    import asyncio as _asyncio
+
+    from fastapi import HTTPException
+
+    import middleware.auth as auth_module
+
+    class _Credentials:
+        credentials = "fake-token"
+
+    with patch.object(auth_module.auth, "verify_id_token",
+                      side_effect=ValueError("internal-secret-detail")):
+        try:
+            _asyncio.run(auth_module.get_current_user(_Credentials()))
+            raise AssertionError("ต้องปฏิเสธ")
+        except HTTPException as e:
+            assert e.status_code == 401, e.status_code
+            assert "internal-secret-detail" not in str(e.detail), e.detail
+    return "ตอบ 401 โดยไม่แนบรายละเอียดภายใน"
+
+
+@check("import ของเว็บทุกตัวสะกดตัวพิมพ์ตรงกับชื่อไฟล์จริง (build บน Linux/Vercel)")
+def _():
+    import re
+
+    root = Path(__file__).resolve().parent.parent / "web"
+    pattern = re.compile(r"""(?:from|import)\s+["'](\.{1,2}/[^"']+)["']""")
+    exts = ("", ".js", ".jsx", ".ts", ".tsx", "/index.js", "/index.jsx", "/index.ts", "/index.tsx")
+    checked, broken = 0, []
+    for src in root.glob("*/src/**/*"):
+        if src.suffix not in (".js", ".jsx", ".ts", ".tsx") or "node_modules" in src.parts:
+            continue
+        for spec in pattern.findall(src.read_text("utf-8", errors="ignore")):
+            checked += 1
+            ok = False
+            for ext in exts:
+                target = (src.parent / (spec + ext)).resolve()
+                if not target.is_file():
+                    continue
+                # เทียบชื่อจริงบนดิสก์ทีละชั้น (Windows หาไฟล์เจอแม้ตัวพิมพ์ไม่ตรง แต่ Linux ไม่เจอ)
+                rel = Path(spec + ext)
+                cur = src.parent
+                ok = True
+                for part in rel.parts:
+                    if part in (".", ".."):
+                        cur = cur.parent if part == ".." else cur
+                        continue
+                    if part not in {c.name for c in cur.iterdir()}:
+                        ok = False
+                        break
+                    cur = cur / part
+                if ok:
+                    break
+            if not ok:
+                broken.append(f"{src.relative_to(root)}: {spec}")
+    assert not broken, f"import ที่ตัวพิมพ์ไม่ตรง/หาไม่เจอ: {broken[:5]}"
+    return f"ตรวจ {checked} import"
+
+
 def main() -> int:
     passed = sum(1 for _n, ok, _d in RESULTS if ok)
     width = max(len(name) for name, _ok, _d in RESULTS)

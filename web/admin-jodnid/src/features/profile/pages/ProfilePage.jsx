@@ -2,16 +2,18 @@ import { useState } from "react";
 import { updatePassword, updateProfile } from "firebase/auth";
 import { auth } from "../../../common/firebase/firebase_config"; // ปรับ path ตามไฟล์ firebase config ของคุณ
 import useAuthStore from "../../authentication/store/auth.store";
+import api, { errorMessage } from "../../../common/lib/api";
 import { User, Lock, Phone, Edit3, Save, X } from "lucide-react";
 
 export default function ProfilePage() {
-  const { user } = useAuthStore();
+  // user คือแถว Administrator จาก backend (name / phone / email)
+  const { user, setUser } = useAuthStore();
 
   // State สำหรับโหมดและข้อมูล
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    fullName: user?.displayName || "",
-    phone: user?.phoneNumber || "",
+    fullName: user?.name || "",
+    phone: user?.phone || "",
     newPassword: "",
     confirmPassword: "",
   });
@@ -25,16 +27,23 @@ export default function ProfilePage() {
     setStatus({ type: "", msg: "" });
 
     try {
-      // 1. อัปเดตข้อมูลพื้นฐาน (Firebase Auth เก็บ displayName ได้)
+      if (formData.newPassword && formData.newPassword !== formData.confirmPassword) {
+        throw new Error("รหัสผ่านไม่ตรงกัน");
+      }
+
+      // 1. อัปเดตข้อมูลพื้นฐานทั้งใน Firebase และแถว Administrator (เดิมเบอร์โทรไม่ถูกบันทึกที่ไหนเลย)
       await updateProfile(auth.currentUser, {
         displayName: formData.fullName,
       });
+      const response = await api.post("/api/administrator/sync", {
+        name: formData.fullName,
+        phone: formData.phone,
+      });
+      if (!response.data?.success) throw new Error(response.data?.message || "บันทึกไม่สำเร็จ");
+      setUser(response.data.data);
 
       // 2. อัปเดตรหัสผ่าน (ถ้ามีการกรอก)
       if (formData.newPassword) {
-        if (formData.newPassword !== formData.confirmPassword) {
-          throw new Error("รหัสผ่านไม่ตรงกัน");
-        }
         await updatePassword(auth.currentUser, formData.newPassword);
       }
 
@@ -46,7 +55,7 @@ export default function ProfilePage() {
         confirmPassword: "",
       }));
     } catch (error) {
-      setStatus({ type: "error", msg: error.message });
+      setStatus({ type: "error", msg: errorMessage(error, error.message || "บันทึกไม่สำเร็จ") });
     } finally {
       setLoading(false);
     }

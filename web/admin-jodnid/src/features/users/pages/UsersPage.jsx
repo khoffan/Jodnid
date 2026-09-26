@@ -18,10 +18,13 @@ export const UsersPage = () => {
     fetchUsers,
     setSearch,
     toggleBypassMode,
+    syncBudgets,
     nextPage,
     prevPage,
   } = useUsersStore();
   const [searchDraft, setSearchDraft] = useState("");
+  // user ที่กำลังมี request ค้างอยู่ — กันกดซ้ำระหว่างรอผล
+  const [busyId, setBusyId] = useState(null);
 
   useEffect(() => {
     fetchUsers(0);
@@ -33,10 +36,23 @@ export const UsersPage = () => {
     if (!confirm(`ยืนยัน${label}โหมดบันทึกด่วนให้ "${user.display_name ?? user.line_user_id}"?`)) {
       return;
     }
+    setBusyId(user.line_user_id);
     const result = await toggleBypassMode(user.line_user_id, next);
+    setBusyId(null);
     if (!result.success) {
       alert("ไม่สามารถอัปเดตได้: " + result.error);
     }
+  };
+
+  const handleSyncBudgets = async (user) => {
+    setBusyId(user.line_user_id);
+    const result = await syncBudgets(user.line_user_id);
+    setBusyId(null);
+    alert(
+      result.success
+        ? `ซ่อมยอดงบเดือนนี้แล้ว (แก้ ${result.updated} หมวด)`
+        : "ซ่อมยอดงบไม่สำเร็จ: " + result.error,
+    );
   };
 
   const from = total === 0 ? 0 : offset + 1;
@@ -89,12 +105,13 @@ export const UsersPage = () => {
                 <th className="text-left px-4 py-3 font-medium">สถานะ</th>
                 <th className="text-left px-4 py-3 font-medium">สมัครเมื่อ</th>
                 <th className="text-left px-4 py-3 font-medium">โหมดบันทึกด่วน</th>
+                <th className="text-left px-4 py-3 font-medium">ยอดงบ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {isLoading && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
                     กำลังโหลด...
                   </td>
                 </tr>
@@ -102,7 +119,7 @@ export const UsersPage = () => {
 
               {!isLoading && users.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
                     ไม่พบผู้ใช้ตามเงื่อนไขที่ค้นหา
                   </td>
                 </tr>
@@ -149,7 +166,8 @@ export const UsersPage = () => {
                     <td className="px-4 py-3">
                       <button
                         onClick={() => handleToggle(user)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        disabled={busyId === user.line_user_id}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${
                           user.use_bypass_mode ? "bg-blue-600" : "bg-gray-200"
                         }`}
                         aria-checked={user.use_bypass_mode}
@@ -160,6 +178,15 @@ export const UsersPage = () => {
                             user.use_bypass_mode ? "translate-x-6" : "translate-x-1"
                           }`}
                         />
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => handleSyncBudgets(user)}
+                        disabled={busyId === user.line_user_id}
+                        className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        ซ่อมยอดงบ
                       </button>
                     </td>
                   </tr>

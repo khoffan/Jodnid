@@ -17,12 +17,8 @@ if not firebase_admin._apps:
         cred = credentials.Certificate(firebase_key_json)
         firebase_admin.initialize_app(cred)
     except Exception as e:
-        print(f"Error initializing Firebase: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error initializing Firebase",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        # ตั้งค่า Firebase ไม่ได้ = ตรวจ token ของ admin ไม่ได้ทั้งระบบ ให้แอปล้มตั้งแต่ startup ดีกว่า
+        raise RuntimeError("Error initializing Firebase: invalid FIREBASE_ACCOUNT_KEY") from e
 
 # ใช้ HTTPBearer เพื่อดักจับ Header "Authorization: Bearer <token>"
 security = HTTPBearer()
@@ -46,7 +42,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
             if not userAdmin:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="User not found",
+                    detail="บัญชีนี้ไม่มีสิทธิ์เข้าใช้งาน console",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
 
@@ -54,7 +50,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
             if not userAdmin.is_active:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Administrator account is disabled",
+                    detail="บัญชีผู้ดูแลนี้ถูกปิดใช้งาน",
                 )
 
             return userAdmin
@@ -62,17 +58,18 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
     except auth.ExpiredIdTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
+            detail="เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่",
             headers={"WWW-Authenticate": "Bearer"},
         )
     except HTTPException:
         # ต้องดักก่อน `except Exception` ไม่งั้นผลการตรวจสิทธิ์ด้านบนจะถูกกลืน
-        # แล้วกลายเป็น 401 "Invalid authentication credentials" ทุกกรณี
+        # แล้วกลายเป็น 401 "ยืนยันตัวตนไม่สำเร็จ" ทุกกรณี
         raise
-    except Exception as e:
+    except Exception:
+        # ไม่แนบข้อความ exception — อาจมีรายละเอียดภายในของ Firebase/ระบบ
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid authentication credentials: {str(e)}",
+            detail="ยืนยันตัวตนไม่สำเร็จ กรุณาเข้าสู่ระบบใหม่",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

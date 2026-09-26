@@ -1,5 +1,6 @@
 """ข้อมูลสำหรับ Admin console และ System configuration"""
 
+import json
 from datetime import datetime
 
 import requests
@@ -7,6 +8,32 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, desc, select
 
 from model.models import Administrator, SystemConfiguration
+
+
+CONFIG_VALUE_TYPES = ("string", "boolean", "int", "json")
+
+
+def validate_config_value(value: str | None, value_type: str) -> str | None:
+    """ตรวจว่าค่า config แปลงตาม `value_type` ได้จริง (กติกาเดียวกับ `Utilities.get_config_value`)
+
+    คืนข้อความ error ภาษาไทย หรือ None ถ้าถูกต้อง — ค่าที่ผิดชนิดเคยทำให้ webhook พังตอนอ่าน config
+    """
+    if value_type not in CONFIG_VALUE_TYPES:
+        return f"ไม่รู้จักชนิด '{value_type}' (ใช้ได้: {', '.join(CONFIG_VALUE_TYPES)})"
+    text = "" if value is None else str(value)
+    if value_type == "boolean" and text.lower() not in ("true", "false"):
+        return "ค่าชนิด boolean ต้องเป็น true หรือ false"
+    if value_type == "int":
+        try:
+            int(text)
+        except ValueError:
+            return "ค่าชนิด int ต้องเป็นจำนวนเต็ม"
+    if value_type == "json":
+        try:
+            json.loads(text)
+        except json.JSONDecodeError:
+            return "ค่าชนิด json ไม่ถูกต้อง"
+    return None
 
 
 class DBManagerAdmin:
@@ -50,6 +77,10 @@ class DBManagerAdmin:
     def create_system_config(
         session: Session, name: str, key: str, value: str, value_type: str, description: str
     ):
+        error = validate_config_value(value, value_type)
+        if error:
+            return {"success": False, "message": error}
+
         system_configuration = SystemConfiguration(
             name=name, key=key, value=value, value_type=value_type, description=description
         )
@@ -132,6 +163,12 @@ class DBManagerAdmin:
 
         if not system_configuration:
             return {"success": False, "message": "System configuration not found"}
+
+        # ตรวจเมื่อค่าหรือชนิดเปลี่ยนเท่านั้น — แถวเก่าที่ค่าผิดชนิดอยู่แล้วยังแก้ชื่อ/คำอธิบายได้
+        if value != system_configuration.value or value_type:
+            error = validate_config_value(value, value_type or system_configuration.value_type)
+            if error:
+                return {"success": False, "message": error}
 
         # 2. อัปเดตค่า (ตรวจสอบก่อนว่ามีการส่งค่าใหม่มาไหม)
         system_configuration.value = value

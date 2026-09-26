@@ -106,7 +106,8 @@ npm run build && npm run lint
 - **Route ของ admin** → ต้องมี dependency ตรวจสิทธิ์ **ทุกตัวไม่มีข้อยกเว้น**
   - อ่านอย่างเดียว → `Depends(get_current_user)`
   - เขียนข้อมูล (POST/PATCH/DELETE) → `Depends(require_role(ROLE_ADMIN))` และเรียก
-    `audit_log(logger, user, "<action>", {...})` แทน `logger.info` ธรรมดา
+    `audit_log(logger, user, "<action>", {...})` แทน `logger.info` ธรรมดา — เรียก **หลัง** ทำงานเสร็จ
+    และใส่ `"success": _succeeded(result)` เพื่อไม่ให้บันทึกการกระทำที่ไม่ได้เกิดขึ้นจริง
   - `scripts/verify_pipeline.py` มีหัวข้อตรวจสองข้อนี้อยู่ ถ้าลืมจะ FAIL ทันที
 - **ห้ามให้ endpoint ไหนสร้างแถว `Administrator`** — การเพิ่ม admin ทำผ่าน
   `python scripts/seed_admin.py` เท่านั้น (เคยมีช่องโหว่ให้ใครก็ได้ยกระดับตัวเองเป็น admin)
@@ -189,7 +190,8 @@ npm run build && npm run lint
   (`path` / `liff.state` / `liffClientId`) — เมื่อสาย web พร้อมจะเลิกบังคับ `?webapp=true`
 - LIFF deep link ใช้ `?path=/route` ซึ่ง `initApp` อ่านแล้วส่งต่อให้ `navigate()` หลัง login
 - Auth คนละชุดกัน: dashboard ใช้ LINE ID token (`sessionStorage["id_token"]`),
-  admin ใช้ Firebase ID token (`sessionStorage["token"]`)
+  admin ใช้ Firebase ID token ที่ขอจาก `auth.currentUser.getIdToken()` ทุก request (ไม่เก็บเอง — Firebase
+  refresh ให้) และนับว่า login แล้วเมื่อ `/api/administrator/sync` ผ่านเท่านั้น (`verifyAdmin` ใน auth.store)
 
 ### ✅ ทำ
 

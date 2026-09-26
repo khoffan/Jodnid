@@ -12,7 +12,7 @@
 
 ---
 
-## 2026-09-26 20:05 (+07) — ลบ @heroui/framer-motion + แยกหน้า Onboarding ของ LIFF / web
+## 2026-09-26 20:39 (+07) — ลบ @heroui/framer-motion + แยกหน้า Onboarding ของ LIFF / web
 
 - admin console: `npm uninstall @heroui/react @heroui/styles framer-motion` (ไม่มีไฟล์ไหน import) — build ผ่าน
 - Onboarding: logic ย้ายไป `features/dashboard/hooks/useOnboarding.js` ที่เดียว หน้าจอแยกเป็น

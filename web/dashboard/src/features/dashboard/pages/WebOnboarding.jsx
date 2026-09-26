@@ -45,6 +45,8 @@ const CategoryPanel = ({ onboarding }) => {
             <button
               key={icon}
               type="button"
+              aria-label={`เลือกไอคอน ${icon}`}
+              aria-pressed={newCategory.icon === icon}
               onClick={() => setNewCategory((c) => ({ ...c, icon }))}
               className={`aspect-square rounded-lg text-lg flex items-center justify-center transition ${
                 newCategory.icon === icon
@@ -58,12 +60,14 @@ const CategoryPanel = ({ onboarding }) => {
         </div>
         <input
           className={input}
+          aria-label="ชื่อหมวดหมู่ใหม่"
           value={newCategory.name}
           onChange={(e) => setNewCategory((c) => ({ ...c, name: e.target.value }))}
           placeholder="ชื่อหมวดหมู่ เช่น ค่าเช่า"
         />
         <select
           className={input}
+          aria-label="หมวดแม่ของหมวดใหม่"
           value={newCategory.parentId ?? ""}
           onChange={(e) =>
             setNewCategory((c) => ({
@@ -127,6 +131,7 @@ const BudgetPanel = ({ onboarding }) => {
                 <input
                   type="number"
                   min="0"
+                  aria-label={`งบของ ${cat.name} (บาท)`}
                   inputMode="decimal"
                   value={budgets[cat.id] ?? ""}
                   onChange={(e) => setBudget(cat.id, e.target.value)}
@@ -150,7 +155,7 @@ const SummaryPanel = ({ onboarding }) => {
   const total = entries.reduce((sum, [, value]) => sum + parseFloat(value), 0);
 
   return (
-    <aside className="lg:sticky lg:top-24 space-y-4">
+    <aside className="space-y-4">
       <div className="bg-linear-to-br from-[#06C755] to-[#05b348] p-6 rounded-2xl text-white shadow-xl shadow-green-100/30">
         <p className="text-xs uppercase tracking-wider opacity-80 font-semibold mb-1">
           งบรวมต่อเดือน
@@ -214,13 +219,15 @@ export const WebOnboarding = ({ userId }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-4">
+        {/* จอแคบเรียง งบ → สรุป+ปุ่มบันทึก → หมวด เพื่อให้ปุ่มบันทึกไม่ไปอยู่ท้ายฟอร์มเพิ่มหมวด */}
+        <div className="order-3 lg:order-none lg:col-span-4">
           <CategoryPanel onboarding={onboarding} />
         </div>
-        <div className="lg:col-span-5">
+        <div className="order-1 lg:order-none lg:col-span-5">
           <BudgetPanel onboarding={onboarding} />
         </div>
-        <div className="lg:col-span-3">
+        {/* sticky ต้องอยู่ที่ grid item เอง (items-start ทำให้ความสูงเท่าเนื้อหา) — top-24 พ้น navbar h-16 */}
+        <div className="order-2 lg:order-none lg:col-span-3 lg:sticky lg:top-24">
           <SummaryPanel onboarding={onboarding} />
         </div>
       </div>

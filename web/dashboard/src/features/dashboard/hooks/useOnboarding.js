@@ -176,7 +176,8 @@ export const useOnboarding = (userId) => {
     setupBudgetOnly,
     categories,
     budgets,
-    loading,
+    // ยังไม่รู้ userId = ยังไม่เริ่มโหลด ไม่ใช่กำลังโหลด (กัน skeleton หมุนค้างถ้า userId ไม่มาเลย)
+    loading: userId ? loading : false,
     setBudget,
     hasBudget,
     newCategory,

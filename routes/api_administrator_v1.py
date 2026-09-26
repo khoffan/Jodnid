@@ -31,6 +31,11 @@ def audit_log(logger: JodNidLogger, user: Administrator, action: str, detail: di
     )
 
 
+def _succeeded(result) -> bool:
+    """ผลจาก DBManager ที่คืน `{"success": False, ...}` = ทำไม่สำเร็จ — ใช้บันทึกใน audit log"""
+    return not (isinstance(result, dict) and result.get("success") is False)
+
+
 class AdministratorAPIs:
     def __init__(self, logger: JodNidLogger, line_access_token: str):
         self.logger = logger
@@ -117,13 +122,14 @@ class AdministratorAPIs:
                 return {"success": False, "message": "Missing line_user_id"}
 
             enabled = bool(data.get("enabled"))
+            result = DBManagerUsers.set_user_bypass_mode(db, line_user_id, enabled)
             audit_log(
                 logger,
                 user,
                 "set_user_bypass_mode",
-                {"line_user_id": line_user_id, "enabled": enabled},
+                {"line_user_id": line_user_id, "enabled": enabled, "success": _succeeded(result)},
             )
-            return DBManagerUsers.set_user_bypass_mode(db, line_user_id, enabled)
+            return result
 
         @router.post("/users/sync-budgets")
         def sync_user_budgets(
@@ -142,7 +148,7 @@ class AdministratorAPIs:
                 logger,
                 user,
                 "sync_user_budgets",
-                {"line_user_id": line_user_id, "updated": result["updated"]},
+                {"line_user_id": line_user_id, "updated": result["updated"], "success": True},
             )
             return {"success": True, "data": result}
 
@@ -159,13 +165,19 @@ class AdministratorAPIs:
             db: Session = Depends(get_session),
             user: Administrator = Depends(require_role(ROLE_ADMIN)),
         ):
-            audit_log(logger, user, "create_global_category", {"name": data.get("name")})
-            return DBManagerCategories.create_global_category(
+            result = DBManagerCategories.create_global_category(
                 db,
                 name=data.get("name"),
                 icon=data.get("icon"),
                 parent_id=data.get("parent_id"),
             )
+            audit_log(
+                logger,
+                user,
+                "create_global_category",
+                {"name": data.get("name"), "success": _succeeded(result)},
+            )
+            return result
 
         @router.patch("/categories/{category_id}")
         def update_global_category(
@@ -174,15 +186,20 @@ class AdministratorAPIs:
             db: Session = Depends(get_session),
             user: Administrator = Depends(require_role(ROLE_ADMIN)),
         ):
+            result = DBManagerCategories.update_global_category(
+                db, category_id, name=data.get("name"), icon=data.get("icon")
+            )
             audit_log(
                 logger,
                 user,
                 "update_global_category",
-                {"category_id": category_id, "name": data.get("name")},
+                {
+                    "category_id": category_id,
+                    "name": data.get("name"),
+                    "success": _succeeded(result),
+                },
             )
-            return DBManagerCategories.update_global_category(
-                db, category_id, name=data.get("name"), icon=data.get("icon")
-            )
+            return result
 
         @router.delete("/categories/{category_id}")
         def delete_global_category(
@@ -190,8 +207,14 @@ class AdministratorAPIs:
             db: Session = Depends(get_session),
             user: Administrator = Depends(require_role(ROLE_ADMIN)),
         ):
-            audit_log(logger, user, "delete_global_category", {"category_id": category_id})
-            return DBManagerCategories.delete_global_category(db, category_id)
+            result = DBManagerCategories.delete_global_category(db, category_id)
+            audit_log(
+                logger,
+                user,
+                "delete_global_category",
+                {"category_id": category_id, "success": _succeeded(result)},
+            )
+            return result
 
         @router.post("/config/refresh-cache")
         def refresh_config_cache(user: Administrator = Depends(require_role(ROLE_ADMIN))):
@@ -218,10 +241,11 @@ class AdministratorAPIs:
             ยึด uid จาก token ที่ verify แล้วเท่านั้น ไม่เชื่อค่าใน body เพราะเป็น endpoint
             ที่ตัดสินสิทธิ์ และตัว `sync_administrator_profile` จะไม่สร้าง admin ใหม่ให้
             """
+            # ไม่รับ email จาก body — email คือ actor ใน audit log ถ้าแก้เองได้ก็ปลอมตัวในบันทึกได้
+            # (email ถูกตั้งตอน seed_admin.py)
             result = DBManagerAdmin.sync_administrator_profile(
                 db,
                 uid=user.uid,
-                email=data.get("email"),
                 name=data.get("name"),
                 phone=data.get("phone"),
                 profile=data.get("profile"),
@@ -244,25 +268,35 @@ class AdministratorAPIs:
             value = data.get("value")
             value_type = data.get("value_type")
             description = data.get("description")
-            if not name or not key or not value or not value_type:
+            if not name or not key or value is None or not value_type:
                 return {"success": False, "message": "Missing name or key or value or value_type"}
 
+            result = DBManagerAdmin.create_system_config(
+                db, name, key, value, value_type, description
+            )
+            Utilities.clear_config_cache()
             audit_log(
                 logger,
                 user,
                 "create_system_config",
-                {"key": key, "name": name, "value": value, "value_type": value_type},
+                {
+                    "key": key,
+                    "name": name,
+                    "value": value,
+                    "value_type": value_type,
+                    "success": _succeeded(result),
+                },
             )
-            return DBManagerAdmin.create_system_config(
-                db, name, key, value, value_type, description
-            )
+            return result
 
         @router.get("/all")
         def get_all_system_configuration(
             db: Session = Depends(get_session), user: Administrator = Depends(get_current_user)
         ):
             logger.info(
-                module="app", message="Fetching all system configurations", user_id=user.uid
+                module="administrator",
+                message="Fetching all system configurations",
+                user_id=user.uid,
             )
             return DBManagerAdmin.get_system_config_data(db)
 
@@ -276,19 +310,25 @@ class AdministratorAPIs:
             value = data.get("value")
             value_type = data.get("value_type")
             description = data.get("description")
-            if not key or not value:
+            # ค่าว่าง ("") เป็นค่าที่ถูกต้องของ config ชนิด string — ตรวจแค่ว่าส่งมาหรือไม่
+            if not key or value is None:
                 return {"success": False, "message": "Missing key or value"}
-            audit_log(
-                logger,
-                user,
-                "update_system_config",
-                {"key": key, "value": value, "value_type": value_type},
-            )
             result = DBManagerAdmin.update_system_config(
                 db, key, value, value_type, description, name=data.get("name")
             )
             # ต้องล้าง cache "หลัง" เขียน DB เสร็จ ไม่งั้นมีช่วงที่ค่าเก่าถูกอ่านกลับเข้า cache
             Utilities.clear_config_cache()
+            audit_log(
+                logger,
+                user,
+                "update_system_config",
+                {
+                    "key": key,
+                    "value": value,
+                    "value_type": value_type,
+                    "success": _succeeded(result),
+                },
+            )
             return result
 
         @router.patch("/config/toggle")
@@ -299,9 +339,14 @@ class AdministratorAPIs:
         ):
             key = data.get("key")
             value = data.get("value")
-            if not key or not value:
+            if not key or value is None:
                 return {"success": False, "message": "Missing key or value"}
-            audit_log(logger, user, "toggle_system_config", {"key": key, "value": value})
             result = DBManagerAdmin.update_system_config(db, key, value)
             Utilities.clear_config_cache()
+            audit_log(
+                logger,
+                user,
+                "toggle_system_config",
+                {"key": key, "value": value, "success": _succeeded(result)},
+            )
             return result

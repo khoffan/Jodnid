@@ -13,7 +13,7 @@ from model.models import Administrator, SystemConfiguration
 CONFIG_VALUE_TYPES = ("string", "boolean", "int", "json")
 
 
-def validate_config_value(value: str, value_type: str) -> str | None:
+def validate_config_value(value: str | None, value_type: str) -> str | None:
     """ตรวจว่าค่า config แปลงตาม `value_type` ได้จริง (กติกาเดียวกับ `Utilities.get_config_value`)
 
     คืนข้อความ error ภาษาไทย หรือ None ถ้าถูกต้อง — ค่าที่ผิดชนิดเคยทำให้ webhook พังตอนอ่าน config
@@ -164,9 +164,11 @@ class DBManagerAdmin:
         if not system_configuration:
             return {"success": False, "message": "System configuration not found"}
 
-        error = validate_config_value(value, value_type or system_configuration.value_type)
-        if error:
-            return {"success": False, "message": error}
+        # ตรวจเมื่อค่าหรือชนิดเปลี่ยนเท่านั้น — แถวเก่าที่ค่าผิดชนิดอยู่แล้วยังแก้ชื่อ/คำอธิบายได้
+        if value != system_configuration.value or value_type:
+            error = validate_config_value(value, value_type or system_configuration.value_type)
+            if error:
+                return {"success": False, "message": error}
 
         # 2. อัปเดตค่า (ตรวจสอบก่อนว่ามีการส่งค่าใหม่มาไหม)
         system_configuration.value = value

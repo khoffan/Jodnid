@@ -1,9 +1,12 @@
 import { Edit3 } from "lucide-react";
 
+// ค่า boolean ใน DB อาจเป็น "True" (backend อ่านแบบไม่สนตัวพิมพ์) — แสดงให้ตรงกับที่ระบบใช้จริง
+const isTrue = (value) => String(value).toLowerCase() === "true";
+
 export const ConfigTable = ({ configs, onEdit, onToggle }) => {
   const handleToggle = (config) => {
     if (onToggle) {
-      const newValue = config.value === "true" ? "false" : "true";
+      const newValue = isTrue(config.value) ? "false" : "true";
       onToggle(config.key, newValue);
     }
   };
@@ -58,24 +61,24 @@ export const ConfigTable = ({ configs, onEdit, onToggle }) => {
                       type="button"
                       onClick={() => handleToggle(config)}
                       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        config.value === "true" ? "bg-blue-600" : "bg-gray-200"
+                        isTrue(config.value) ? "bg-blue-600" : "bg-gray-200"
                       }`}
                       role="switch"
-                      aria-checked={config.value === "true"}
+                      aria-checked={isTrue(config.value)}
                     >
                       <span
                         aria-hidden="true"
                         className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          config.value === "true"
+                          isTrue(config.value)
                             ? "translate-x-5"
                             : "translate-x-0"
                         }`}
                       />
                     </button>
                     <span
-                      className={`ml-3 text-xs font-medium ${config.value === "true" ? "text-blue-600" : "text-gray-400"}`}
+                      className={`ml-3 text-xs font-medium ${isTrue(config.value) ? "text-blue-600" : "text-gray-400"}`}
                     >
-                      {config.value === "true" ? "Enabled" : "Disabled"}
+                      {isTrue(config.value) ? "Enabled" : "Disabled"}
                     </span>
                   </div>
                 ) : (

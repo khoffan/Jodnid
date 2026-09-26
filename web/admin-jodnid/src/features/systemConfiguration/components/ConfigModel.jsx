@@ -39,7 +39,7 @@ export const ConfigModal = ({
   };
 
   const isBoolean = selectedConfig?.value_type === "boolean";
-  const isEnabled = localValue === "true";
+  const isEnabled = String(localValue).toLowerCase() === "true";
 
   const toggleBoolean = () => {
     setLocalValue(isEnabled ? "false" : "true");

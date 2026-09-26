@@ -31,7 +31,7 @@ def audit_log(logger: JodNidLogger, user: Administrator, action: str, detail: di
     )
 
 
-def _succeeded(result) -> bool:
+def _succeeded(result: object) -> bool:
     """ผลจาก DBManager ที่คืน `{"success": False, ...}` = ทำไม่สำเร็จ — ใช้บันทึกใน audit log"""
     return not (isinstance(result, dict) and result.get("success") is False)
 

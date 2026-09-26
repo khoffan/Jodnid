@@ -78,7 +78,7 @@ python scripts/seed_admin.py --list
 python scripts/seed_admin.py --uid <firebase-uid> --deactivate
 ```
 
-- [ ] ผู้ใช้คนนั้นเรียก API ใดๆ ของ admin → ได้ `403 Administrator account is disabled` (ไม่ใช่ `401 Invalid authentication credentials`)
+- [ ] ผู้ใช้คนนั้นเรียก API ใดๆ ของ admin → ได้ `403 บัญชีผู้ดูแลนี้ถูกปิดใช้งาน` (ไม่ใช่ `401 ยืนยันตัวตนไม่สำเร็จ…`) และหน้า login แสดงข้อความนี้
 - [ ] `--activate` แล้วกลับมาใช้ได้
 
 ### A-7 Backend สตาร์ตได้แม้ยังไม่มีข้อมูล

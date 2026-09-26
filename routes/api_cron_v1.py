@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Security
 from fastapi.security import APIKeyHeader
 from sqlmodel import Session
@@ -7,7 +9,7 @@ from helper.logger import JodNidLogger
 
 # function
 from helper.utils import LineUtils, Utilities
-from model.db import DBManagerDashboard
+from model.db import DBManagerBudget, DBManagerDashboard
 from model.models import get_session
 
 header_scheme = APIKeyHeader(name="X-Cron-Token", auto_error=False)
@@ -35,6 +37,14 @@ class CronAPis:
     def setup_router(self):
         router = self.router
         logger = self.logger
+
+        # ซ่อม UserBudget.current_spent ของทุกคนให้ตรงกับรายการจริง (ตั้งให้รันทุกคืน)
+        @router.post("/sync-budgets")
+        async def sync_budgets(db: Session = Depends(get_session)):
+            now = datetime.now()
+            result = DBManagerBudget.sync_all_budgets(db, now.month, now.year)
+            logger.info(module="cron_sync_budgets", message=f"sync budgets: {result}")
+            return {"success": True, "data": result}
 
         # cron job service
         @router.post("/remind-to-record")

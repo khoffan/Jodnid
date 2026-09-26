@@ -71,6 +71,8 @@ class DBManagerDashboard:
                 "summary": summary_by_cat,
                 "total_budget": total_budget,
                 "remaining_budget": remaining_budget,
+                # จำนวนรายการทั้งหมดในช่วงนี้ — "transactions" ด้านล่างส่งแค่ 10 รายการล่าสุด
+                "transaction_count": len(results),
                 "transactions": [
                     {
                         "item": tx.item_name,

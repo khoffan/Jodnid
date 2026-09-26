@@ -210,7 +210,27 @@ class LiffApi:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="ไม่พบรายการนี้ หรือรายการหมดอายุ/ถูกบันทึกไปแล้ว",
                 )
-            return data
+            # คง field เดิม (raw_data ฯลฯ) ไว้ให้ LIFF เวอร์ชันเก่า + เพิ่มมุมมองสำหรับหน้าแก้ไข
+            return {
+                **data.model_dump(),
+                **DBManagerTransactions.build_temp_edit_view(data.raw_data),
+            }
+
+        @router.delete("/temp-transaction/{temp_id}")
+        async def cancel_temp_transaction(
+            temp_id: str,
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            user_id = ensure_same_user(user)
+            if DBManagerTransactions.get_user_temp_transaction(db, temp_id, user_id) is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="ไม่พบรายการนี้ หรือรายการหมดอายุ/ถูกบันทึกไปแล้ว",
+                )
+            DBManagerTransactions.delete_temp_transaction(db, temp_id=temp_id)
+            logger.info(module="transaction_edit", message=f"cancel temp_id: {temp_id}", user_id=user_id)
+            return {"success": True, "message": "ยกเลิกรายการแล้ว"}
 
         @router.post("/transactions/confirm-bulk")
         async def confirme_transaction_bulk_edit(
@@ -232,7 +252,11 @@ class LiffApi:
                 message=f"Confirming bulk transaction for user_id: {user_id} with temp_id: {temp_id}",
                 user_id=user_id,
             )
-            confirme_data_from_edit(db, temp_id, user_id, items, logger)
+            if not confirme_data_from_edit(db, temp_id, user_id, items, logger):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="บันทึกไม่สำเร็จ รายการนี้อาจถูกบันทึกไปแล้ว",
+                )
             return {"success": True, "message": "Confirm bulk transaction"}
 
         
@@ -295,9 +319,12 @@ class LiffApi:
 
             
         @router.get("/categories/parent")
-        async def get_categories_parent(db: Session = Depends(get_session)):
-            logger.info(module="categories", message="Fetching categories parent")
-            return DBManagerCategories.get_parent_categories(db)
+        async def get_categories_parent(
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            # หมวดส่วนกลาง + หมวดที่ผู้ใช้สร้างเอง (เดิมคืนแค่ส่วนกลาง หมวดของผู้ใช้จึงเลือกไม่ได้)
+            return DBManagerCategories.get_user_parent_categories(db, ensure_same_user(user))
 
         @router.post("/categories/add")
         async def add_category(

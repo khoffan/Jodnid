@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
@@ -6,6 +8,7 @@ from helper.utils import Utilities
 from middleware.auth import ROLE_ADMIN, get_current_user, require_role
 from model.db import (
     DBManagerAdmin,
+    DBManagerBudget,
     DBManagerCategories,
     DBManagerMonitoring,
     DBManagerUsers,
@@ -121,6 +124,27 @@ class AdministratorAPIs:
                 {"line_user_id": line_user_id, "enabled": enabled},
             )
             return DBManagerUsers.set_user_bypass_mode(db, line_user_id, enabled)
+
+        @router.post("/users/sync-budgets")
+        def sync_user_budgets(
+            data: dict,
+            db: Session = Depends(get_session),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
+        ):
+            """ซ่อมยอดงบเดือนนี้ของผู้ใช้หนึ่งคนให้ตรงกับรายการจริง"""
+            line_user_id = data.get("line_user_id")
+            if not line_user_id:
+                return {"success": False, "message": "Missing line_user_id"}
+
+            now = datetime.now()
+            result = DBManagerBudget.sync_user_budgets(db, line_user_id, now.month, now.year)
+            audit_log(
+                logger,
+                user,
+                "sync_user_budgets",
+                {"line_user_id": line_user_id, "updated": result["updated"]},
+            )
+            return {"success": True, "data": result}
 
         @router.get("/categories")
         def get_global_categories(

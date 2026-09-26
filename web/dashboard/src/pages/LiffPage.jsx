@@ -2,7 +2,7 @@ import { Routes, Route, Navigate, useLocation, useParams } from "react-router";
 import { OverviewPage } from "../features/dashboard/pages/OverviewPage";
 import Dashboard from "../features/transactions/pages/Dashboard";
 import LoadingCheckUser from "../common/components/loading/LoadingCheckUser";
-import Onboarding from "../features/dashboard/pages/Onboarding";
+import { LiffOnboarding } from "../features/dashboard/pages/LiffOnboarding";
 import { EditTempPage } from "../features/transactions/pages/EditTempPage";
 import { useWebAuthStore } from "../features/webapp/auth/store/web_auth.store";
 
@@ -27,7 +27,7 @@ export default function LiffPage({ userId }) {
       <Route path="/" element={<OverviewPage userId={userId} />} />
 
       {/* หน้า Onboarding สำหรับตั้งค่า Budget ครั้งแรก */}
-      <Route path="/setup" element={<Onboarding userId={userId} />} />
+      <Route path="/setup" element={<LiffOnboarding userId={userId} />} />
 
       {/* สรุปรายวัน/รายเดือน (ใช้ Dashboard เดียวกันแต่ส่ง Type ไปเช็คข้างใน) */}
       <Route path="/summary/:type" element={<Dashboard userId={userId} />} />

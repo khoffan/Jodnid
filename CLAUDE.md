@@ -190,6 +190,9 @@ npm run build && npm run lint
   ต้องไปสาย LIFF เสมอ ไม่งั้น deep link จาก Flex จะหลุดไปหน้า web
 - สาย web ทำเฉพาะงานที่ใช้บนคอมสะดวกกว่า (ประวัติ/แก้/ลบ/export/จดหลายรายการ) ไม่ทำ overview/งบซ้ำกับ LIFF
   แก้/ลบรายการต้องผ่าน `update_user_transaction` / `delete_user_transaction` ที่ปรับ `current_spent` ให้
+- หน้า `/setup` แยกหน้าจอตาม host: `LiffOnboarding` (stepper มือถือ) กับ `WebOnboarding` (หน้าเดียวบนจอคอม)
+  โดย logic ทั้งหมดอยู่ใน `features/dashboard/hooks/useOnboarding.js` — ไฟล์หน้าจอห้ามเรียก API เอง
+  (`verify_pipeline.py` ตรวจ)
 - LIFF deep link ใช้ `?path=/route` ซึ่ง `initApp` อ่านแล้วส่งต่อให้ `navigate()` หลัง login
 - Auth คนละชุดกัน: dashboard ใช้ LINE ID token (`sessionStorage["id_token"]`),
   admin ใช้ Firebase ID token ที่ขอจาก `auth.currentUser.getIdToken()` ทุก request (ไม่เก็บเอง — Firebase

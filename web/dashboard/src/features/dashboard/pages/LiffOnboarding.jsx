@@ -1,139 +1,44 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
-import useTransactionStore from "../../transactions/store/useTransectionStore";
-import api from "../../../common/lib/api";
-import { useWebAuthStore } from "../../webapp/auth/store/web_auth.store";
+import { useState } from "react";
+import { ICON_OPTIONS, budgetEntries, useOnboarding } from "../hooks/useOnboarding";
 
 // ---------------------------------------------------------------------------
-// Constants
+// หน้าตั้งค่าเริ่มต้นสาย LIFF (มือถือใน LINE): stepper ทีละขั้น + footer ติดล่างจอ
+// logic ทั้งหมดอยู่ใน useOnboarding — ไฟล์นี้มีแต่หน้าจอ
 // ---------------------------------------------------------------------------
 const STEP = { BUDGET: 0, CATEGORIES: 1, REVIEW: 2 };
 const STEP_LABELS = ["ตั้งงบประมาณ", "หมวดหมู่", "ตรวจสอบ"];
 const STEP_ICONS = ["💰", "🏷️", "✅"];
-const ICON_OPTIONS = [
-  "📦",
-  "🍔",
-  "🚗",
-  "🏠",
-  "💊",
-  "🎮",
-  "✈️",
-  "👗",
-  "📚",
-  "💻",
-  "🎵",
-  "🏋️",
-  "☕",
-  "🎁",
-  "🐾",
-  "🔧",
-];
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-const Onboarding = ({ userId }) => {
-  // ── mode ──────────────────────────────────────────────────────────────────
-  // "strict" = ต้องครบทุกขั้นตอนก่อนยืนยัน
-  // "quick"  = แค่ตั้งงบก็ยืนยันได้เลย
+export const LiffOnboarding = ({ userId }) => {
+  const onboarding = useOnboarding(userId);
+  const {
+    setupBudgetOnly,
+    categories,
+    budgets,
+    loading,
+    setBudget,
+    hasBudget,
+    newCategory,
+    setNewCategory,
+    addingCategory,
+    addCategoryError,
+    addCategorySuccess,
+    addCategory,
+    saveResults,
+    saving,
+    saved,
+    confirmError,
+    setConfirmError,
+    confirm,
+  } = onboarding;
+
+  // "strict" = ต้องครบทุกขั้นตอนก่อนยืนยัน, "quick" = แค่ตั้งงบก็ยืนยันได้เลย
   const [mode, setMode] = useState("strict");
-
-  // ── stepper ───────────────────────────────────────────────────────────────
   const [step, setStep] = useState(STEP.BUDGET);
   const [visited, setVisited] = useState(new Set([STEP.BUDGET]));
 
-  // ── data ──────────────────────────────────────────────────────────────────
-  const [categories, setCategories] = useState([]);
-  const [budgets, setBudgets] = useState({});
-  const [dataLoading, setDataLoading] = useState(false);
-
-  // ── add-category form ─────────────────────────────────────────────────────
-  const [newCatName, setNewCatName] = useState("");
-  const [newCatIcon, setNewCatIcon] = useState("📦");
-  const [newCatParentId, setNewCatParentId] = useState(null);
-  const [addingCat, setAddingCat] = useState(false);
-  const [addCatError, setAddCatError] = useState("");
-  const [addCatSuccess, setAddCatSuccess] = useState("");
-
-  // ── save state ────────────────────────────────────────────────────────────
-  const [saveResults, setSaveResults] = useState({});
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [confirmError, setConfirmError] = useState("");
-
-  const { saveBudget } = useTransactionStore();
-  const {
-    isWebApp,
-    onboardingCategories,
-    onboardingBudgets,
-    fetchOnboardingData,
-    onboardingLoading,
-    isOnboarded,
-    setOnboardStatus
-  } = useWebAuthStore();
-  const navigate = useNavigate();
-  // จำโหมดไว้ตั้งแต่เปิดหน้า — isOnboarded จะกลายเป็น true หลังกดยืนยัน ไม่ให้หน้ากระโดดขั้นกลางคัน
-  const [setupBudgetOnly] = useState(isOnboarded);
   const activeStepLabels = setupBudgetOnly ? [STEP_LABELS[STEP.BUDGET]] : STEP_LABELS;
   const activeStepIcons = setupBudgetOnly ? [STEP_ICONS[STEP.BUDGET]] : STEP_ICONS;
-
-  useEffect(() => {
-    if (setupBudgetOnly) {
-      setStep(STEP.BUDGET);
-      setVisited(new Set([STEP.BUDGET]));
-    }
-  }, [setupBudgetOnly]);
-
-  // ── fetch onboarding data ─────────────────────────────────────────────────
-  useEffect(() => {
-    const load = async () => {
-      setDataLoading(true);
-      try {
-        if (isWebApp) {
-          if (onboardingCategories.length === 0) {
-            const { categories: cats, budgets: buds } = await fetchOnboardingData(userId);
-            setCategories(cats);
-            setBudgets(buds);
-          } else {
-            setCategories(onboardingCategories);
-            setBudgets(onboardingBudgets);
-          }
-        } else {
-          const [catRes, budRes] = await Promise.all([
-            api.get("/api/categories/parent"),
-            api.get(`/api/budgets/${userId}`),
-            
-          ]);
-
-          const cats = catRes.data || [];
-          setCategories(cats);
-
-          const initial = {};
-          cats.forEach((c) => {
-            initial[c.id] = "";
-          });
-
-          if (budRes.data?.success && Array.isArray(budRes.data.data)) {
-            budRes.data.data.forEach((b) => {
-              initial[b.category_id] = b.amount?.toString() ?? "";
-            });
-          }
-          setBudgets(initial);
-        }
-      } catch (err) {
-        console.error("Failed to load onboarding data:", err);
-        setConfirmError("⚠️ ไม่สามารถดึงข้อมูลหมวดหมู่/งบได้ กรุณารีเฟรชหน้านี้");
-      } finally {
-        setDataLoading(false);
-      }
-    };
-
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
-
-  // ── helpers ───────────────────────────────────────────────────────────────
-  const hasBudget = Object.values(budgets).some((v) => parseFloat(v) > 0);
 
   const canConfirm = setupBudgetOnly
     ? hasBudget
@@ -148,95 +53,8 @@ const Onboarding = ({ userId }) => {
     setVisited((prev) => new Set([...prev, s]));
   };
 
-  const handleBudgetChange = (id, value) => {
-    setBudgets((prev) => ({ ...prev, [id]: value }));
-  };
-
-  // ── add custom category ───────────────────────────────────────────────────
-  const handleAddCategory = async () => {
-    setAddCatError("");
-    setAddCatSuccess("");
-    if (!newCatName.trim()) {
-      setAddCatError("กรุณาใส่ชื่อหมวดหมู่");
-      return;
-    }
-    setAddingCat(true);
-    try {
-      const res = await api.post("/api/categories/add", {
-        user_id: userId,
-        name: newCatName.trim(),
-        icon: newCatIcon,
-        parent_id: newCatParentId,
-      });
-      if (res.data?.success === false) {
-        setAddCatError(res.data.message || "เพิ่มหมวดหมู่ไม่สำเร็จ");
-      } else {
-        setAddCatSuccess(`เพิ่ม "${newCatName.trim()}" สำเร็จ!`);
-        setNewCatName("");
-        setNewCatIcon("📦");
-        setNewCatParentId(null);
-        // refresh category list
-        const catRes = await api.get("/api/categories/parent");
-        const cats = catRes.data || [];
-        setCategories(cats);
-        setBudgets((prev) => {
-          const updated = { ...prev };
-          cats.forEach((c) => {
-            if (!(c.id in updated)) updated[c.id] = "";
-          });
-          return updated;
-        });
-      }
-    } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setAddCatError(typeof detail === "string" ? detail : "เกิดข้อผิดพลาด กรุณาลองใหม่");
-    } finally {
-      setAddingCat(false);
-    }
-  };
-
-  // ── confirm & save ────────────────────────────────────────────────────────
-  const handleConfirm = async () => {
-    const entries = Object.entries(budgets).filter(([, v]) => parseFloat(v) > 0);
-    if (entries.length === 0) {
-      setConfirmError("⚠️ กรุณาระบุงบประมาณอย่างน้อย 1 หมวดหมู่");
-      return;
-    }
-
-    setSaving(true);
-    setConfirmError("");
-    const results = {};
-    for (const [catId, amount] of entries) {
-      results[catId] = await saveBudget(userId, catId, parseFloat(amount));
-    }
-    setSaveResults(results);
-
-    // บันทึกงบไม่ครบ → ยังไม่นับว่า onboard แล้ว และให้กดลองใหม่ได้
-    if (!Object.values(results).every((r) => r.success)) {
-      setSaving(false);
-      setConfirmError("⚠️ บันทึกงบบางหมวดไม่สำเร็จ กรุณาตรวจสอบแล้วกดยืนยันอีกครั้ง");
-      return;
-    }
-
-    const onboarded = await setOnboardStatus();
-    setSaving(false);
-    if (!onboarded) {
-      setConfirmError("⚠️ บันทึกสถานะไม่สำเร็จ กรุณากดยืนยันอีกครั้ง");
-      return;
-    }
-    setSaved(true);
-    setTimeout(() => navigate("/"), 1200);
-  };
-
-  // ── layout ────────────────────────────────────────────────────────────────
-  const wrapper = isWebApp
-    ? "w-full max-w-7xl mx-auto mt-4 px-4 sm:px-6 lg:px-8"
-    : "w-full max-w-lg mx-auto px-4";
-
-  const isLoading = dataLoading || onboardingLoading;
-
   return (
-    <div className={wrapper}>
+    <div className="w-full max-w-lg mx-auto px-4">
       {/* ── Header & mode toggle ── */}
       <div className="flex items-center justify-between mb-6 mt-2">
         <div>
@@ -324,23 +142,23 @@ const Onboarding = ({ userId }) => {
           <SetBudgetStep
             categories={categories}
             budgets={budgets}
-            loading={isLoading}
-            onInputChange={handleBudgetChange}
+            loading={loading}
+            onInputChange={setBudget}
           />
         )}
         {!setupBudgetOnly && step === STEP.CATEGORIES && (
           <CategoriesStep
             categories={categories}
-            newCatName={newCatName}
-            newCatIcon={newCatIcon}
-            newCatParentId={newCatParentId}
-            addingCat={addingCat}
-            addCatError={addCatError}
-            addCatSuccess={addCatSuccess}
-            onNameChange={setNewCatName}
-            onIconChange={setNewCatIcon}
-            onParentChange={setNewCatParentId}
-            onAdd={handleAddCategory}
+            newCatName={newCategory.name}
+            newCatIcon={newCategory.icon}
+            newCatParentId={newCategory.parentId}
+            addingCat={addingCategory}
+            addCatError={addCategoryError}
+            addCatSuccess={addCategorySuccess}
+            onNameChange={(name) => setNewCategory((c) => ({ ...c, name }))}
+            onIconChange={(icon) => setNewCategory((c) => ({ ...c, icon }))}
+            onParentChange={(parentId) => setNewCategory((c) => ({ ...c, parentId }))}
+            onAdd={addCategory}
           />
         )}
         {!setupBudgetOnly && step === STEP.REVIEW && (
@@ -393,7 +211,7 @@ const Onboarding = ({ userId }) => {
               </button>
             ) : (
               <button
-                onClick={handleConfirm}
+                onClick={confirm}
                 disabled={!canConfirm || saving || saved}
                 className={`flex-1 py-3.5 rounded-2xl font-bold shadow-lg transition-all text-lg ${
                   !canConfirm || saving || saved
@@ -420,6 +238,7 @@ const Onboarding = ({ userId }) => {
     </div>
   );
 };
+
 
 // ---------------------------------------------------------------------------
 // Step 1 — Set Budget
@@ -566,7 +385,7 @@ const CategoriesStep = ({
 // Step 3 — Review & Confirm
 // ---------------------------------------------------------------------------
 const ReviewStep = ({ categories, budgets, saveResults, saved }) => {
-  const entries = Object.entries(budgets).filter(([, v]) => parseFloat(v) > 0);
+  const entries = budgetEntries(budgets);
   const catMap = Object.fromEntries(categories.map((c) => [String(c.id), c]));
   const total = entries.reduce((sum, [, v]) => sum + parseFloat(v), 0);
 
@@ -640,5 +459,3 @@ const ReviewStep = ({ categories, budgets, saveResults, saved }) => {
     </div>
   );
 };
-
-export default Onboarding;

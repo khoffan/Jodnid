@@ -12,6 +12,28 @@
 
 ---
 
+## 2026-09-26 20:05 (+07) — ลบ @heroui/framer-motion + แยกหน้า Onboarding ของ LIFF / web
+
+- admin console: `npm uninstall @heroui/react @heroui/styles framer-motion` (ไม่มีไฟล์ไหน import) — build ผ่าน
+- Onboarding: logic ย้ายไป `features/dashboard/hooks/useOnboarding.js` ที่เดียว หน้าจอแยกเป็น
+  `LiffOnboarding` (stepper เดิมทุกอย่าง) กับ `WebOnboarding` (หน้าเดียว 3 คอลัมน์: หมวด / งบ / สรุป +
+  ปุ่มยืนยันติดขอบบน, โทนเขียวเดียวกับหน้า web อื่น, ไม่มีปุ่มสลับโหมด, คนที่ onboard แล้วยังเพิ่มหมวดได้)
+- ลบ cache ข้อมูล onboarding ใน `web_auth.store` ที่ไม่มีใครใช้แล้ว
+
+### ชุดตรวจอัตโนมัติ
+
+- `python scripts/verify_pipeline.py` → **48/48** (เพิ่ม: หน้าจอ Onboarding ต้องไม่เรียก API เอง)
+  - ลองใส่ `window.api.get(...)` ใน `WebOnboarding.jsx` ชั่วคราว → FAIL ชี้ไฟล์ถูกตัว
+  - ระหว่างเขียนพบว่า regex `\b` กลายเป็นอักขระ backspace จาก heredoc ทำให้ตรวจไม่เจอ — แก้แล้ว
+    และสแกนทั้งไฟล์ว่าไม่มีอักขระควบคุมหลงเหลือ
+- `npm run lint` / `npm run build` ของ dashboard และ admin console ผ่าน
+
+### ยังไม่ได้ตรวจ
+
+- หน้า `/setup` บนเบราว์เซอร์จริงทั้งสองแบบ (LIFF บนมือถือ, web บนจอคอม) และบนจอแคบของ web
+
+---
+
 ## 2026-09-26 19:40 (+07) — `feature/web-app` (backlog ก้อนที่ 5)
 
 - **backend:** `GET /api/web/transactions` รับ `month/year/category_id/limit/offset` คืน `items/total/totals`

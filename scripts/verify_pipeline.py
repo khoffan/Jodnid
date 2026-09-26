@@ -1384,6 +1384,23 @@ def _():
     return "เวลาเดิมคงอยู่, '=1+1 ใน CSV, export กรองหมวดได้"
 
 
+@check("หน้า Onboarding ของ LIFF/web ไม่เรียก API เอง — logic บันทึกงบอยู่ใน useOnboarding ที่เดียว")
+def _():
+    import re
+
+    src = Path(__file__).resolve().parent.parent / "web" / "dashboard" / "src" / "features" / "dashboard"
+    hook = (src / "hooks" / "useOnboarding.js").read_text("utf-8")
+    for needle in ("saveBudget", "setOnboardStatus", "/api/categories/add"):
+        assert needle in hook, f"useOnboarding ไม่มี {needle}"
+
+    forbidden = re.compile(r"\bapi\.|saveBudget|setOnboardStatus|/api/|common/lib/api")
+    screens = sorted(src.glob("pages/*Onboarding*.jsx"))
+    assert {p.name for p in screens} >= {"LiffOnboarding.jsx", "WebOnboarding.jsx"}, screens
+    offenders = [p.name for p in screens if forbidden.search(p.read_text("utf-8"))]
+    assert not offenders, f"หน้าจอที่เรียก API เอง: {offenders}"
+    return f"ตรวจ {len(screens)} หน้าจอ"
+
+
 def main() -> int:
     passed = sum(1 for _n, ok, _d in RESULTS if ok)
     width = max(len(name) for name, _ok, _d in RESULTS)

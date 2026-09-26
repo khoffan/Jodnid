@@ -16,8 +16,6 @@ web app เป็นตัวช่วยบนคอม (ไม่ใช่เ�
 
 ## 2. ก่อน merge `feature/update-ocr`
 
-- ซ่อนสาย web ไว้หลัง `?webapp=true` จนกว่าก้อนที่ 5 จะเสร็จ
-  `web/dashboard/src/features/webapp/auth/store/web_auth.store.js:88-96`
 - ทดสอบเส้นทางหลักใน [manual_test.md](manual_test.md) (จดข้อความ/รูปผ่าน LINE, ยืนยัน/ยกเลิก/undo,
   แก้ผ่าน LIFF) — ปัญหา admin (A-1, A-4, A-6) ระบุใน PR ว่าไปแก้ในก้อนที่ 4
 
@@ -104,6 +102,7 @@ web app เป็นตัวช่วยบนคอม (ไม่ใช่เ�
 
 **ขอบเขตที่ตกลง:** ประวัติรายการกรองเดือน/หมวด + แบ่งหน้า + ยอดรวมรายเดือน, จดหลายรายการ,
 แก้ไข/ลบรายการพร้อมปรับงบ, export CSV — ไม่ทำ overview/งบ (ให้ดูใน LIFF) เสร็จแล้วเลิกซ่อนหลัง `?webapp=true`
+(ตอนนี้ต้องเปิดด้วย `?webapp=true` ซึ่งจำไว้ใน `sessionStorage["web_mode"]` — ดูคอมเมนต์ใน `initApp`)
 
 **พัง**
 - refresh แล้ว `/api/user/onboarding-status` ได้ 401 ไม่มี try/catch → หมุนค้าง `web_auth.store.js:98-125`

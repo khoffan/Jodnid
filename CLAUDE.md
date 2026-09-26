@@ -183,9 +183,9 @@ npm run build && npm run lint
 
 - `web/dashboard` ship bundle เดียวใช้สองที่: [App.jsx](web/dashboard/src/App.jsx) แยกด้วย `isWebApp` เป็น
   `WebPage` (LINE OAuth login, transaction list, add) หรือ `LiffPage` (overview, onboarding, summary,
-  edit temp) — `initApp` เลือกสาย web เมื่อ `?webapp=true` หรือเปิดนอกแอป LINE (`!liff.isInClient()`)
-  **ยกเว้น** URL ที่มี `path` / `liff.state` / `liffClientId` ซึ่งเป็นลิงก์ LIFF (เช่นเปิดจาก LINE PC)
-  ต้องไปสาย LIFF เสมอ ไม่งั้น deep link จาก Flex จะหลุดไปหน้า web
+  edit temp) — **ตอนนี้สาย web เปิดเฉพาะเมื่อขอด้วย `?webapp=true`** (จำไว้ใน `sessionStorage["web_mode"]`
+  เพราะ redirect กลับจาก LINE Login ไม่มีพารามิเตอร์นี้) และต้องเปิดนอกแอป LINE และไม่ใช่ลิงก์ LIFF
+  (`path` / `liff.state` / `liffClientId`) — เมื่อสาย web พร้อมจะเลิกบังคับ `?webapp=true`
 - LIFF deep link ใช้ `?path=/route` ซึ่ง `initApp` อ่านแล้วส่งต่อให้ `navigate()` หลัง login
 - Auth คนละชุดกัน: dashboard ใช้ LINE ID token (`sessionStorage["id_token"]`),
   admin ใช้ Firebase ID token (`sessionStorage["token"]`)

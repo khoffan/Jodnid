@@ -5,6 +5,7 @@ import api, { setUnauthorizedHandler } from "../../../../common/lib/api";
 const testMode = import.meta.env.VITE_TEST_MODE;
 
 const AUTH_RECOVER_KEY = "auth_recover_at";
+const WEB_MODE_KEY = "web_mode";
 const AUTH_RECOVER_COOLDOWN_MS = 60_000;
 let isRecovering = false;
 
@@ -95,9 +96,13 @@ export const useWebAuthStore = create((set, get) => ({
     // ยังต้องไปสาย LIFF — ดูจาก ?path= ที่ backend สร้าง และพารามิเตอร์ที่ LIFF SDK แนบมาเอง
     const isLiffLink =
       urlParams.has("path") || urlParams.has("liff.state") || urlParams.has("liffClientId");
+    // สาย web ยังไม่พร้อมให้ผู้ใช้ทั่วไป (ดู docs/backlog.md ก้อนที่ 5) → เปิดเฉพาะเมื่อขอด้วย ?webapp=true
+    // จำไว้ใน sessionStorage เพราะตอน LINE Login redirect กลับมาที่ /login/callback พารามิเตอร์นี้หายไป
+    // เมื่อสาย web พร้อมแล้ว ให้เปลี่ยนกลับเป็น `!liff.isInClient() && !isLiffLink`
+    if (urlParams.get("webapp") === "true") sessionStorage.setItem(WEB_MODE_KEY, "1");
     // liff.isInClient() เรียกก่อน liff.init() ได้
     const isWebApp =
-      urlParams.get("webapp") === "true" || (!liff.isInClient() && !isLiffLink);
+      sessionStorage.getItem(WEB_MODE_KEY) === "1" && !liff.isInClient() && !isLiffLink;
     // 🔹 กรณีเปิดผ่าน Web Browser / Desktop
     if (isWebApp) {
       const storedUser = sessionStorage.getItem("user_info");

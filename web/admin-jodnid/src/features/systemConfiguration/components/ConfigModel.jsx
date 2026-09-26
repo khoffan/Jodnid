@@ -19,9 +19,8 @@ export const ConfigModal = ({
       setLocalName(selectedConfig.name || "");
       setLocalValue(selectedConfig.value || "");
       setLocalDesc(selectedConfig.description || "");
-      if (selectedConfig.value.includes("\n")) {
-        setUseTextArea(true);
-      }
+      // ตั้งใหม่ทุกครั้งที่เปิด config อื่น (value อาจเป็น null)
+      setUseTextArea((selectedConfig.value || "").includes("\n"));
     }
   }, [selectedConfig]);
 
@@ -29,14 +28,14 @@ export const ConfigModal = ({
 
   const close = () => onOpenChange(false);
 
-  const handleSave = () => {
-    onSave({
+  const handleSave = async () => {
+    const result = await onSave({
       ...selectedConfig,
       name: localName,
       value: localValue,
       description: localDesc,
     });
-    close();
+    if (result?.success) close();
   };
 
   const isBoolean = selectedConfig?.value_type === "boolean";
@@ -79,12 +78,9 @@ export const ConfigModal = ({
               type="text"
               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
               placeholder="กรอกชื่อการตั้งค่า..."
-              value={selectedConfig.name}
+              value={localName}
               onChange={(e) => setLocalName(e.target.value)}
             />
-            <p className="text-xs text-gray-500">
-              Name เป็นค่าคงที่ของระบบ ไม่สามารถแก้ไขได้
-            </p>
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-gray-700">

@@ -6,7 +6,7 @@ import { auth } from "./common/firebase/firebase_config";
 
 import AdminNavbar from "./common/components/AdminNavbar";
 import LoginPage from "./features/authentication/pages/LoginPage";
-import AuthGuard from "./common/guard/authGuard";
+import AuthGuard from "./common/guard/AuthGuard";
 import useAuthStore from "./features/authentication/store/auth.store";
 import ProfilePage from "./features/profile/pages/ProfilePage";
 import { DashboardPage } from "./features/monitoring/pages/DashboardPage";
@@ -31,10 +31,11 @@ const element = (
 export default function App() {
   const { user, isLoading } = useAuthStore();
   useEffect(() => {
-    const subscription = onAuthStateChanged(auth, (user) => {
-      useAuthStore.setState({ user, isLoading: false });
+    // ทุกครั้งที่ Firebase เปลี่ยนสถานะ ต้องตรวจกับ backend ว่าเป็น admin จริง ไม่ใช่เชื่อ Firebase อย่างเดียว
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      useAuthStore.getState().verifyAdmin(firebaseUser);
     });
-    return () => subscription();
+    return () => unsubscribe();
   }, []);
 
   if (isLoading) {

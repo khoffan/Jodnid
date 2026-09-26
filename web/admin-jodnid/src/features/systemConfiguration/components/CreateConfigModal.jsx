@@ -3,79 +3,45 @@ import { Plus, Save, X } from "lucide-react";
 import useConfigStore from "../store/system-config.store";
 import Switch from "../../../common/components/Switch";
 
+const EMPTY_FORM = { name: "", key: "", value: "", value_type: "string", description: "" };
+const NO_ERRORS = { name: "", key: "", value: "", value_type: "", description: "" };
+
 export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
   const createConfig = useConfigStore((state) => state.createConfig);
   const [useTextArea, setUseTextArea] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    key: "",
-    value: "",
-    value_type: "string",
-    description: "",
-  });
-  const [formError, setFormError] = useState({
-    name: "",
-    key: "",
-    value: "",
-    value_type: "",
-    description: "",
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState(NO_ERRORS);
 
   if (!isOpen) return null;
 
-  const close = () => onOpenChange(false);
+  // ปิดแล้วล้างฟอร์ม — เปิดครั้งหน้าจะได้ไม่เห็นค่า/ข้อความ error ค้าง
+  const close = () => {
+    setFormData(EMPTY_FORM);
+    setFormError(NO_ERRORS);
+    setUseTextArea(false);
+    onOpenChange(false);
+  };
+
+  // แสดง error ทีละช่อง และล้าง error ของช่องที่แก้แล้ว
+  const fail = (field, message) => setFormError({ ...NO_ERRORS, [field]: message });
 
   const handleSubmit = async () => {
     const keyRegex = /^[a-z0-9_]+$/;
-    if (!formData.name) {
-      setFormError({
-        ...formError,
-        name: "Display Name is required",
-      });
-      return;
-    }
+    if (!formData.name) return fail("name", "Display Name is required");
     if (!keyRegex.test(formData.key)) {
-      setFormError({
-        ...formError,
-        key: "Key ต้องเป็นตัวเล็กและใช้ _ เท่านั้น (snake_case)",
-      });
-      return;
+      return fail("key", "Key ต้องเป็นตัวเล็กและใช้ _ เท่านั้น (snake_case)");
     }
-
-    if (!formData.value) {
-      setFormError({
-        ...formError,
-        value: "Value is required",
-      });
-      return;
+    // string ว่างได้ ชนิดอื่นต้องมีค่า (backend ตรวจรูปแบบตามชนิดอีกชั้น)
+    if (!formData.value && formData.value_type !== "string") {
+      return fail("value", "Value is required");
     }
+    if (!formData.value_type) return fail("value_type", "Value type is required");
+    if (!formData.description) return fail("description", "Description is required");
 
-    if (!formData.value_type) {
-      setFormError({
-        ...formError,
-        value_type: "Value type is required",
-      });
-      return;
-    }
-
-    if (!formData.description) {
-      setFormError({
-        ...formError,
-        description: "Description is required",
-      });
-      return;
-    }
-
+    setFormError(NO_ERRORS);
     const result = await createConfig(formData);
     if (result.success) {
       close();
-      setFormData({
-        name: "",
-        key: "",
-        value: "",
-        value_type: "string",
-        description: "",
-      });
     } else {
       alert(result.error);
     }
@@ -154,7 +120,8 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
                   setFormData({
                     ...formData,
                     value_type: e.target.value,
-                    value: "",
+                    // boolean ใช้ select ที่แสดง True เป็นค่าแรก ต้องตั้งค่าให้ตรงกับที่เห็น
+                    value: e.target.value === "boolean" ? "true" : "",
                   })
                 }
               >
@@ -176,7 +143,7 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
                 </span>
 
                 {/* Switch Container */}
-                {!["int", "boolean"].includes(formData.value_type) && (
+                {formData.value_type === "string" && (
                   <Switch onChange={setUseTextArea} value={useTextArea} />
                 )}
               </div>
@@ -201,7 +168,7 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
                   }
                 />
               )}
-              {useTextArea && formData.value_type === "string" ? (
+              {useTextArea && formData.value_type === "string" && (
                 <textarea
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
                   value={formData.value}
@@ -209,7 +176,10 @@ export const CreateConfigModal = ({ isOpen, onOpenChange }) => {
                     setFormData({ ...formData, value: e.target.value })
                   }
                 />
-              ) : (
+              )}
+              {/* ช่องพิมพ์ธรรมดาสำหรับ int และ string แบบบรรทัดเดียว (boolean/json มีช่องของตัวเองด้านบน) */}
+              {(formData.value_type === "int" ||
+                (formData.value_type === "string" && !useTextArea)) && (
                 <input
                   type="text"
                   placeholder="ค่าเริ่มต้น"

@@ -12,6 +12,26 @@
 
 ---
 
+## 2026-09-26 15:38 (+07) — แก้บั๊กที่รู้แล้ว 2 ตัว
+
+- `POST /api/web/transaction/add` เปลี่ยนจาก `return HTTPException` เป็นตอบ `201` พร้อม
+  `{"success": true}` และ `raise` 500 เมื่อบันทึกไม่สำเร็จ (ปรับ `web.transaction.store.js`
+  ให้อ่าน `res.data.success` ตาม)
+- `AuthGuard.jsx` ใช้ `loading` / `isAuth` ที่มีอยู่จริงใน store แทน `isLoading` / `user`
+
+### ชุดตรวจอัตโนมัติ
+
+- `python scripts/verify_pipeline.py` → **ผ่าน 28/28 หัวข้อ** (exit 0)
+  — บน Windows ต้องตั้ง `PYTHONIOENCODING=utf-8` ไม่งั้นตอน print ภาษาไทยจะพังด้วย `UnicodeEncodeError`
+- `npx eslint` ไฟล์ dashboard ที่แก้ทั้ง 2 ไฟล์ผ่าน ไม่มี warning
+
+### ยังไม่ได้ตรวจ
+
+- ยังไม่ได้ยิง endpoint จริง และยังไม่ได้เปิด dashboard ในเบราว์เซอร์ — สาย web app เป็น dead code
+  (`isWebApp` ถูก hardcode เป็น `false`) จึงทดสอบผ่าน UI ไม่ได้จนกว่าจะเปิดคืน
+
+---
+
 ## 2026-09-06 01:34 (+07) — Admin system (Phase A–D)
 
 **ครอบคลุมคอมมิต** `d5060cb`, `a16b202`, `98194bc` และคอมมิต Phase D

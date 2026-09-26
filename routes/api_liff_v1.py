@@ -124,7 +124,7 @@ class LiffApi:
 
             return DBManagerUsers.get_user_onboarding_status(db, line_user_id=user_id)
 
-        @router.post("/web/transaction/add")
+        @router.post("/web/transaction/add", status_code=status.HTTP_201_CREATED)
         async def add_transaction(
             req: LineWebTransactionRequest,
             user: dict = Depends(get_current_user),
@@ -136,13 +136,15 @@ class LiffApi:
                 message=f"Adding transaction for user_id: {user_id}",
                 user_id=user_id,
             )
-            DBManagerTransactions.confirm_and_save_transaction(
+            result = DBManagerTransactions.confirm_and_save_transaction(
                 db, temp_id=None, user_id=user_id, edit=False, items=req.items
             )
-            return HTTPException(
-                status_code=status.HTTP_201_CREATED,
-                detail={"success": True, "message": "Transaction added"},
-            )
+            if not result:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="ไม่สามารถบันทึกรายการได้",
+                )
+            return {"success": True, "message": "Transaction added"}
 
         @router.get("/web/transactions")
         async def get_transaction_web(

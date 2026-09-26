@@ -10,6 +10,25 @@ from model.db.billable import select_billable_items
 from model.models import Attachments, Categories, TempTransactions, Transactions, UserBudget
 
 
+def _resolve_transaction_date(raw_date: Any, now: datetime) -> datetime:
+    """แปลง `date` ที่ผู้ใช้กรอก (เช่น "2026-09-20" จากหน้า web) เป็น datetime
+
+    ค่าว่าง / อ่านไม่ออก / อยู่ในอนาคต (เช่นปี พ.ศ. 2569) → ใช้เวลาปัจจุบัน
+    ถ้ามาแค่วันที่ จะเติมเวลาปัจจุบันให้ เพื่อให้เรียงลำดับในวันเดียวกันได้
+    """
+    if not raw_date:
+        return now
+    try:
+        text = str(raw_date).strip()
+        parsed = datetime.fromisoformat(text)
+        if len(text) == 10:
+            parsed = datetime.combine(parsed.date(), now.time())
+        parsed = parsed.replace(tzinfo=None)
+    except (TypeError, ValueError):
+        return now
+    return now if parsed > now else parsed
+
+
 class DBManagerTransactions:
     @staticmethod
     def save_temp_transaction(
@@ -70,7 +89,8 @@ class DBManagerTransactions:
                 elif transaction.category_id:
                     parent_id = transaction.category_id
 
-                if parent_id:
+                # รายรับไม่เคยถูกตัดงบ จึงไม่ต้องคืนงบ
+                if parent_id and transaction.transaction_type == "expense":
                     key = (
                         parent_id,
                         transaction.transaction_date.month,
@@ -194,13 +214,16 @@ class DBManagerTransactions:
 
             # 4. บันทึก Transaction
             amount = float(item.get("amount", 0))
+            # LLM ส่ง type เป็น "expense" / "tax" มา — มีแค่หน้า web ที่ส่ง "income" ได้
+            tx_type = "income" if item.get("type") == "income" else "expense"
+            tx_date = _resolve_transaction_date(item.get("date"), now)
             new_tx = Transactions(
                 user_id=current_user_id,
                 amount=amount,
                 item_name=item.get("item") or item.get("receiver") or item.get("note") or "ไม่ระบุรายการ",
-                transaction_type="expense",
+                transaction_type=tx_type,
                 category_id=target_cat.id,
-                transaction_date=now,
+                transaction_date=tx_date,
                 source_type=item.get("source_type", "text"),
                 is_confirmed=not skip_confirm,
                 attachment_id=attachment_id
@@ -210,15 +233,17 @@ class DBManagerTransactions:
             )
             session.add(new_tx)
 
-            # 5. อัปเดต UserBudget (ตัดงบที่ Parent)
-            statement_b = select(UserBudget).where(
-                UserBudget.user_id == current_user_id,
-                UserBudget.category_id == parent_id,
-                UserBudget.month == now.month,
-                UserBudget.year == now.year,
-            )
-            budget = session.exec(statement_b).first()
-            print(f"Budget before update: {budget}")
+            # 5. อัปเดต UserBudget (ตัดงบที่ Parent ของเดือนที่รายการเกิดจริง) — รายรับไม่ตัดงบ
+            budget = None
+            if tx_type == "expense":
+                statement_b = select(UserBudget).where(
+                    UserBudget.user_id == current_user_id,
+                    UserBudget.category_id == parent_id,
+                    UserBudget.month == tx_date.month,
+                    UserBudget.year == tx_date.year,
+                )
+                budget = session.exec(statement_b).first()
+                print(f"Budget before update: {budget}")
             if budget:
                 budget.current_spent += amount
                 session.add(budget)

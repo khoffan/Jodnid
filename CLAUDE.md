@@ -245,5 +245,4 @@ npm run build && npm run lint
 
 ถ้าไปแตะโค้ดรอบๆ จุดพวกนี้ ให้แก้ไปเลย:
 
-- `save_transaction()` hardcode `transaction_type="expense"` และ `transaction_date=now` → รายการ
-  **รายรับ** และ **วันที่ย้อนหลัง** ที่กรอกจากหน้า web (`/add`) ถูกบันทึกเป็นรายจ่ายวันนี้ และตัดงบด้วย
+- (ตอนนี้ยังไม่มีรายการค้าง)

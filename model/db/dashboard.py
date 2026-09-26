@@ -59,6 +59,9 @@ class DBManagerDashboard:
             total_amount = 0
 
             for tx, cat in results:
+                # ยอดรวมและสรุปรายหมวดคือ "ยอดใช้จ่าย" จึงไม่นับรายรับ
+                if tx.transaction_type != "expense":
+                    continue
                 cat_name = cat.name if cat else "ทั่วไป"
                 summary_by_cat[cat_name] = summary_by_cat.get(cat_name, 0) + tx.amount
                 total_amount += tx.amount
@@ -72,6 +75,7 @@ class DBManagerDashboard:
                     {
                         "item": tx.item_name,
                         "amount": tx.amount,
+                        "type": tx.transaction_type,
                         "date": tx.transaction_date.strftime(
                             "%H:%M" if type == "daily" else "%d/%m/%Y"
                         ),  # ถ้ารายวันโชว์เป็นเวลาแทน

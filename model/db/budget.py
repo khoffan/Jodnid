@@ -95,6 +95,7 @@ class DBManagerBudget:
             select(Transactions.category_id, func.sum(Transactions.amount).label("total_spent"))
             .where(
                 Transactions.user_id == user_id,
+                Transactions.transaction_type == "expense",
                 func.extract("month", Transactions.transaction_date) == month,
                 func.extract("year", Transactions.transaction_date) == year,
             )

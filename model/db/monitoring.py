@@ -139,7 +139,11 @@ class DBManagerMonitoring:
             select(func.count()).select_from(Transactions).where(Transactions.transaction_date >= month_start)
         )
         amount_month = scalar(
-            select(func.sum(Transactions.amount)).where(Transactions.transaction_date >= month_start), 0.0
+            select(func.sum(Transactions.amount)).where(
+                Transactions.transaction_date >= month_start,
+                Transactions.transaction_type == "expense",
+            ),
+            0.0,
         )
 
         errors = scalar(

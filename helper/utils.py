@@ -739,6 +739,7 @@ class Utilities:
         today = datetime.now()
         statement = select(func.sum(Transactions.amount)).where(
             Transactions.user_id == user_id,
+            Transactions.transaction_type == "expense",
             extract("day", Transactions.transaction_date) == today.day,
             extract("month", Transactions.transaction_date) == today.month,
             extract("year", Transactions.transaction_date) == today.year,
@@ -752,6 +753,7 @@ class Utilities:
         today = datetime.now()
         statement = select(func.sum(Transactions.amount)).where(
             Transactions.user_id == user_id,
+            Transactions.transaction_type == "expense",
             extract("month", Transactions.transaction_date) == today.month,
             extract("year", Transactions.transaction_date) == today.year,
         )

@@ -15,7 +15,7 @@ export const useWebTransaction = create(() => ({
           Authorization: `Bearer ${token}`,
         },
       });
-      if (res.data.detail.success) {
+      if (res.data.success) {
         return true;
       }
       return false;

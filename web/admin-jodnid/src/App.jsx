@@ -9,12 +9,20 @@ import LoginPage from "./features/authentication/pages/LoginPage";
 import AuthGuard from "./common/guard/authGuard";
 import useAuthStore from "./features/authentication/store/auth.store";
 import ProfilePage from "./features/profile/pages/ProfilePage";
+import { DashboardPage } from "./features/monitoring/pages/DashboardPage";
+import { SystemLogPage } from "./features/monitoring/pages/SystemLogPage";
+import { UsersPage } from "./features/users/pages/UsersPage";
+import { CategoriesPage } from "./features/categories/pages/CategoriesPage";
 
 const element = (
   <Routes>
     <Route path="/login" element={<LoginPage />} />
     <Route path="/" element={<AuthGuard />}>
       <Route index element={<SystemConfiguration />} />
+      <Route path="dashboard" element={<DashboardPage />} />
+      <Route path="logs" element={<SystemLogPage />} />
+      <Route path="users" element={<UsersPage />} />
+      <Route path="categories" element={<CategoriesPage />} />
       <Route path="profile" element={<ProfilePage />} />
     </Route>
   </Routes>

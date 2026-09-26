@@ -3,9 +3,29 @@ from sqlmodel import Session
 
 from helper.logger import JodNidLogger
 from helper.utils import Utilities
-from middleware.auth import get_current_user
-from model.db_manament import DBManagerAdmin
+from middleware.auth import ROLE_ADMIN, get_current_user, require_role
+from model.db import (
+    DBManagerAdmin,
+    DBManagerCategories,
+    DBManagerMonitoring,
+    DBManagerUsers,
+)
 from model.models import Administrator, get_session
+
+
+def audit_log(logger: JodNidLogger, user: Administrator, action: str, detail: dict = None):
+    """
+    บันทึกว่าใครทำอะไรใน admin console ลง SystemLog (module `admin_audit`)
+
+    ใช้ตารางเดิมที่มี `payload` เป็น JSON column อยู่แล้ว จึงไม่ต้องทำ migration
+    ดูย้อนหลังได้จากหน้า Logs โดยกรอง module = admin_audit
+    """
+    logger.info(
+        module="admin_audit",
+        message=f"{user.email} -> {action}",
+        user_id=user.uid,
+        payload={"action": action, "actor": user.email, "role": user.role, **(detail or {})},
+    )
 
 
 class AdministratorAPIs:
@@ -17,42 +37,183 @@ class AdministratorAPIs:
     def setup_router(self):
         router = self.router
         logger = self.logger
-        users = Utilities.get_all_users(next(get_session()))
-        user_id = None
-        for user in users:
-            user_id = user.line_user_id
+        line_access_token = self.line_access_token
+
+        @router.get("/status")
+        def get_system_status(
+            db: Session = Depends(get_session),
+            user: Administrator = Depends(get_current_user),
+        ):
+            """สถานะจริงของระบบสำหรับการ์ดบนหน้าแรกของ console (เดิมเป็นค่า hardcode)"""
+            logger.info(module="administrator", message="fetching status", user_id=user.uid)
+            return {
+                "success": True,
+                "data": DBManagerAdmin.get_system_status(db, line_access_token),
+            }
+
+        @router.get("/metrics")
+        def get_metrics(
+            days: int = 7,
+            db: Session = Depends(get_session),
+            user: Administrator = Depends(get_current_user),
+        ):
+            """ตัวเลขภาพรวมสำหรับหน้า Stats"""
+            logger.info(module="administrator", message="fetching metrics", user_id=user.uid)
+            return {
+                "success": True,
+                "data": DBManagerMonitoring.get_admin_metrics(db, days=max(1, min(days, 90))),
+            }
+
+        @router.get("/logs")
+        def get_logs(
+            level: str = None,
+            module: str = None,
+            line_user_id: str = None,
+            search: str = None,
+            limit: int = 50,
+            offset: int = 0,
+            db: Session = Depends(get_session),
+            user: Administrator = Depends(get_current_user),
+        ):
+            """อ่าน SystemLog พร้อมตัวกรอง — ที่เดียวที่ดู telemetry ของ OCR ได้โดยไม่ต้องเปิด DB"""
+            return {
+                "success": True,
+                "data": DBManagerMonitoring.get_system_logs(
+                    db,
+                    level=level,
+                    module=module,
+                    user_id=line_user_id,
+                    search=search,
+                    limit=limit,
+                    offset=offset,
+                ),
+                "modules": DBManagerMonitoring.get_log_modules(db),
+            }
+
+        @router.get("/users")
+        def get_users(
+            search: str = None,
+            limit: int = 50,
+            offset: int = 0,
+            db: Session = Depends(get_session),
+            user: Administrator = Depends(get_current_user),
+        ):
+            return {
+                "success": True,
+                "data": DBManagerUsers.search_users(db, search=search, limit=limit, offset=offset),
+            }
+
+        @router.patch("/users/bypass-mode")
+        def set_user_bypass(
+            data: dict,
+            db: Session = Depends(get_session),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
+        ):
+            line_user_id = data.get("line_user_id")
+            if not line_user_id:
+                return {"success": False, "message": "Missing line_user_id"}
+
+            enabled = bool(data.get("enabled"))
+            audit_log(
+                logger,
+                user,
+                "set_user_bypass_mode",
+                {"line_user_id": line_user_id, "enabled": enabled},
+            )
+            return DBManagerUsers.set_user_bypass_mode(db, line_user_id, enabled)
+
+        @router.get("/categories")
+        def get_global_categories(
+            db: Session = Depends(get_session),
+            user: Administrator = Depends(get_current_user),
+        ):
+            return {"success": True, "data": DBManagerCategories.get_global_categories(db)}
+
+        @router.post("/categories")
+        def create_global_category(
+            data: dict,
+            db: Session = Depends(get_session),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
+        ):
+            audit_log(logger, user, "create_global_category", {"name": data.get("name")})
+            return DBManagerCategories.create_global_category(
+                db,
+                name=data.get("name"),
+                icon=data.get("icon"),
+                parent_id=data.get("parent_id"),
+            )
+
+        @router.patch("/categories/{category_id}")
+        def update_global_category(
+            category_id: int,
+            data: dict,
+            db: Session = Depends(get_session),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
+        ):
+            audit_log(
+                logger,
+                user,
+                "update_global_category",
+                {"category_id": category_id, "name": data.get("name")},
+            )
+            return DBManagerCategories.update_global_category(
+                db, category_id, name=data.get("name"), icon=data.get("icon")
+            )
+
+        @router.delete("/categories/{category_id}")
+        def delete_global_category(
+            category_id: int,
+            db: Session = Depends(get_session),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
+        ):
+            audit_log(logger, user, "delete_global_category", {"category_id": category_id})
+            return DBManagerCategories.delete_global_category(db, category_id)
+
+        @router.post("/config/refresh-cache")
+        def refresh_config_cache(user: Administrator = Depends(require_role(ROLE_ADMIN))):
+            """
+            ล้าง `@lru_cache` ของ `get_config_value` ด้วยมือ
+
+            ปกติ endpoint ที่แก้ config ล้างให้อยู่แล้ว ตัวนี้ไว้ใช้ตอนแก้ค่าใน DB ตรงๆ
+            หรือเมื่อสงสัยว่าค่าที่ระบบใช้ไม่ตรงกับที่เห็นในตาราง
+            """
+            Utilities.clear_config_cache()
+            audit_log(logger, user, "refresh_config_cache")
+            return {"success": True, "message": "ล้างแคชการตั้งค่าเรียบร้อยแล้ว"}
 
         # administrator service
         @router.post("/sync")
         async def sync_data(
             data: dict,
             db: Session = Depends(get_session),
+            user: Administrator = Depends(get_current_user),
         ):
-            logger.info(
-                module="app", message=f"Syncing data for user_id: {user_id}", user_id=user_id
+            """
+            อัปเดตโปรไฟล์ของ admin ให้ตรงกับ Firebase หลังล็อกอิน
+
+            ยึด uid จาก token ที่ verify แล้วเท่านั้น ไม่เชื่อค่าใน body เพราะเป็น endpoint
+            ที่ตัดสินสิทธิ์ และตัว `sync_administrator_profile` จะไม่สร้าง admin ใหม่ให้
+            """
+            result = DBManagerAdmin.sync_administrator_profile(
+                db,
+                uid=user.uid,
+                email=data.get("email"),
+                name=data.get("name"),
+                phone=data.get("phone"),
+                profile=data.get("profile"),
             )
-            email = data.get("email")
-            uid = data.get("uid")
-            if not email or not uid:
-                return {"success": False, "message": "Missing email or uid or name"}
-            result = DBManagerAdmin.update_administrator_data_system(db, uid, email)
             logger.info(
                 module="administrator",
-                message=f"Data sync for uid: {uid} result: {result}",
-                user_id=uid,
+                message=f"profile sync for uid: {user.uid} success: {result.get('success')}",
+                user_id=user.uid,
             )
-            if result.get("success") == False:
-                logger.info(
-                    module="administrator", message=f"Data sync failed for uid: {uid}", user_id=uid
-                )
-                return {"success": False, "message": "Data sync failed"}
             return result
 
         @router.post("/config/create")
         async def create_system_configuration(
             data: dict,
             db: Session = Depends(get_session),
-            user: Administrator = Depends(get_current_user),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
         ):
             name = data.get("name")
             key = data.get("key")
@@ -62,10 +223,11 @@ class AdministratorAPIs:
             if not name or not key or not value or not value_type:
                 return {"success": False, "message": "Missing name or key or value or value_type"}
 
-            logger.info(
-                module="app",
-                message=f"Creating system configuration for name: {name}, key: {key}, value: {value}, value_type: {value_type}, description: {description}",
-                user_id=user.uid,
+            audit_log(
+                logger,
+                user,
+                "create_system_config",
+                {"key": key, "name": name, "value": value, "value_type": value_type},
             )
             return DBManagerAdmin.create_system_config(
                 db, name, key, value, value_type, description
@@ -84,7 +246,7 @@ class AdministratorAPIs:
         def update_system_configuration(
             data: dict,
             db: Session = Depends(get_session),
-            user: Administrator = Depends(get_current_user),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
         ):
             key = data.get("key")
             value = data.get("value")
@@ -92,28 +254,30 @@ class AdministratorAPIs:
             description = data.get("description")
             if not key or not value:
                 return {"success": False, "message": "Missing key or value"}
-            Utilities.clear_config_cache()
-            logger.info(
-                module="app",
-                message=f"Updating system configuration for key: {key}, value: {value}, value_type: {value_type}, description: {description}",
-                user_id=user.uid,
+            audit_log(
+                logger,
+                user,
+                "update_system_config",
+                {"key": key, "value": value, "value_type": value_type},
             )
-            return DBManagerAdmin.update_system_config(db, key, value, value_type, description)
+            result = DBManagerAdmin.update_system_config(
+                db, key, value, value_type, description, name=data.get("name")
+            )
+            # ต้องล้าง cache "หลัง" เขียน DB เสร็จ ไม่งั้นมีช่วงที่ค่าเก่าถูกอ่านกลับเข้า cache
+            Utilities.clear_config_cache()
+            return result
 
         @router.patch("/config/toggle")
         def toggle_system_configuration(
             data: dict,
             db: Session = Depends(get_session),
-            user: Administrator = Depends(get_current_user),
+            user: Administrator = Depends(require_role(ROLE_ADMIN)),
         ):
             key = data.get("key")
             value = data.get("value")
             if not key or not value:
                 return {"success": False, "message": "Missing key or value"}
+            audit_log(logger, user, "toggle_system_config", {"key": key, "value": value})
+            result = DBManagerAdmin.update_system_config(db, key, value)
             Utilities.clear_config_cache()
-            logger.info(
-                module="app",
-                message=f"Toggling system configuration for key: {key}, value: {value}",
-                user_id=user.uid,
-            )
-            return DBManagerAdmin.update_system_config(db, key, value)
+            return result

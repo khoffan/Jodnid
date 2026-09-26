@@ -1,4 +1,4 @@
-import { LayoutDashboard, Megaphone, Settings } from "lucide-react";
+import { FolderTree, LayoutDashboard, ScrollText, Settings, Users } from "lucide-react";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 import useAuthStore from "../../features/authentication/store/auth.store";
 import UserProfileCard from "./UserProfileCard";
@@ -9,16 +9,10 @@ export default function AdminNavbar() {
 
   const menuItems = [
     { label: "Configs", path: "/", icon: <Settings size={18} /> },
-    {
-      label: "Broadcast",
-      path: "/broadcast",
-      icon: <Megaphone size={18} />,
-    },
-    {
-      label: "Stats",
-      path: "/dashboard",
-      icon: <LayoutDashboard size={18} />,
-    },
+    { label: "Stats", path: "/dashboard", icon: <LayoutDashboard size={18} /> },
+    { label: "Logs", path: "/logs", icon: <ScrollText size={18} /> },
+    { label: "Users", path: "/users", icon: <Users size={18} /> },
+    { label: "Categories", path: "/categories", icon: <FolderTree size={18} /> },
   ];
 
   const { user, signOut } = useAuthStore();

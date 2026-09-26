@@ -3,6 +3,7 @@ import api from "../../../common/lib/api";
 
 const useConfigStore = create((set, get) => ({
   configs: [],
+  status: null,
   isLoading: false,
   error: null,
 
@@ -14,6 +15,27 @@ const useConfigStore = create((set, get) => ({
       set({ configs: response.data.data, isLoading: false, error: null });
     } catch (err) {
       set({ error: err, isLoading: false });
+    }
+  },
+
+  // Action: ดึงสถานะจริงของระบบมาแสดงบนการ์ดด้านบน
+  fetchStatus: async () => {
+    try {
+      const response = await api.get("/api/administrator/status");
+      set({ status: response.data.data });
+    } catch {
+      set({ status: null });
+    }
+  },
+
+  refreshCache: async () => {
+    try {
+      await api.post("/api/administrator/config/refresh-cache");
+      await get().fetchConfigs();
+      await get().fetchStatus();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   },
 
@@ -47,7 +69,7 @@ const useConfigStore = create((set, get) => ({
   // Action: อัปเดตข้อมูล (และรอให้ Backend Clear Cache)
   updateConfig: async (key, payload) => {
     try {
-      await api.post("/api/administrator/config/update", { key, ...payload });
+      await api.patch("/api/administrator/config/update", { key, ...payload });
       // หลังอัปเดต ให้ดึงข้อมูลใหม่มาทับทันทีเพื่อให้ UI ตรงกับ DB
       await get().fetchConfigs();
       return { success: true };

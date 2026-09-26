@@ -1,8 +1,13 @@
 import { create } from "zustand";
 import liff from "@line/liff";
-import api from "../../../../common/lib/api";
+import api, { setUnauthorizedHandler } from "../../../../common/lib/api";
 
 const testMode = import.meta.env.VITE_TEST_MODE;
+
+const AUTH_RECOVER_KEY = "auth_recover_at";
+const WEB_MODE_KEY = "web_mode";
+const AUTH_RECOVER_COOLDOWN_MS = 60_000;
+let isRecovering = false;
 
 const extractUserId = (user) => {
   if (!user) return null;
@@ -87,8 +92,17 @@ export const useWebAuthStore = create((set, get) => ({
     set({ loading: true, error: null });
 
     const urlParams = new URLSearchParams(window.location.search);
-    // const isWebApp = urlParams.get("webapp") === "true" || !liff.isInClient();
-    const isWebApp = false;
+    // ลิงก์ LIFF (deep link จาก Flex / redirect หลัง liff.login) ที่ถูกเปิดนอกแอป LINE เช่น LINE PC
+    // ยังต้องไปสาย LIFF — ดูจาก ?path= ที่ backend สร้าง และพารามิเตอร์ที่ LIFF SDK แนบมาเอง
+    const isLiffLink =
+      urlParams.has("path") || urlParams.has("liff.state") || urlParams.has("liffClientId");
+    // สาย web ยังไม่พร้อมให้ผู้ใช้ทั่วไป (ดู docs/backlog.md ก้อนที่ 5) → เปิดเฉพาะเมื่อขอด้วย ?webapp=true
+    // จำไว้ใน sessionStorage เพราะตอน LINE Login redirect กลับมาที่ /login/callback พารามิเตอร์นี้หายไป
+    // เมื่อสาย web พร้อมแล้ว ให้เปลี่ยนกลับเป็น `!liff.isInClient() && !isLiffLink`
+    if (urlParams.get("webapp") === "true") sessionStorage.setItem(WEB_MODE_KEY, "1");
+    // liff.isInClient() เรียกก่อน liff.init() ได้
+    const isWebApp =
+      sessionStorage.getItem(WEB_MODE_KEY) === "1" && !liff.isInClient() && !isLiffLink;
     // 🔹 กรณีเปิดผ่าน Web Browser / Desktop
     if (isWebApp) {
       const storedUser = sessionStorage.getItem("user_info");
@@ -179,6 +193,8 @@ export const useWebAuthStore = create((set, get) => ({
         set({ loading: false, isAuth: false });
       }
     } catch (error) {
+      // 401 = token หมดอายุ → interceptor เรียก recoverSession ไปแล้ว อย่าเขียนทับข้อความของมัน
+      if (error.response?.status === 401) return;
       console.error("LIFF Initialization failed:", error);
       set({ error: error.message, loading: false });
     }
@@ -215,6 +231,36 @@ export const useWebAuthStore = create((set, get) => ({
     }
   },
 
+  // LINE ID token อายุ ~1 ชม. และ liff.getIDToken() คืนตัวที่ cache ไว้แม้หมดอายุแล้ว
+  // → logout เพื่อล้าง cache แล้ว reload ให้ initApp เรียก liff.login() ขอ token ใหม่
+  // ลองได้ครั้งเดียวต่อ 1 นาที กัน reload วนไม่รู้จบถ้า token ใหม่ก็ยังใช้ไม่ได้
+  recoverSession: () => {
+    if (isRecovering) return;
+
+    const lastTry = Number(sessionStorage.getItem(AUTH_RECOVER_KEY) || 0);
+    if (Date.now() - lastTry < AUTH_RECOVER_COOLDOWN_MS) {
+      set({ error: "เซสชันหมดอายุ กรุณาปิดแล้วเปิดหน้านี้ใหม่อีกครั้ง", loading: false });
+      return;
+    }
+
+    isRecovering = true;
+    sessionStorage.setItem(AUTH_RECOVER_KEY, String(Date.now()));
+    sessionStorage.removeItem("id_token");
+
+    if (get().isWebApp) {
+      sessionStorage.removeItem("user_info");
+      window.location.href = "/login";
+      return;
+    }
+
+    try {
+      if (liff.isLoggedIn()) liff.logout();
+    } catch {
+      // liff.init ยังไม่สำเร็จ — reload ก็พอ
+    }
+    window.location.reload();
+  },
+
   logout: async () => {
     if (!liff.isInClient()) {
       sessionStorage.removeItem("id_token");
@@ -249,3 +295,5 @@ export const useWebAuthStore = create((set, get) => ({
     }
   },
 }));
+
+setUnauthorizedHandler(() => useWebAuthStore.getState().recoverSession());

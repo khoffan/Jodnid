@@ -7,7 +7,7 @@ from helper.logger import JodNidLogger
 
 # function
 from helper.utils import LineUtils, Utilities
-from model.db_manament import DBManagerDashboard
+from model.db import DBManagerDashboard
 from model.models import get_session
 
 header_scheme = APIKeyHeader(name="X-Cron-Token", auto_error=False)

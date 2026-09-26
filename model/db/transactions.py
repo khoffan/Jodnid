@@ -1,12 +1,15 @@
 """บันทึก / ยืนยัน / ยกเลิก รายการรับ-จ่าย และไฟล์แนบ"""
 
+import csv
+import io
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from sqlmodel import Session, or_, select
+from sqlmodel import Session, func, or_, select
 
 from model.db.billable import select_billable_items
+from model.db.categories import DBManagerCategories
 from model.models import Attachments, Categories, TempTransactions, Transactions, UserBudget
 
 
@@ -369,31 +372,174 @@ class DBManagerTransactions:
             return None
         return temp
 
+    # ---------------------------------------------------------------- web app: ประวัติ/แก้/ลบ/export
     @staticmethod
-    def get_Transactions(session: Session, user_id: str) -> List[Dict[str, Any]]:
-        try:
-            # ทำการ Join ระหว่าง Transactions และ Category โดยใช้ category_id
-            # 🔒 กรองเฉพาะของผู้ใช้คนนี้ (เดิมคืนรายการของทุกคน)
-            statement = (
-                select(Transactions, Categories)
-                .join(Categories)
-                .where(Transactions.user_id == user_id)
-                .order_by(Transactions.transaction_date.desc())
+    def _adjust_budget(session: Session, tx: Transactions, sign: int) -> None:
+        """ปรับ `current_spent` ตามรายการนี้: sign=+1 ตัดงบ, -1 คืนงบ (ไม่ต่ำกว่า 0)
+
+        ตัดที่หมวดแม่ของเดือนที่รายการเกิดจริง เหมือนตอนบันทึก — รายรับ/ไม่มีหมวด ไม่แตะงบ
+        """
+        if tx.transaction_type != "expense" or not tx.category_id:
+            return
+        category = session.get(Categories, tx.category_id)
+        if not category:
+            return
+        budget = session.exec(
+            select(UserBudget).where(
+                UserBudget.user_id == tx.user_id,
+                UserBudget.category_id == (category.parent_id or category.id),
+                UserBudget.month == tx.transaction_date.month,
+                UserBudget.year == tx.transaction_date.year,
             )
-            results = session.exec(statement).all()
+        ).first()
+        if budget:
+            budget.current_spent = max(0.0, budget.current_spent + sign * tx.amount)
+            session.add(budget)
 
-            # แปลงผลลัพธ์ให้อยู่ในรูปแบบที่นำไปใช้งานต่อได้ง่าย (เช่น รวมข้อมูลเข้าด้วยกัน)
-            combined_data = []
-            for tx, cat in results:
-                tx_data = tx.model_dump()  # หรือ tx.__dict__ ในกรณีใช้ SQLAlchemy ธรรมดา
-                # เพิ่มข้อมูล category เข้าไปใน Transaction Object
-                tx_data["category_name"] = cat.name if cat else "ไม่มีหมวดหมู่"
-                combined_data.append(tx_data)
+    @staticmethod
+    def _transaction_view(tx: Transactions, category: Optional[Categories]) -> Dict[str, Any]:
+        return {
+            "id": tx.id,
+            "item_name": tx.item_name,
+            "amount": tx.amount,
+            "transaction_type": tx.transaction_type,
+            "transaction_date": tx.transaction_date.isoformat(),
+            "source_type": tx.source_type,
+            "category_id": tx.category_id,
+            "category_name": category.name if category else "ไม่มีหมวดหมู่",
+            "category_icon": category.icon if category and category.icon else "🏷️",
+        }
 
-            return combined_data
-        except Exception as e:
-            print(f"Error in get_Transactions: {str(e)}")
-            return []
+    @staticmethod
+    def get_user_transactions(
+        session: Session,
+        user_id: str,
+        month: int,
+        year: int,
+        category_id: Optional[int] = None,
+        limit: Optional[int] = 50,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """ประวัติรายการของผู้ใช้ในเดือนหนึ่ง (ใหม่สุดก่อน) + จำนวนทั้งหมด + ยอดรับ/จ่ายของทั้งเดือน
+
+        ใช้ outer join เพื่อไม่ให้รายการที่ไม่มีหมวดหายไป และกรองหมวดแม่แล้วรวมหมวดลูกด้วย
+        """
+        month_start = datetime(year, month, 1)
+        next_month = datetime(year + month // 12, month % 12 + 1, 1)
+        filters = [
+            Transactions.user_id == user_id,
+            Transactions.transaction_date >= month_start,
+            Transactions.transaction_date < next_month,
+        ]
+        if category_id is not None:
+            filters.append(
+                or_(Transactions.category_id == category_id, Categories.parent_id == category_id)
+            )
+
+        def base(*columns):
+            return (
+                select(*columns)
+                .select_from(Transactions)
+                .join(Categories, Transactions.category_id == Categories.id, isouter=True)
+                .where(*filters)
+            )
+
+        total = session.exec(base(func.count(Transactions.id))).one()
+        totals = {"income": 0.0, "expense": 0.0}
+        for tx_type, amount in session.exec(
+            base(Transactions.transaction_type, func.sum(Transactions.amount)).group_by(
+                Transactions.transaction_type
+            )
+        ).all():
+            totals["income" if tx_type == "income" else "expense"] += float(amount or 0)
+
+        statement = base(Transactions, Categories).order_by(Transactions.transaction_date.desc())
+        if limit is not None:
+            statement = statement.limit(limit).offset(offset)
+        items = [
+            DBManagerTransactions._transaction_view(tx, cat)
+            for tx, cat in session.exec(statement).all()
+        ]
+        return {"items": items, "total": total, "totals": totals}
+
+    @staticmethod
+    def update_user_transaction(
+        session: Session, user_id: str, transaction_id: str, changes: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """แก้รายการของผู้ใช้ (`amount`, `item_name`, `category_id`, `type`, `date`) แล้วย้ายยอดงบตาม"""
+        tx = session.get(Transactions, transaction_id)
+        if not tx or tx.user_id != user_id:
+            return {"success": False, "message": "ไม่พบรายการนี้"}
+
+        amount = tx.amount
+        if "amount" in changes:
+            try:
+                amount = float(changes["amount"])
+            except (TypeError, ValueError):
+                amount = 0.0
+            if amount <= 0:
+                return {"success": False, "message": "จำนวนเงินต้องมากกว่า 0"}
+
+        category_id = changes.get("category_id", tx.category_id)
+        if category_id is not None and not DBManagerCategories.can_use_category(
+            session, category_id, user_id
+        ):
+            return {"success": False, "message": "ไม่สามารถใช้หมวดหมู่นี้ได้"}
+
+        tx_type = changes.get("type", tx.transaction_type)
+        if tx_type not in ("income", "expense"):
+            return {"success": False, "message": "ประเภทรายการไม่ถูกต้อง"}
+
+        item_name = str(changes.get("item_name", tx.item_name) or "").strip()
+        if not item_name:
+            return {"success": False, "message": "กรุณาระบุชื่อรายการ"}
+
+        # คืนงบตามค่าเดิมก่อน แล้วค่อยตัดตามค่าใหม่ — ครอบคลุมทั้งเปลี่ยนจำนวน/หมวด/ชนิด/เดือน
+        DBManagerTransactions._adjust_budget(session, tx, -1)
+        tx.amount = amount
+        tx.category_id = category_id
+        tx.transaction_type = tx_type
+        tx.item_name = item_name
+        if changes.get("date"):
+            tx.transaction_date = _resolve_transaction_date(changes["date"], datetime.now())
+        DBManagerTransactions._adjust_budget(session, tx, +1)
+        session.add(tx)
+        session.commit()
+        session.refresh(tx)
+        category = session.get(Categories, tx.category_id) if tx.category_id else None
+        return {"success": True, "data": DBManagerTransactions._transaction_view(tx, category)}
+
+    @staticmethod
+    def delete_user_transaction(
+        session: Session, user_id: str, transaction_id: str
+    ) -> Dict[str, Any]:
+        """ลบรายการของผู้ใช้หนึ่งรายการ และคืนยอดงบที่เคยตัดไป"""
+        tx = session.get(Transactions, transaction_id)
+        if not tx or tx.user_id != user_id:
+            return {"success": False, "message": "ไม่พบรายการนี้"}
+        DBManagerTransactions._adjust_budget(session, tx, -1)
+        session.delete(tx)
+        session.commit()
+        return {"success": True, "message": "ลบรายการแล้ว"}
+
+    @staticmethod
+    def export_user_transactions_csv(session: Session, user_id: str, month: int, year: int) -> str:
+        """CSV ของทั้งเดือน — ขึ้นต้นด้วย BOM ให้ Excel เปิดภาษาไทยได้ถูกต้อง"""
+        page = DBManagerTransactions.get_user_transactions(session, user_id, month, year, limit=None)
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(["วันที่", "รายการ", "หมวดหมู่", "ประเภท", "จำนวนเงิน"])
+        for item in reversed(page["items"]):  # เก่าไปใหม่ อ่านเป็นสมุดบัญชีได้
+            writer.writerow(
+                [
+                    item["transaction_date"][:16].replace("T", " "),
+                    item["item_name"],
+                    item["category_name"],
+                    "รายรับ" if item["transaction_type"] == "income" else "รายจ่าย",
+                    f"{item['amount']:.2f}",
+                ]
+            )
+        return "\ufeff" + buffer.getvalue()
 
     @staticmethod
     def get_transaction_by_id(session: Session, transaction_id: str):

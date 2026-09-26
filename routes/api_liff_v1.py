@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlmodel import Session
 
@@ -33,6 +33,14 @@ class LineLoginRequest(BaseModel):
 class LineWebTransactionRequest(BaseModel):
     total: float
     items: list[dict]
+
+class WebTransactionUpdateRequest(BaseModel):
+    item_name: str | None = None
+    amount: float | None = None
+    category_id: int | None = None
+    type: str | None = None
+    date: str | None = None
+
 
 class CategoryCreateRequest(BaseModel):
     user_id: str | None = None
@@ -152,11 +160,74 @@ class LiffApi:
             return {"success": True, "message": "Transaction added"}
 
         @router.get("/web/transactions")
-        async def get_transaction_web(
-            user: dict = Depends(get_current_user), db: Session = Depends(get_session)
+        def get_transaction_web(
+            month: int | None = None,
+            year: int | None = None,
+            category_id: int | None = None,
+            limit: int = 50,
+            offset: int = 0,
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
         ):
-            data = DBManagerTransactions.get_Transactions(db, user_id=ensure_same_user(user))
+            """ประวัติรายการของเดือนที่เลือก (ค่าเริ่มต้นเดือนนี้) แบ่งหน้า + ยอดรับ/จ่ายของทั้งเดือน"""
+            now = datetime.now()
+            data = DBManagerTransactions.get_user_transactions(
+                db,
+                ensure_same_user(user),
+                month or now.month,
+                year or now.year,
+                category_id=category_id,
+                limit=max(1, min(limit, 200)),
+                offset=max(0, offset),
+            )
             return {"success": True, "data": data}
+
+        @router.get("/web/transactions/export")
+        def export_transactions_web(
+            month: int | None = None,
+            year: int | None = None,
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            now = datetime.now()
+            month, year = month or now.month, year or now.year
+            text = DBManagerTransactions.export_user_transactions_csv(
+                db, ensure_same_user(user), month, year
+            )
+            return Response(
+                content=text.encode("utf-8"),
+                media_type="text/csv; charset=utf-8",
+                headers={
+                    "Content-Disposition": f'attachment; filename="jodnid-{year}-{month:02d}.csv"'
+                },
+            )
+
+        @router.patch("/web/transactions/{transaction_id}")
+        def update_transaction_web(
+            transaction_id: str,
+            req: WebTransactionUpdateRequest,
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            result = DBManagerTransactions.update_user_transaction(
+                db, ensure_same_user(user), transaction_id, req.model_dump(exclude_none=True)
+            )
+            if not result["success"]:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["message"])
+            return result
+
+        @router.delete("/web/transactions/{transaction_id}")
+        def delete_transaction_web(
+            transaction_id: str,
+            user: dict = Depends(get_current_user),
+            db: Session = Depends(get_session),
+        ):
+            result = DBManagerTransactions.delete_user_transaction(
+                db, ensure_same_user(user), transaction_id
+            )
+            if not result["success"]:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=result["message"])
+            return result
 
         @router.get("/dashboard/{user_id}")
         async def get_dashboard(

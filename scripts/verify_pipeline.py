@@ -1238,6 +1238,152 @@ def _():
     return f"ตรวจ {checked} import"
 
 
+# ---------------------------------------------------------------------------
+# web app: ประวัติรายการ / แก้ไข / ลบ / export — ยอดงบต้องตามไปด้วย
+# ---------------------------------------------------------------------------
+
+
+def _seed_web_world(session):
+    """U_A มีรายการเดือนนี้ 3 (อาหาร 100, เดินทาง 40, รายรับ 1000) + เดือนก่อน 1 + ไม่มีหมวด 1, U_B 1"""
+    from datetime import datetime, timedelta
+
+    from model.models import Categories, Transactions, UserBudget, Users
+
+    now = datetime.now()
+    last_month = now.replace(day=1) - timedelta(days=1)
+    session.add_all([Users(line_user_id="U_A"), Users(line_user_id="U_B")])
+    food, travel = Categories(name="อาหาร", icon="🍜"), Categories(name="เดินทาง", icon="🚗")
+    session.add_all([food, travel])
+    session.commit()
+
+    def tx(tx_id, amount, cat, tx_type="expense", when=now, user="U_A"):
+        session.add(Transactions(id=tx_id, user_id=user, amount=amount, item_name=tx_id,
+                                 category_id=cat, transaction_type=tx_type,
+                                 transaction_date=when, source_type="text"))
+
+    tx("food", 100, food.id)
+    tx("travel", 40, travel.id)
+    tx("salary", 1000, food.id, tx_type="income")
+    tx("old", 70, food.id, when=last_month)
+    tx("nocat", 5, None)
+    tx("b_tx", 999, food.id, user="U_B")
+    for cat_id, spent in ((food.id, 100), (travel.id, 40)):
+        session.add(UserBudget(user_id="U_A", category_id=cat_id, amount=1000,
+                               current_spent=spent, month=now.month, year=now.year))
+    session.commit()
+    return now, food.id, travel.id
+
+
+def _spent(session, category_id):
+    from sqlmodel import select
+
+    from model.models import UserBudget
+
+    session.expire_all()
+    return session.exec(
+        select(UserBudget).where(UserBudget.user_id == "U_A", UserBudget.category_id == category_id)
+    ).first().current_spent
+
+
+@check("ประวัติรายการบนเว็บ: กรองเดือน/หมวด, แบ่งหน้า, ยอดรวมของเดือน, ไม่หายเมื่อไม่มีหมวด")
+def _():
+    from model.db import DBManagerTransactions
+
+    with _sqlite_session() as s:
+        now, food_id, _travel = _seed_web_world(s)
+        page = DBManagerTransactions.get_user_transactions(s, "U_A", now.month, now.year)
+        ids = {i["id"] for i in page["items"]}
+        assert ids == {"food", "travel", "salary", "nocat"}, f"ได้ {ids}"
+        assert page["total"] == 4 and page["totals"] == {"income": 1000, "expense": 145}, page
+        assert all("category_icon" in i for i in page["items"]), page["items"][0]
+        only_food = DBManagerTransactions.get_user_transactions(
+            s, "U_A", now.month, now.year, category_id=food_id
+        )
+        assert {i["id"] for i in only_food["items"]} == {"food", "salary"}, only_food
+        paged = DBManagerTransactions.get_user_transactions(
+            s, "U_A", now.month, now.year, limit=2, offset=0
+        )
+        assert len(paged["items"]) == 2 and paged["total"] == 4, paged
+    return "เดือนนี้ 4 รายการ, รายรับ 1000 / รายจ่าย 145, กรองหมวดและแบ่งหน้าได้"
+
+
+@check("แก้รายการบนเว็บแล้วย้ายยอดงบตามหมวด/จำนวน/ชนิด")
+def _():
+    from model.db import DBManagerTransactions
+
+    with _sqlite_session() as s:
+        _now, food_id, travel_id = _seed_web_world(s)
+        moved = DBManagerTransactions.update_user_transaction(
+            s, "U_A", "food", {"amount": 150, "category_id": travel_id}
+        )
+        assert moved["success"], moved
+        assert (_spent(s, food_id), _spent(s, travel_id)) == (0, 190), "ย้ายหมวดแล้วงบไม่ตาม"
+        DBManagerTransactions.update_user_transaction(s, "U_A", "food", {"type": "income"})
+        assert _spent(s, travel_id) == 40, "เปลี่ยนเป็นรายรับแล้วยังตัดงบ"
+        other = DBManagerTransactions.update_user_transaction(s, "U_A", "b_tx", {"amount": 1})
+        assert other["success"] is False, "แก้รายการของคนอื่นได้"
+        bad = DBManagerTransactions.update_user_transaction(s, "U_A", "travel", {"amount": -5})
+        assert bad["success"] is False, "ยอมรับจำนวนติดลบ"
+    return "อาหาร 100→0, เดินทาง 40→190→40 (เปลี่ยนเป็นรายรับ), ของคนอื่นแก้ไม่ได้"
+
+
+@check("ลบรายการบนเว็บแล้วคืนยอดงบ (ไม่ติดลบ) และลบของคนอื่นไม่ได้")
+def _():
+    from model.db import DBManagerTransactions
+    from model.models import Transactions
+
+    with _sqlite_session() as s:
+        _now, food_id, _travel = _seed_web_world(s)
+        assert DBManagerTransactions.delete_user_transaction(s, "U_A", "food")["success"]
+        assert _spent(s, food_id) == 0 and s.get(Transactions, "food") is None
+        assert DBManagerTransactions.delete_user_transaction(s, "U_A", "b_tx")["success"] is False
+        assert s.get(Transactions, "b_tx") is not None
+        assert DBManagerTransactions.delete_user_transaction(s, "U_A", "salary")["success"]
+        assert _spent(s, food_id) == 0, "ลบรายรับแล้วไปลดงบ"
+    return "อาหาร 100→0, ลบรายรับไม่แตะงบ, ของคนอื่นยังอยู่"
+
+
+@check("export CSV ของเดือน: มี BOM ให้ Excel อ่านภาษาไทยได้ และเฉพาะของผู้ใช้คนนั้น")
+def _():
+    import csv
+    import io
+
+    from model.db import DBManagerTransactions
+
+    with _sqlite_session() as s:
+        now, _f, _t = _seed_web_world(s)
+        text = DBManagerTransactions.export_user_transactions_csv(s, "U_A", now.month, now.year)
+    assert text.startswith("\ufeff"), "ไม่มี BOM"
+    rows = list(csv.reader(io.StringIO(text.lstrip("\ufeff"))))
+    assert rows[0][0] == "วันที่" and len(rows) == 5, rows
+    assert not any("b_tx" in r for r in rows), "มีรายการของคนอื่น"
+    return f"{len(rows) - 1} แถว + หัวตาราง"
+
+
+@check("แก้รายการโดยไม่เปลี่ยนวันคงเวลาเดิม และ CSV กันสูตร Excel")
+def _():
+    from model.db import DBManagerTransactions
+    from model.models import Transactions
+
+    with _sqlite_session() as s:
+        now, food_id, _t = _seed_web_world(s)
+        before = s.get(Transactions, "food").transaction_date
+        DBManagerTransactions.update_user_transaction(
+            s, "U_A", "food", {"item_name": "ข้าวมันไก่", "date": before.date().isoformat()}
+        )
+        s.expire_all()
+        after = s.get(Transactions, "food").transaction_date
+        assert after == before, f"เวลาเปลี่ยนจาก {before} เป็น {after}"
+        DBManagerTransactions.update_user_transaction(s, "U_A", "travel", {"item_name": "=1+1"})
+        text = DBManagerTransactions.export_user_transactions_csv(s, "U_A", now.month, now.year)
+        only_food = DBManagerTransactions.export_user_transactions_csv(
+            s, "U_A", now.month, now.year, category_id=food_id
+        )
+    assert "'=1+1" in text and ",=1+1," not in text, "ไม่ได้กันสูตร"
+    assert "=1+1" not in only_food, "export ไม่ได้กรองตามหมวด"
+    return "เวลาเดิมคงอยู่, '=1+1 ใน CSV, export กรองหมวดได้"
+
+
 def main() -> int:
     passed = sum(1 for _n, ok, _d in RESULTS if ok)
     width = max(len(name) for name, _ok, _d in RESULTS)

@@ -1,7 +1,14 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import api from "../../../../common/lib/api";
 import { useWebTransaction } from "../store/web.transaction.store";
+
+// วันนี้ตามเวลาเครื่อง (toISOString เป็น UTC → ก่อน 07:00 จะได้วันที่ของเมื่อวาน)
+const todayLocal = () => {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 
 export default function AddTransactionPage() {
   const navigate = useNavigate();
@@ -14,9 +21,10 @@ export default function AddTransactionPage() {
   const [amount, setAmount] = useState("");
   const [type, setType] = useState("expense");
   const [category, setCategory] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(todayLocal);
   const [note, setNote] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [pageError, setPageError] = useState("");
   const [validate, setValidate] = useState({
     amount: true,
     category: true,
@@ -45,6 +53,7 @@ export default function AddTransactionPage() {
         setCategory(res.data[0]?.name || "");
       } catch (e) {
         console.error("Error fetching categories:", e);
+        setPageError("ไม่สามารถดึงหมวดหมู่ได้ กรุณารีเฟรชหน้านี้");
       }
     };
     fetchCatogories();
@@ -56,23 +65,19 @@ export default function AddTransactionPage() {
 
     if (!amount || parseFloat(amount) <= 0) {
       setValidate({ ...validate, amount: false });
-      // alert("กรุณาระบุจำนวนเงินที่มากกว่า 0");
       return;
     }
 
     if (!category) {
       setValidate({ ...validate, category: false });
-      // alert("กรุณาเลือกหมวดหมู่");
       return;
     }
     if (!date) {
       setValidate({ ...validate, date: false });
-      // alert("กรุณาเลือกวันที่");
       return;
     }
     if (!note) {
       setValidate({ ...validate, note: false });
-      // alert("กรุณาระบุหมายเหตุ");
       return;
     }
     const newItem = {
@@ -110,9 +115,10 @@ export default function AddTransactionPage() {
   const handleSubmitAll = async (e) => {
     e.preventDefault();
     if (items.length === 0) {
-      alert("กรุณาเพิ่มรายการอย่างน้อย 1 รายการก่อนบันทึก");
+      setPageError("กรุณาเพิ่มรายการอย่างน้อย 1 รายการก่อนบันทึก");
       return;
     }
+    setPageError("");
     setIsLoading(true);
     const newItems = items.map((i) => ({
       amount: i.amount.toFixed(2),
@@ -129,11 +135,10 @@ export default function AddTransactionPage() {
     });
 
     setIsLoading(false);
-    if (result) {
-      alert(`บันทึกรายการทั้งหมด ${newItems.length} รายการเรียบร้อยแล้ว! 📝`);
+    if (result.success) {
       navigate("/");
     } else {
-      alert("เกิดข้อผิดพลาดในการบันทึกรายการ กรุณาลองใหม่อีกครั้ง");
+      setPageError(result.error);
     }
   };
 
@@ -237,7 +242,7 @@ export default function AddTransactionPage() {
 
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">
-                  หมายเหตุ (เพิ่มเติม)
+                  ชื่อรายการ
                 </label>
                 <textarea
                   value={note}
@@ -247,7 +252,7 @@ export default function AddTransactionPage() {
                   className="w-full px-4 py-3.5 border border-gray-200  rounded-xl focus:ring-4 focus:ring-green-100 focus:border-green-400 outline-none resize-none transition-all bg-gray-50/20"
                 />
                 {validate.note === false && (
-                  <p className="text-red-500 text-xs mt-1">กรุณาระบุหมายเหตุ</p>
+                  <p className="text-red-500 text-xs mt-1">กรุณาระบุชื่อรายการ</p>
                 )}
               </div>
 
@@ -307,6 +312,7 @@ export default function AddTransactionPage() {
                 </span>
               </div>
 
+              {pageError && <p className="text-sm text-red-600">⚠️ {pageError}</p>}
               <button
                 onClick={handleSubmitAll}
                 disabled={isLoading || items.length === 0}
@@ -396,7 +402,7 @@ export default function AddTransactionPage() {
 
       {/* Footer */}
       <footer className="border-t border-gray-100 bg-white py-6 mt-12 text-center text-xs text-gray-400">
-        JodNid Smart Account Book &copy; 2026
+        จดนิด JodNid &copy; 2026
       </footer>
     </div>
   );

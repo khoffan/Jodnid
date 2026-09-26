@@ -122,6 +122,7 @@ const Onboarding = ({ userId }) => {
         }
       } catch (err) {
         console.error("Failed to load onboarding data:", err);
+        setConfirmError("⚠️ ไม่สามารถดึงข้อมูลหมวดหมู่/งบได้ กรุณารีเฟรชหน้านี้");
       } finally {
         setDataLoading(false);
       }
@@ -186,8 +187,9 @@ const Onboarding = ({ userId }) => {
           return updated;
         });
       }
-    } catch {
-      setAddCatError("เกิดข้อผิดพลาด กรุณาลองใหม่");
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setAddCatError(typeof detail === "string" ? detail : "เกิดข้อผิดพลาด กรุณาลองใหม่");
     } finally {
       setAddingCat(false);
     }
@@ -196,7 +198,10 @@ const Onboarding = ({ userId }) => {
   // ── confirm & save ────────────────────────────────────────────────────────
   const handleConfirm = async () => {
     const entries = Object.entries(budgets).filter(([, v]) => parseFloat(v) > 0);
-    if (entries.length === 0) return alert("กรุณาระบุงบประมาณอย่างน้อย 1 หมวดหมู่");
+    if (entries.length === 0) {
+      setConfirmError("⚠️ กรุณาระบุงบประมาณอย่างน้อย 1 หมวดหมู่");
+      return;
+    }
 
     setSaving(true);
     setConfirmError("");
@@ -377,7 +382,8 @@ const Onboarding = ({ userId }) => {
               <button
                 onClick={() => {
                   if (step === STEP.BUDGET && !hasBudget) {
-                    return alert("กรุณาระบุงบประมาณอย่างน้อย 1 หมวดหมู่ก่อน");
+                    setConfirmError("⚠️ กรุณาระบุงบประมาณอย่างน้อย 1 หมวดหมู่ก่อน");
+                    return;
                   }
                   goTo(step + 1);
                 }}

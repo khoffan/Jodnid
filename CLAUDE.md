@@ -185,9 +185,11 @@ npm run build && npm run lint
 
 - `web/dashboard` ship bundle เดียวใช้สองที่: [App.jsx](web/dashboard/src/App.jsx) แยกด้วย `isWebApp` เป็น
   `WebPage` (LINE OAuth login, transaction list, add) หรือ `LiffPage` (overview, onboarding, summary,
-  edit temp) — **ตอนนี้สาย web เปิดเฉพาะเมื่อขอด้วย `?webapp=true`** (จำไว้ใน `sessionStorage["web_mode"]`
-  เพราะ redirect กลับจาก LINE Login ไม่มีพารามิเตอร์นี้) และต้องเปิดนอกแอป LINE และไม่ใช่ลิงก์ LIFF
-  (`path` / `liff.state` / `liffClientId`) — เมื่อสาย web พร้อมจะเลิกบังคับ `?webapp=true`
+  edit temp) — `initApp` เลือกสาย web เมื่อ `?webapp=true` หรือเปิดนอกแอป LINE (`!liff.isInClient()`)
+  **ยกเว้น** URL ที่มี `path` / `liff.state` / `liffClientId` ซึ่งเป็นลิงก์ LIFF (เช่นเปิดจาก LINE PC)
+  ต้องไปสาย LIFF เสมอ ไม่งั้น deep link จาก Flex จะหลุดไปหน้า web
+- สาย web ทำเฉพาะงานที่ใช้บนคอมสะดวกกว่า (ประวัติ/แก้/ลบ/export/จดหลายรายการ) ไม่ทำ overview/งบซ้ำกับ LIFF
+  แก้/ลบรายการต้องผ่าน `update_user_transaction` / `delete_user_transaction` ที่ปรับ `current_spent` ให้
 - LIFF deep link ใช้ `?path=/route` ซึ่ง `initApp` อ่านแล้วส่งต่อให้ `navigate()` หลัง login
 - Auth คนละชุดกัน: dashboard ใช้ LINE ID token (`sessionStorage["id_token"]`),
   admin ใช้ Firebase ID token ที่ขอจาก `auth.currentUser.getIdToken()` ทุก request (ไม่เก็บเอง — Firebase
@@ -254,5 +256,5 @@ npm run build && npm run lint
 รายการเต็มพร้อม `file:line` อยู่ใน [docs/backlog.md](docs/backlog.md) แบ่งตาม branch ที่จะใช้แก้
 **ห้ามถือว่าโค้ดเดิมเป็นตัวอย่างที่ถูก** จุดที่ยังผิดกฎข้างบนอยู่:
 
-- โค้ด frontend หลายไฟล์ใส่ `Authorization` เอง, `console.log` ข้อมูล token, และใช้ `alert()`
+- บางหน้ายังใช้ `alert()` แทนข้อความในหน้า (Onboarding, admin console)
 - แก้ข้อไหนแล้ว ให้ลบออกจาก backlog ในคอมมิตเดียวกัน

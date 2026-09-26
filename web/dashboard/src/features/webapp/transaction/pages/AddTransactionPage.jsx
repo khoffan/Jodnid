@@ -65,23 +65,19 @@ export default function AddTransactionPage() {
 
     if (!amount || parseFloat(amount) <= 0) {
       setValidate({ ...validate, amount: false });
-      // alert("กรุณาระบุจำนวนเงินที่มากกว่า 0");
       return;
     }
 
     if (!category) {
       setValidate({ ...validate, category: false });
-      // alert("กรุณาเลือกหมวดหมู่");
       return;
     }
     if (!date) {
       setValidate({ ...validate, date: false });
-      // alert("กรุณาเลือกวันที่");
       return;
     }
     if (!note) {
       setValidate({ ...validate, note: false });
-      // alert("กรุณาระบุหมายเหตุ");
       return;
     }
     const newItem = {

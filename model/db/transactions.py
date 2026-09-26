@@ -453,7 +453,9 @@ class DBManagerTransactions:
         ).all():
             totals["income" if tx_type == "income" else "expense"] += float(amount or 0)
 
-        statement = base(Transactions, Categories).order_by(Transactions.transaction_date.desc())
+        statement = base(Transactions, Categories).order_by(
+            Transactions.transaction_date.desc(), Transactions.id
+        )
         if limit is not None:
             statement = statement.limit(limit).offset(offset)
         items = [
@@ -501,7 +503,10 @@ class DBManagerTransactions:
         tx.transaction_type = tx_type
         tx.item_name = item_name
         if changes.get("date"):
-            tx.transaction_date = _resolve_transaction_date(changes["date"], datetime.now())
+            new_date = _resolve_transaction_date(changes["date"], datetime.now())
+            # หน้าเว็บส่งวันที่มาทุกครั้ง — ถ้าวันเดิม คงเวลาเดิมไว้ ไม่ให้แก้ชื่อแล้วลำดับรายการเปลี่ยน
+            if new_date.date() != tx.transaction_date.date():
+                tx.transaction_date = new_date
         DBManagerTransactions._adjust_budget(session, tx, +1)
         session.add(tx)
         session.commit()
@@ -523,9 +528,18 @@ class DBManagerTransactions:
         return {"success": True, "message": "ลบรายการแล้ว"}
 
     @staticmethod
-    def export_user_transactions_csv(session: Session, user_id: str, month: int, year: int) -> str:
-        """CSV ของทั้งเดือน — ขึ้นต้นด้วย BOM ให้ Excel เปิดภาษาไทยได้ถูกต้อง"""
-        page = DBManagerTransactions.get_user_transactions(session, user_id, month, year, limit=None)
+    def export_user_transactions_csv(
+        session: Session, user_id: str, month: int, year: int, category_id: Optional[int] = None
+    ) -> str:
+        """CSV ของเดือน (ตามหมวดที่กรอง) — ขึ้นต้นด้วย BOM ให้ Excel เปิดภาษาไทยได้ถูกต้อง"""
+
+        def cell(value: str) -> str:
+            # ข้อความที่ขึ้นต้นด้วย = + - @ จะถูก Excel ตีความเป็นสูตร (ชื่อรายการมาจากผู้ใช้/OCR)
+            return f"'{value}" if value[:1] in ("=", "+", "-", "@", "\t", "\r") else value
+
+        page = DBManagerTransactions.get_user_transactions(
+            session, user_id, month, year, category_id=category_id, limit=None
+        )
         buffer = io.StringIO()
         writer = csv.writer(buffer)
         writer.writerow(["วันที่", "รายการ", "หมวดหมู่", "ประเภท", "จำนวนเงิน"])
@@ -533,8 +547,8 @@ class DBManagerTransactions:
             writer.writerow(
                 [
                     item["transaction_date"][:16].replace("T", " "),
-                    item["item_name"],
-                    item["category_name"],
+                    cell(item["item_name"]),
+                    cell(item["category_name"]),
                     "รายรับ" if item["transaction_type"] == "income" else "รายจ่าย",
                     f"{item['amount']:.2f}",
                 ]

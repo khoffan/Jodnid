@@ -1360,6 +1360,30 @@ def _():
     return f"{len(rows) - 1} แถว + หัวตาราง"
 
 
+@check("แก้รายการโดยไม่เปลี่ยนวันคงเวลาเดิม และ CSV กันสูตร Excel")
+def _():
+    from model.db import DBManagerTransactions
+    from model.models import Transactions
+
+    with _sqlite_session() as s:
+        now, food_id, _t = _seed_web_world(s)
+        before = s.get(Transactions, "food").transaction_date
+        DBManagerTransactions.update_user_transaction(
+            s, "U_A", "food", {"item_name": "ข้าวมันไก่", "date": before.date().isoformat()}
+        )
+        s.expire_all()
+        after = s.get(Transactions, "food").transaction_date
+        assert after == before, f"เวลาเปลี่ยนจาก {before} เป็น {after}"
+        DBManagerTransactions.update_user_transaction(s, "U_A", "travel", {"item_name": "=1+1"})
+        text = DBManagerTransactions.export_user_transactions_csv(s, "U_A", now.month, now.year)
+        only_food = DBManagerTransactions.export_user_transactions_csv(
+            s, "U_A", now.month, now.year, category_id=food_id
+        )
+    assert "'=1+1" in text and ",=1+1," not in text, "ไม่ได้กันสูตร"
+    assert "=1+1" not in only_food, "export ไม่ได้กรองตามหมวด"
+    return "เวลาเดิมคงอยู่, '=1+1 ใน CSV, export กรองหมวดได้"
+
+
 def main() -> int:
     passed = sum(1 for _n, ok, _d in RESULTS if ok)
     width = max(len(name) for name, _ok, _d in RESULTS)

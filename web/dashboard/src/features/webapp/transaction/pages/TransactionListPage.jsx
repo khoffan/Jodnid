@@ -121,6 +121,12 @@ const EditTransactionModal = ({ tx, categories, onClose, onSaved }) => {
             onChange={(e) => setForm({ ...form, category_id: e.target.value })}
           >
             {form.category_id === "" && <option value="">ไม่มีหมวดหมู่</option>}
+            {/* หมวดเดิมของรายการอาจเป็นหมวดลูกที่ไม่อยู่ในรายการหมวดหลัก — ต้องแสดงให้ตรงกับที่บันทึกไว้ */}
+            {tx.category_id != null && !categories.some((cat) => cat.id === tx.category_id) && (
+              <option value={tx.category_id}>
+                {tx.category_icon} {tx.category_name}
+              </option>
+            )}
             {categories.map((cat) => (
               <option key={cat.id} value={cat.id}>
                 {cat.icon} {cat.name}
@@ -199,7 +205,11 @@ export default function TransactionListPage() {
     setActionError("");
     const result = await deleteTransaction(tx.id);
     if (result.success) {
-      reload();
+      if (items.length === 1 && offset > 0) {
+        setOffset(Math.max(0, offset - WEB_PAGE_SIZE)); // effect โหลดหน้าก่อนหน้าให้เอง
+      } else {
+        reload();
+      }
     } else {
       setActionError(result.error);
     }
@@ -207,7 +217,7 @@ export default function TransactionListPage() {
 
   const handleExport = async () => {
     setActionError("");
-    const result = await exportCsv({ month, year });
+    const result = await exportCsv({ month, year, categoryId });
     if (!result.success) setActionError(result.error);
   };
 
@@ -274,7 +284,7 @@ export default function TransactionListPage() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
           <div className="bg-linear-to-br from-[#06C755] to-[#05b348] p-6 rounded-2xl text-white shadow-xl shadow-green-100/30">
             <p className="text-xs uppercase tracking-wider opacity-80 font-semibold mb-1">
-              คงเหลือสุทธิเดือนนี้
+              {categoryId ? "คงเหลือสุทธิ (หมวดที่เลือก)" : "คงเหลือสุทธิเดือนนี้"}
             </p>
             <h2 className="text-4xl font-bold tracking-tight">฿{money(netBalance)}</h2>
           </div>

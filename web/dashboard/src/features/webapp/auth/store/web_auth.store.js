@@ -6,6 +6,7 @@ const testMode = import.meta.env.VITE_TEST_MODE;
 
 const AUTH_RECOVER_KEY = "auth_recover_at";
 const OAUTH_STATE_KEY = "line_oauth_state";
+const LIFF_SESSION_KEY = "liff_session";
 const AUTH_RECOVER_COOLDOWN_MS = 60_000;
 let isRecovering = false;
 
@@ -86,9 +87,13 @@ export const useWebAuthStore = create((set, get) => ({
     // ยังต้องไปสาย LIFF — ดูจาก ?path= ที่ backend สร้าง และพารามิเตอร์ที่ LIFF SDK แนบมาเอง
     const isLiffLink =
       urlParams.has("path") || urlParams.has("liff.state") || urlParams.has("liffClientId");
+    // แท็บที่เปิดมาจากลิงก์ LIFF ให้อยู่สาย LIFF ต่อ — หลัง liff.init/navigate URL ไม่มีพารามิเตอร์แล้ว
+    // ถ้ากดรีเฟรชในเบราว์เซอร์นอกแอป (เช่น LINE PC) จะหลุดไปสาย web
+    if (isLiffLink) sessionStorage.setItem(LIFF_SESSION_KEY, "1");
+    const inLiffSession = sessionStorage.getItem(LIFF_SESSION_KEY) === "1";
     // liff.isInClient() เรียกก่อน liff.init() ได้
     const isWebApp =
-      urlParams.get("webapp") === "true" || (!liff.isInClient() && !isLiffLink);
+      urlParams.get("webapp") === "true" || (!liff.isInClient() && !isLiffLink && !inLiffSession);
     // 🔹 กรณีเปิดผ่าน Web Browser / Desktop
     if (isWebApp) {
       const storedUser = sessionStorage.getItem("user_info");

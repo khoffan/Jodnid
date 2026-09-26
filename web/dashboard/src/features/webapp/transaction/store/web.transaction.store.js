@@ -3,6 +3,9 @@ import api from "../../../../common/lib/api";
 
 export const WEB_PAGE_SIZE = 20;
 
+// เลขลำดับ request ล่าสุด — ผลของ request เก่าที่กลับมาทีหลังต้องไม่ทับผลของตัวกรองปัจจุบัน
+let latestFetch = 0;
+
 const errorDetail = (error, fallback) => {
   const detail = error?.response?.data?.detail;
   return typeof detail === "string" ? detail : fallback;
@@ -21,6 +24,7 @@ export const useWebTransaction = create((set) => ({
 
   // ประวัติรายการของเดือนที่เลือก (backend คืนยอดรับ/จ่ายของทั้งเดือน ไม่ใช่แค่หน้าที่แสดง)
   fetchTransactions: async ({ month, year, categoryId, offset = 0 }) => {
+    const fetchId = ++latestFetch;
     set({ loading: true, error: null });
     try {
       const res = await api.get("/api/web/transactions", {
@@ -32,9 +36,11 @@ export const useWebTransaction = create((set) => ({
           offset,
         },
       });
+      if (fetchId !== latestFetch) return;
       const { items, total, totals } = res.data.data;
       set({ items, total, totals, loading: false });
     } catch (error) {
+      if (fetchId !== latestFetch) return;
       console.error("Error fetching transactions:", error);
       set({ ...initialState, error: errorDetail(error, "ไม่สามารถดึงข้อมูลได้") });
     }
@@ -69,18 +75,21 @@ export const useWebTransaction = create((set) => ({
   },
 
   // ดาวน์โหลด CSV ผ่าน axios instance เดิม (ต้องแนบ token) แล้วสร้างลิงก์ดาวน์โหลดในหน้า
-  exportCsv: async ({ month, year }) => {
+  exportCsv: async ({ month, year, categoryId }) => {
     try {
       const res = await api.get("/api/web/transactions/export", {
-        params: { month, year },
+        params: { month, year, category_id: categoryId || undefined },
         responseType: "blob",
       });
       const url = URL.createObjectURL(res.data);
       const link = document.createElement("a");
       link.href = url;
       link.download = `jodnid-${year}-${String(month).padStart(2, "0")}.csv`;
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(url);
+      link.remove();
+      // บางเบราว์เซอร์ยกเลิกการดาวน์โหลดถ้า revoke ทันที
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       return { success: true };
     } catch (error) {
       console.error("Error exporting transactions:", error);

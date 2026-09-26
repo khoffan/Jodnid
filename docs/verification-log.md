@@ -26,10 +26,11 @@
 
 ### ชุดตรวจอัตโนมัติ
 
-- `python scripts/verify_pipeline.py` → **46/46** (เพิ่ม 4 หัวข้อ SQLite: ประวัติ/กรอง/แบ่งหน้า/ยอดรวม,
-  แก้แล้วย้ายงบ, ลบแล้วคืนงบ, export CSV) — FAIL 4 ข้อก่อนแก้ตามคาด
-- TestClient + SQLite ชั่วคราว: LIFF **33/33**, web **21/21** (เพิ่ม list เดือนก่อน, PATCH ย้ายงบ,
-  PATCH ของคนอื่น/จำนวน 0, export, DELETE ของคนอื่น/คืนงบ)
+- `python scripts/verify_pipeline.py` → **47/47** (เพิ่ม 5 หัวข้อ SQLite: ประวัติ/กรอง/แบ่งหน้า/ยอดรวม,
+  แก้แล้วย้ายงบ, ลบแล้วคืนงบ, export CSV, แก้แล้วเวลาเดิมคงอยู่ + CSV กันสูตร Excel + export ตามหมวด)
+  — 4 ข้อแรก FAIL ก่อนแก้ตามคาด
+- TestClient + SQLite ชั่วคราว: LIFF **33/33**, web **22/22** (เพิ่ม list เดือนก่อน, PATCH ย้ายงบ,
+  PATCH ของคนอื่น/จำนวน 0, export, เดือน 13 → 422, DELETE ของคนอื่น/คืนงบ)
 - `npm run lint` / `npm run build` ของ dashboard ผ่าน
 
 ### ยังไม่ได้ตรวจ

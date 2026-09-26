@@ -198,7 +198,10 @@ const Onboarding = ({ userId }) => {
   // ── confirm & save ────────────────────────────────────────────────────────
   const handleConfirm = async () => {
     const entries = Object.entries(budgets).filter(([, v]) => parseFloat(v) > 0);
-    if (entries.length === 0) return alert("กรุณาระบุงบประมาณอย่างน้อย 1 หมวดหมู่");
+    if (entries.length === 0) {
+      setConfirmError("⚠️ กรุณาระบุงบประมาณอย่างน้อย 1 หมวดหมู่");
+      return;
+    }
 
     setSaving(true);
     setConfirmError("");
@@ -379,7 +382,8 @@ const Onboarding = ({ userId }) => {
               <button
                 onClick={() => {
                   if (step === STEP.BUDGET && !hasBudget) {
-                    return alert("กรุณาระบุงบประมาณอย่างน้อย 1 หมวดหมู่ก่อน");
+                    setConfirmError("⚠️ กรุณาระบุงบประมาณอย่างน้อย 1 หมวดหมู่ก่อน");
+                    return;
                   }
                   goTo(step + 1);
                 }}

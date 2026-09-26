@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from sqlmodel import Session
 
@@ -161,8 +161,8 @@ class LiffApi:
 
         @router.get("/web/transactions")
         def get_transaction_web(
-            month: int | None = None,
-            year: int | None = None,
+            month: int | None = Query(default=None, ge=1, le=12),
+            year: int | None = Query(default=None, ge=2000, le=2100),
             category_id: int | None = None,
             limit: int = 50,
             offset: int = 0,
@@ -184,15 +184,16 @@ class LiffApi:
 
         @router.get("/web/transactions/export")
         def export_transactions_web(
-            month: int | None = None,
-            year: int | None = None,
+            month: int | None = Query(default=None, ge=1, le=12),
+            year: int | None = Query(default=None, ge=2000, le=2100),
+            category_id: int | None = None,
             user: dict = Depends(get_current_user),
             db: Session = Depends(get_session),
         ):
             now = datetime.now()
             month, year = month or now.month, year or now.year
             text = DBManagerTransactions.export_user_transactions_csv(
-                db, ensure_same_user(user), month, year
+                db, ensure_same_user(user), month, year, category_id=category_id
             )
             return Response(
                 content=text.encode("utf-8"),

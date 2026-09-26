@@ -4,8 +4,10 @@ import Dashboard from "../features/transactions/pages/Dashboard";
 import LoadingCheckUser from "../common/components/loading/LoadingCheckUser";
 import Onboarding from "../features/dashboard/pages/Onboarding";
 import { EditTempPage } from "../features/transactions/pages/EditTempPage";
+import { useWebAuthStore } from "../features/webapp/auth/store/web_auth.store";
 
 export default function LiffPage({ userId }) {
+  const error = useWebAuthStore((state) => state.error);
   const element = (
     <Routes>
       {/* ถ้ามี userId ให้ไป Dashboard ถ้าไม่มี (หรือยังไม่ Login) ให้กลับไปหน้าหลัก */}
@@ -29,7 +31,12 @@ export default function LiffPage({ userId }) {
 
   return (
     <div className="max-w-md mx-auto min-h-screen shadow-2xl bg-white p-5 pt-10 pb-20 rounded-3xl">
-      {!userId ? <LoadingCheckUser /> : element}
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">
+          <p className="text-sm text-red-600 text-center">⚠️ {error}</p>
+        </div>
+      )}
+      {!userId ? !error && <LoadingCheckUser /> : element}
     </div>
   );
 }

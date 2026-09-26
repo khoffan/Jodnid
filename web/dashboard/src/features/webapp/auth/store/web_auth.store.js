@@ -183,6 +183,8 @@ export const useWebAuthStore = create((set, get) => ({
         set({ loading: false, isAuth: false });
       }
     } catch (error) {
+      // 401 = token หมดอายุ → interceptor เรียก recoverSession ไปแล้ว อย่าเขียนทับข้อความของมัน
+      if (error.response?.status === 401) return;
       console.error("LIFF Initialization failed:", error);
       set({ error: error.message, loading: false });
     }

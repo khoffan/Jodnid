@@ -12,6 +12,38 @@
 
 ---
 
+## 2026-09-26 16:32 (+07) — เปิดใช้งานสาย web app ของ dashboard
+
+- `initApp` เลือกสาย web เมื่อ `?webapp=true` หรือเปิดนอกแอป LINE ยกเว้น URL ที่เป็นลิงก์ LIFF
+  (`path` / `liff.state` / `liffClientId`) เพื่อไม่ให้ deep link จาก Flex บน LINE PC หลุดไปหน้า web
+- 🔒 **แก้ข้อมูลรั่ว:** `GET /api/web/transactions` เดิมคืนรายการของ **ผู้ใช้ทุกคน** —
+  ตอนนี้กรองด้วย `sub` จาก token และเรียงวันที่ล่าสุดก่อน
+
+### ชุดตรวจอัตโนมัติ
+
+- `python scripts/verify_pipeline.py` → รอบแรก **27/28** แล้วรันซ้ำอีก 9 รอบได้ **28/28 ทุกรอบ**
+  ไม่สามารถจับได้ว่าหัวข้อไหนตกในรอบแรก (ดูแค่บรรทัดสรุป) → มีหัวข้อที่ผลไม่คงที่อยู่ ควรหาต่อ
+- `npm run lint` และ `npm run build` ของ dashboard ผ่าน (มีแค่ warning chunk > 500 kB เดิม)
+- ทดสอบ endpoint ด้วย FastAPI `TestClient` + SQLite ชั่วคราว (override `get_current_user` /
+  `get_session` ไม่แตะ DB จริง) ผ่าน **5/5**:
+
+| เคส | ผล |
+|---|---|
+| `POST /web/transaction/add` สำเร็จ | `201 {"success": true}` |
+| หลังบันทึก `UserBudget.current_spent` | 0 → 60 |
+| บันทึกไม่สำเร็จ | `500 {"detail": "ไม่สามารถบันทึกรายการได้"}` |
+| `GET /web/transactions` มีรายการของผู้ใช้อื่นใน DB | เห็นเฉพาะของตัวเอง 1 แถว |
+| ไม่มี token | `401` |
+
+### ยังไม่ได้ตรวจ
+
+- LINE Login ผ่านเบราว์เซอร์จริง (`/login` → `/login/callback`) — ต้องมีคนกด login ด้วยบัญชี LINE
+  และ callback URL `http://localhost:5173/login/callback` ต้องลงทะเบียนไว้ใน LINE Login channel
+- เปิด LIFF ในแอป LINE และลิงก์ `แก้ไข` จาก Flex บน LINE PC ว่ายังไปหน้า LIFF ถูก
+- พบบั๊กใหม่ (ยังไม่แก้): รายรับ/วันที่ที่กรอกหน้า `/add` ถูกบันทึกเป็นรายจ่ายวันนี้ (ดู CLAUDE.md)
+
+---
+
 ## 2026-09-26 15:38 (+07) — แก้บั๊กที่รู้แล้ว 2 ตัว
 
 - `POST /api/web/transaction/add` เปลี่ยนจาก `return HTTPException` เป็นตอบ `201` พร้อม

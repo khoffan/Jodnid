@@ -330,10 +330,16 @@ class DBManagerTransactions:
             return None
 
     @staticmethod
-    def get_Transactions(session: Session):
+    def get_Transactions(session: Session, user_id: str):
         try:
             # ทำการ Join ระหว่าง Transactions และ Category โดยใช้ category_id
-            statement = select(Transactions, Categories).join(Categories)
+            # 🔒 กรองเฉพาะของผู้ใช้คนนี้ (เดิมคืนรายการของทุกคน)
+            statement = (
+                select(Transactions, Categories)
+                .join(Categories)
+                .where(Transactions.user_id == user_id)
+                .order_by(Transactions.transaction_date.desc())
+            )
             results = session.exec(statement).all()
 
             # แปลงผลลัพธ์ให้อยู่ในรูปแบบที่นำไปใช้งานต่อได้ง่าย (เช่น รวมข้อมูลเข้าด้วยกัน)

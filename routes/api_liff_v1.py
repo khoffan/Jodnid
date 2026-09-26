@@ -150,7 +150,7 @@ class LiffApi:
         async def get_transaction_web(
             user: dict = Depends(get_current_user), db: Session = Depends(get_session)
         ):
-            data = DBManagerTransactions.get_Transactions(db)
+            data = DBManagerTransactions.get_Transactions(db, user_id=user.get("sub"))
             return {"success": True, "data": data}
 
         @router.get("/dashboard/{user_id}")

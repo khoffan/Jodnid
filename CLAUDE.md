@@ -160,7 +160,7 @@ npm run build && npm run lint
 - ❌ ห้าม hardcode รายชื่อหมวดหมู่ลงใน system prompt — prompt ต้อง generate จาก DB
 - ❌ ห้ามเปลี่ยนชื่อโมเดล Typhoon, base_url, หรือ `response_format={"type": "json_object"}` โดยไม่ได้ถูกขอ
 - ❌ ห้ามแก้ field ของ SQLModel แล้วปล่อยให้ `create_all()` จัดการ — production ใช้ Alembic
-- ❌ ห้าม `return HTTPException(...)` — ต้อง `raise` (ดูบั๊กที่รู้แล้วด้านล่าง)
+- ❌ ห้าม `return HTTPException(...)` — ต้อง `raise` (FastAPI จะ serialize เป็น body แล้วตอบ 200)
 - ❌ ห้ามเชื่อ `user_id` ที่ส่งมาใน body/path สำหรับ endpoint ที่แตะเงินของผู้ใช้ — ให้ยึด `sub` จาก token
 - ❌ ห้ามลบ fallback ที่ classifier คืน `True` ตอน exception — ตั้งใจให้โมเดลเล็กที่ล่มไม่ทำให้ข้อความผู้ใช้หาย
 
@@ -178,8 +178,9 @@ npm run build && npm run lint
 
 - `web/dashboard` ship bundle เดียวใช้สองที่: [App.jsx](web/dashboard/src/App.jsx) แยกด้วย `isWebApp` เป็น
   `WebPage` (LINE OAuth login, transaction list, add) หรือ `LiffPage` (overview, onboarding, summary,
-  edit temp) — **ตอนนี้ `isWebApp` ถูก hardcode เป็น `false`** ใน `initApp` โดยโค้ดตรวจจริง
-  (`liff.isInClient()` / `?webapp=true`) ถูก comment ไว้ข้างบน สาย web จึงเป็น dead code จนกว่าจะเปิดคืน
+  edit temp) — `initApp` เลือกสาย web เมื่อ `?webapp=true` หรือเปิดนอกแอป LINE (`!liff.isInClient()`)
+  **ยกเว้น** URL ที่มี `path` / `liff.state` / `liffClientId` ซึ่งเป็นลิงก์ LIFF (เช่นเปิดจาก LINE PC)
+  ต้องไปสาย LIFF เสมอ ไม่งั้น deep link จาก Flex จะหลุดไปหน้า web
 - LIFF deep link ใช้ `?path=/route` ซึ่ง `initApp` อ่านแล้วส่งต่อให้ `navigate()` หลัง login
 - Auth คนละชุดกัน: dashboard ใช้ LINE ID token (`sessionStorage["id_token"]`),
   admin ใช้ Firebase ID token (`sessionStorage["token"]`)
@@ -244,7 +245,5 @@ npm run build && npm run lint
 
 ถ้าไปแตะโค้ดรอบๆ จุดพวกนี้ ให้แก้ไปเลย:
 
-- [AuthGuard.jsx](web/dashboard/src/common/guard/AuthGuard.jsx) ใช้ `isLoading` และ `user` ที่ไม่ได้
-  destructure ออกมาจาก store
-- `POST /api/web/transaction/add` **return** `HTTPException` แทนที่จะ `raise` → client ได้ 200 พร้อม body
-  ที่เป็น exception ที่ถูก serialize
+- `save_transaction()` hardcode `transaction_type="expense"` และ `transaction_date=now` → รายการ
+  **รายรับ** และ **วันที่ย้อนหลัง** ที่กรอกจากหน้า web (`/add`) ถูกบันทึกเป็นรายจ่ายวันนี้ และตัดงบด้วย

@@ -87,8 +87,13 @@ export const useWebAuthStore = create((set, get) => ({
     set({ loading: true, error: null });
 
     const urlParams = new URLSearchParams(window.location.search);
-    // const isWebApp = urlParams.get("webapp") === "true" || !liff.isInClient();
-    const isWebApp = false;
+    // ลิงก์ LIFF (deep link จาก Flex / redirect หลัง liff.login) ที่ถูกเปิดนอกแอป LINE เช่น LINE PC
+    // ยังต้องไปสาย LIFF — ดูจาก ?path= ที่ backend สร้าง และพารามิเตอร์ที่ LIFF SDK แนบมาเอง
+    const isLiffLink =
+      urlParams.has("path") || urlParams.has("liff.state") || urlParams.has("liffClientId");
+    // liff.isInClient() เรียกก่อน liff.init() ได้
+    const isWebApp =
+      urlParams.get("webapp") === "true" || (!liff.isInClient() && !isLiffLink);
     // 🔹 กรณีเปิดผ่าน Web Browser / Desktop
     if (isWebApp) {
       const storedUser = sessionStorage.getItem("user_info");

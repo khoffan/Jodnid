@@ -24,9 +24,7 @@ web app เป็นตัวช่วยบนคอม (ไม่ใช่เ�
 - `get_current_user` ของ admin เปิด `Session(engine)` เอง แทน `Depends(get_session)` `middleware/auth.py`
 - admin ที่ถูกปิดใช้งานระหว่างเปิด console อยู่ยังค้างที่หน้าเดิม (ทุก call ได้ 403 + ข้อความ) จนกว่าจะ reload —
   ยังไม่มี response interceptor ที่พาออกจากระบบ `web/admin-jodnid/src/common/lib/api.js`
-- โปรไฟล์ล้างชื่อ/เบอร์ให้ว่างไม่ได้ (`sync_administrator_profile` ข้ามค่าว่าง) `model/db/admin.py`
-- dependency `@heroui/*` / `framer-motion` ใน `package.json` ไม่มีที่ใช้ — ลบหรือเริ่มใช้ ต้องตัดสินใจก่อน
-  (CLAUDE.md ระบุว่าเป็น UI library ของ admin)
+- โปรไฟล์ล้างชื่อ/เบอร์ให้ว่างไม่ได้ (`sync_administrator_profile` ข้ามค่าว่าง) `model/db/admin.py` — ตัดสินใจไม่แก้ (2026-09-26)
 
 ## 5. `feature/web-app` — แก้แล้ว (เหลือเล็กน้อย)
 

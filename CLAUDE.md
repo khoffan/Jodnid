@@ -221,7 +221,7 @@ npm run build && npm run lint
 - ❌ ห้ามเก็บ token ใน `localStorage` — โปรเจกต์นี้ใช้ `sessionStorage` ทั้งหมด
 - ❌ ห้าม `import ... from "react-router-dom"` — ทุกแอปใช้ `react-router` v7 ตรงๆ
 - ❌ ห้ามเพิ่ม UI library ใหม่ — dashboard ใช้ `@headlessui/react` + `lucide-react`,
-  admin ใช้ `@heroui/react` + `framer-motion`, landing เขียน component เอง
+  admin ใช้ Tailwind ล้วน + `lucide-react` (modal/switch เขียนเอง), landing เขียน component เอง
 - ❌ ห้ามแปลง `.jsx` เป็น `.tsx` ใน dashboard/admin (TypeScript ใช้เฉพาะ landing)
 - ❌ ห้ามเพิ่ม state management ตัวอื่น (Redux, Context สำหรับ global state) — ใช้ Zustand
 - ❌ ห้ามเรียก LIFF SDK นอก `web_auth.store.js` — การ init และ login รวมศูนย์อยู่ที่นั่น

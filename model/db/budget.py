@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlmodel import Session, extract, func, select
+from sqlmodel import Session, select
 
 from model.models import Categories, Transactions, UserBudget
 
@@ -84,40 +84,62 @@ class DBManagerBudget:
             return {"success": False, "message": "เกิดข้อผิดพลาดในการตั้งงบประมาณ กรุณาลองใหม่อีกครั้ง"}
 
     @staticmethod
-    def sync_user_budgets(session: Session, user_id: str, month: int, year: int):
+    def sync_user_budgets(session: Session, user_id: str, month: int, year: int) -> dict:
         """
-        ฟังก์ชันสำหรับคำนวณยอดใช้จ่ายจริงจาก Transactions
-        แล้วนำไปอัปเดตในตาราง UserBudget ให้เป็นปัจจุบันที่สุด
+        เครื่องมือซ่อม `UserBudget.current_spent` (ยอดสะสมแบบ denormalized) ให้ตรงกับ Transactions จริง
+
+        - รวมยอดหมวดลูกขึ้นหมวดแม่ (`parent_id or id`) เหมือนตอนตัดงบใน `save_transaction`
+        - นับเฉพาะรายจ่ายของเดือนนั้น และหมวดที่ไม่มีรายจ่ายแล้วจะถูก reset เป็น 0
+        ห้ามเรียกจากเส้นทางอ่านข้อมูล (เช่นหน้า overview) — ใช้ผ่านปุ่มใน admin หรือ cron เท่านั้น
         """
-        # 1. ดึงยอดรวมการใช้จ่ายแยกตามหมวดหมู่จาก Transactions จริงของเดือนนั้นๆ
-        # สมมติว่า Transaction มีฟิลด์ category_id และ amount
-        spent_statement = (
-            select(Transactions.category_id, func.sum(Transactions.amount).label("total_spent"))
+        month_start = datetime(year, month, 1)
+        next_month = datetime(year + month // 12, month % 12 + 1, 1)
+        rows = session.exec(
+            select(Transactions.amount, Categories.id, Categories.parent_id)
+            .join(Categories, Transactions.category_id == Categories.id)
             .where(
                 Transactions.user_id == user_id,
                 Transactions.transaction_type == "expense",
-                func.extract("month", Transactions.transaction_date) == month,
-                func.extract("year", Transactions.transaction_date) == year,
+                Transactions.transaction_date >= month_start,
+                Transactions.transaction_date < next_month,
             )
-            .group_by(Transactions.category_id)
-        )
+        ).all()
 
-        actual_spent_results = session.exec(spent_statement).all()
+        spent_by_parent: dict[int, float] = {}
+        for amount, category_id, parent_id in rows:
+            key = parent_id or category_id
+            spent_by_parent[key] = spent_by_parent.get(key, 0.0) + float(amount)
 
-        # 2. นำยอดที่ได้ไป Update ใน UserBudget
-        for cat_id, total_spent in actual_spent_results:
-            # หาตารางงบประมาณที่ตรงกับหมวดหมู่และเดือนนั้น
-            budget_record = session.exec(
-                select(UserBudget).where(
-                    UserBudget.user_id == user_id,
-                    UserBudget.category_id == cat_id,
-                    UserBudget.month == month,
-                    UserBudget.year == year,
+        budgets = session.exec(
+            select(UserBudget).where(
+                UserBudget.user_id == user_id,
+                UserBudget.month == month,
+                UserBudget.year == year,
+            )
+        ).all()
+
+        changes = []
+        for budget in budgets:
+            actual = round(spent_by_parent.get(budget.category_id, 0.0), 2)
+            if abs(budget.current_spent - actual) > 0.001:
+                changes.append(
+                    {"category_id": budget.category_id, "from": budget.current_spent, "to": actual}
                 )
-            ).first()
+                budget.current_spent = actual
+                session.add(budget)
 
-            if budget_record:
-                budget_record.current_spent = float(total_spent)
-                session.add(budget_record)
+        session.commit()
+        return {"updated": len(changes), "changes": changes}
 
-        session.commit()  # บันทึกการอัปเดตทั้งหมด
+    @staticmethod
+    def sync_all_budgets(session: Session, month: int, year: int) -> dict:
+        """ซ่อมยอดของทุกคนที่มีงบในเดือนนั้น (ใช้กับ cron ทุกคืน)"""
+        user_ids = session.exec(
+            select(UserBudget.user_id)
+            .where(UserBudget.month == month, UserBudget.year == year)
+            .distinct()
+        ).all()
+        updated = 0
+        for user_id in user_ids:
+            updated += DBManagerBudget.sync_user_budgets(session, user_id, month, year)["updated"]
+        return {"users": len(user_ids), "updated": updated}

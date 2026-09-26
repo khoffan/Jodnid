@@ -586,7 +586,11 @@ def confirme_data_from_edit(
     user_id: str,
     items: List[Dict[str, Any]] = None,
     logger: JodNidLogger = None,
-):
+) -> bool | None:
+    """บันทึกรายการที่ผู้ใช้แก้ใน LIFF แล้วแจ้งผลทาง LINE
+
+    คืน True = บันทึกแล้ว, False = ไม่พบ temp (หมดอายุ/บันทึกไปแล้ว), None = เกิดข้อผิดพลาด
+    """
     if logger is None:
         logger = JodNidLogger()
 
@@ -646,6 +650,7 @@ def confirme_data_from_edit(
                     # TIP: ในอนาคตคุณสามารถเปลี่ยนจากส่ง Text เป็นส่ง
                     # send_line_push_v3(user_id, flex_json=create_budget_flex(b))
                     # เพื่อความสวยงามได้ครับ
+            return True
         else:
             logger.info(
                 module="webhook_postback_edit",
@@ -655,6 +660,7 @@ def confirme_data_from_edit(
             LineUtils.send_push_notification(
                 user_id=user_id, content="❌ ไม่พบข้อมูลรายการนี้ หรือถูกบันทึกไปแล้วครับ", alt_text="ไม่พบข้อมูล"
             )
+            return False
     except Exception as e:
         logger.error(
             module="webhook_postback_edit",
@@ -662,3 +668,4 @@ def confirme_data_from_edit(
             user_id=user_id,
         )
         LineUtils.send_push_notification(user_id, content="ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล")
+        return None

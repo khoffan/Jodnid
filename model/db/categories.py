@@ -2,7 +2,7 @@
 
 from typing import List
 
-from sqlmodel import Session, and_, select
+from sqlmodel import Session, and_, or_, select
 
 from model.models import Categories, Transactions, UserBudget
 
@@ -150,6 +150,19 @@ class DBManagerCategories:
         """หมวดใช้ได้เมื่อเป็นหมวดส่วนกลาง (`user_id IS NULL`) หรือเป็นของผู้ใช้คนนี้"""
         category = session.get(Categories, category_id)
         return category is not None and category.user_id in (None, user_id)
+
+    @staticmethod
+    def get_user_parent_categories(session: Session, user_id: str) -> List[Categories]:
+        """หมวดหลักที่ผู้ใช้คนนี้เลือกได้: หมวดส่วนกลาง + หมวดที่ผู้ใช้สร้างเอง (ส่วนกลางขึ้นก่อน)"""
+        statement = (
+            select(Categories)
+            .where(
+                Categories.parent_id.is_(None),
+                or_(Categories.user_id.is_(None), Categories.user_id == user_id),
+            )
+            .order_by(Categories.user_id.is_not(None), Categories.id)
+        )
+        return session.exec(statement).all()
 
     @staticmethod
     def get_parent_categories(session: Session) -> List[Categories]:

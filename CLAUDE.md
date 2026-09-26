@@ -129,7 +129,8 @@ npm run build && npm run lint
   `verify_pipeline.py` ตรวจว่าทุก route ของ LIFF มี `get_current_user` ยกเว้นที่อยู่ใน `_LIFF_PUBLIC_ROUTES`
 - **ทุกครั้งที่สร้างหรือลบแถว `Transactions`** → ต้องปรับ `UserBudget.current_spent` ให้ตรงกัน
   (`current_spent` เป็นยอดสะสมแบบ denormalized; `undo_transaction` ทำย้อนกลับพร้อม clamp ที่ 0;
-  `sync_user_budgets()` คือเครื่องมือซ่อมเมื่อค่าเพี้ยน)
+  `sync_user_budgets()` คือเครื่องมือซ่อมเมื่อค่าเพี้ยน — **ห้ามเรียกจากเส้นทางอ่านข้อมูล** ใช้ผ่านปุ่มในหน้าผู้ใช้
+  ของ admin หรือ cron `POST /api/cron/sync-budgets` เท่านั้น)
 - **ตัดงบที่ parent category** → `category.parent_id or category.id` เสมอ เพื่อให้ sub-category รวมยอดขึ้นแม่
 - **เลือกรายการที่จะบันทึก** → ใช้ `select_billable_items(transactions, grand_total)`
   ([model/db/billable.py](model/db/billable.py)) **ที่เดียวเท่านั้น** ห้ามเขียนเงื่อนไข
@@ -251,6 +252,5 @@ npm run build && npm run lint
 รายการเต็มพร้อม `file:line` อยู่ใน [docs/backlog.md](docs/backlog.md) แบ่งตาม branch ที่จะใช้แก้
 **ห้ามถือว่าโค้ดเดิมเป็นตัวอย่างที่ถูก** จุดที่ยังผิดกฎข้างบนอยู่:
 
-- `sync_user_budgets` ไม่รวมยอดหมวดย่อยขึ้นแม่ และถูกเรียกจากหน้า overview (GET ที่เขียน DB)
 - โค้ด frontend หลายไฟล์ใส่ `Authorization` เอง, `console.log` ข้อมูล token, และใช้ `alert()`
 - แก้ข้อไหนแล้ว ให้ลบออกจาก backlog ในคอมมิตเดียวกัน

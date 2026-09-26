@@ -59,6 +59,7 @@ const Onboarding = ({ userId }) => {
   const [saveResults, setSaveResults] = useState({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [confirmError, setConfirmError] = useState("");
 
   const { saveBudget } = useTransactionStore();
   const {
@@ -71,7 +72,8 @@ const Onboarding = ({ userId }) => {
     setOnboardStatus
   } = useWebAuthStore();
   const navigate = useNavigate();
-  const setupBudgetOnly = isOnboarded;
+  // จำโหมดไว้ตั้งแต่เปิดหน้า — isOnboarded จะกลายเป็น true หลังกดยืนยัน ไม่ให้หน้ากระโดดขั้นกลางคัน
+  const [setupBudgetOnly] = useState(isOnboarded);
   const activeStepLabels = setupBudgetOnly ? [STEP_LABELS[STEP.BUDGET]] : STEP_LABELS;
   const activeStepIcons = setupBudgetOnly ? [STEP_ICONS[STEP.BUDGET]] : STEP_ICONS;
 
@@ -197,19 +199,28 @@ const Onboarding = ({ userId }) => {
     if (entries.length === 0) return alert("กรุณาระบุงบประมาณอย่างน้อย 1 หมวดหมู่");
 
     setSaving(true);
+    setConfirmError("");
     const results = {};
     for (const [catId, amount] of entries) {
       results[catId] = await saveBudget(userId, catId, parseFloat(amount));
     }
     setSaveResults(results);
-    setSaving(false);
-    setSaved(true);
 
-    await setOnboardStatus();
-
-    if (Object.values(results).every((r) => r.success)) {
-      setTimeout(() => navigate("/"), 1200);
+    // บันทึกงบไม่ครบ → ยังไม่นับว่า onboard แล้ว และให้กดลองใหม่ได้
+    if (!Object.values(results).every((r) => r.success)) {
+      setSaving(false);
+      setConfirmError("⚠️ บันทึกงบบางหมวดไม่สำเร็จ กรุณาตรวจสอบแล้วกดยืนยันอีกครั้ง");
+      return;
     }
+
+    const onboarded = await setOnboardStatus();
+    setSaving(false);
+    if (!onboarded) {
+      setConfirmError("⚠️ บันทึกสถานะไม่สำเร็จ กรุณากดยืนยันอีกครั้ง");
+      return;
+    }
+    setSaved(true);
+    setTimeout(() => navigate("/"), 1200);
   };
 
   // ── layout ────────────────────────────────────────────────────────────────
@@ -388,6 +399,8 @@ const Onboarding = ({ userId }) => {
               </button>
             )}
           </div>
+
+          {confirmError && <p className="text-xs text-center text-red-600">{confirmError}</p>}
 
           {/* strict-mode checklist hint on review step */}
           {!setupBudgetOnly && mode === "strict" && step === STEP.REVIEW && !canConfirm && (

@@ -6,7 +6,11 @@
 """
 
 from model.db.admin import DBManagerAdmin
-from model.db.billable import BILLABLE_TOTAL_TOLERANCE, select_billable_items
+from model.db.billable import (
+    BILLABLE_TOTAL_TOLERANCE,
+    build_temp_edit_view,
+    select_billable_items,
+)
 from model.db.budget import DBManagerBudget
 from model.db.categories import DBManagerCategories
 from model.db.dashboard import DBManagerDashboard
@@ -16,6 +20,7 @@ from model.db.users import DBManagerUsers
 
 __all__ = [
     "BILLABLE_TOTAL_TOLERANCE",
+    "build_temp_edit_view",
     "DBManagerAdmin",
     "DBManagerBudget",
     "DBManagerCategories",

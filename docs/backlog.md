@@ -8,57 +8,15 @@ web app เป็นตัวช่วยบนคอม (ไม่ใช่เ�
 
 ---
 
-## 1. `hotfix/liff-auth` — แก้แล้ว (เหลือข้อเดียว)
-
-- `POST /api/transactions/confirm-bulk` ยังตอบ `success: true` เสมอ — ตรวจเจ้าของ/อายุ temp ก่อนแล้ว
-  แต่ถ้ากดยืนยันซ้ำพร้อมกันจนหลุดด่านไป `confirme_data_from_edit` ไม่คืนผลให้รู้ว่าล้มเหลว
-  `helper/webhook_helper.py` (`confirme_data_from_edit`)
-
-## 2. ก่อน merge `feature/update-ocr`
+## 2. ทดสอบด้วยมือก่อน deploy (เจ้าของโปรเจกต์ทำเอง)
 
 - ทดสอบเส้นทางหลักใน [manual_test.md](manual_test.md) (จดข้อความ/รูปผ่าน LINE, ยืนยัน/ยกเลิก/undo,
   แก้ผ่าน LIFF) — ปัญหา admin (A-1, A-4, A-6) ระบุใน PR ว่าไปแก้ในก้อนที่ 4
 
-## 3. `feature/liff-fixes`
+## 3. `feature/liff-fixes` — แก้แล้ว (เหลือข้อเสี่ยงต่ำ)
 
-**ยอดเงินผิด**
-- `sync_user_budgets` group ตาม `category_id` ลูก ไม่รวมขึ้นแม่ และหมวดที่ยอดลดเหลือ 0 ไม่ถูก reset
-  `model/db/budget.py:93-123` — และถูกเรียกทุกครั้งที่เปิด overview (`helper/utils.py:767`) ทำให้ GET
-  เขียน DB → overview ต้องอ่านอย่างเดียว, `sync_user_budgets` เป็นเครื่องมือซ่อม (ปุ่มใน admin + cron ทุกคืน)
-- แก้ผ่าน EditTemp ไม่ส่ง `grand_total` → `select_billable_items(items, None)` บวก VAT ทุกบรรทัด
-  ใบแบบรวม VAT ถูกตัดงบเกิน `model/db/transactions.py:158-174`
-  → EditTemp แสดงเฉพาะบรรทัดที่จะบันทึก (ผลจาก `select_billable_items`) + ยอดสุทธิ, ยอดไม่ตรงให้เตือน
-  แต่บันทึกได้ และยึดตามที่ผู้ใช้แก้
-- `/api/categories/parent` คืนเฉพาะหมวด global → หมวดที่ผู้ใช้สร้างไม่ขึ้นใน onboarding / add / edit
-  `model/db/categories.py:149-153`
-
-**หน้าที่พัง**
-- ปุ่มสรุปรายวันใน Flex ลิงก์ `?path=/dashboard/daily` แต่ route คือ `/summary/:type`
-  `helper/utils.py:603` vs `web/dashboard/src/pages/LiffPage.jsx:18,26`
-- (ต้องยืนยัน) เปิดครั้งแรกผ่าน `liff.line.me` URL มี `liff.state=?path=…` แทน `path` → deep link หาย
-  `web_auth.store.js:89,172`
-- `initApp` ล้ม → `userId` เป็น null แล้ว LiffPage หมุนค้าง, ไม่แสดง `error` `pages/LiffPage.jsx:32`
-- EditTemp: temp หาย/หมดอายุ/ยืนยันแล้ว → ค้างที่ "กำลังโหลดข้อมูลดิบ..." `EditTempPage.jsx:20-26,58`
-- EditTemp: label ใช้ `cat.emoji` ที่ไม่มี (field คือ `icon`) `EditTempPage.jsx:120`
-- EditTemp: ปุ่มลบเป็น `opacity-0 group-hover` มองไม่เห็นบนมือถือ `EditTempPage.jsx:78`
-- EditTemp: แถวใหม่ default หมวด `"อาหาร"` ที่ไม่มีจริง `EditTempPage.jsx:133`
-- EditTemp: select ผูกกับค่าจาก LLM เช่น `"🍔 อาหาร…"` ที่ไม่ตรง option → UI โชว์ตัวแรกแต่บันทึกค่าเดิม
-  `EditTempPage.jsx:113-123`
-- EditTemp: ไม่มีสถานะกำลังบันทึก (กดซ้ำได้), ไม่มีปุ่มยกเลิก temp, บันทึกแถว 0 บาท `EditTempPage.jsx:43-56,142-148`
-- Summary: ทุกแถวแสดง `-฿` รวมรายรับ, จำนวน "รายการ" คือแค่ 10 แถวแรก
-  `features/transactions/pages/Dashboard.jsx:168,194`, `model/db/dashboard.py:85`
-- Summary: ตัวเลือกวันมี 1–31 ทุกเดือน, ปีมีแค่ 2 ปี `Dashboard.jsx:69-76`
-
-**ยังไม่ครบ**
-- Overview ไปหน้า `/summary/*` หรือ `/setup` ไม่ได้, ไม่แสดง `error`, แสดง 0 ก่อนเริ่มโหลด
-  `features/dashboard/pages/OverviewPage.jsx:8,22,29-85`
-- ไม่มี onboarding guard ในสาย LIFF — deep link ข้าม onboarding ได้ `web_auth.store.js:172-180`
-- `setOnboardStatus` ไม่ set `isOnboarded: true` ใน store `web_auth.store.js:40-46`
-- LIFF logout ไม่ล้าง `userId` / sessionStorage `web_auth.store.js:236-239`
-- `useTransectionStore.js` ส่ง `Authorization` เป็น argument ที่ 3 ของ `api.get` (ผิดกฎ) `:24-34`
-- dead code: `completeOnboarding`, `setOnboardingData`, `clearStore`, `clearOverview`,
-  `TransectionDetail.jsx` (มี placeholder `https://your-api.com/`)
-- ข้อความอังกฤษ "Details" `CategoryItem.jsx:33`, `index.html` เป็น `lang="en"` + title `dashboard`
+- postback `confirm` / `cancel` จาก Flex ใช้ `temp_id` โดยไม่ตรวจว่าเป็นของผู้ใช้ที่กด — ข้อมูล postback
+  มาจากปุ่มที่ระบบสร้าง ผู้ใช้แก้เองไม่ได้ จึงเสี่ยงต่ำ `helper/webhook_helper.py` (action `confirm`/`cancel`)
 
 ## 4. `feature/admin-fixes` — แก้เฉพาะที่พัง (ไม่ทำ UI แยกบทบาท ไม่แปลไทย)
 

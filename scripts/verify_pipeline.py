@@ -565,11 +565,11 @@ def _():
     return f"ป้องกันครบ {len(routes)} route"
 
 
-# route ของ LIFF ที่ตั้งใจให้เรียกได้โดยไม่มี token: login (แลก token เอง) และหมวดส่วนกลาง
-_LIFF_PUBLIC_ROUTES = {"POST /api/user", "GET /api/categories/parent"}
+# route ของ LIFF ที่ตั้งใจให้เรียกได้โดยไม่มี token: login (แลก token เอง)
+_LIFF_PUBLIC_ROUTES = {"POST /api/user"}
 
 
-@check("ทุก route ของ LIFF ต้องผ่าน get_current_user (ยกเว้น login/หมวดส่วนกลาง)")
+@check("ทุก route ของ LIFF ต้องผ่าน get_current_user (ยกเว้น login)")
 def _():
     from middleware.line_auth import get_current_user
     from routes.api_liff_v1 import LiffApi
@@ -923,6 +923,155 @@ def _():
     pushes, handled = _run_webhook_event({"type": "text", "text": "ค่าข้าว 60"}, None)
     assert handled == ["text"], "เปิดสวิตช์แล้วต้องประมวลผลตามปกติ"
     return "ปิด=ไม่ประมวลผล+แจ้งผู้ใช้ / เปิด=ทำงานปกติ"
+
+
+# ---------------------------------------------------------------------------
+# ชุดที่ใช้ SQLite ใน memory — ตรวจ logic ที่ต้องพึ่ง query จริง (ไม่แตะ DB จริง ไม่เพิ่ม dependency)
+# ---------------------------------------------------------------------------
+
+
+def _sqlite_session():
+    from sqlalchemy.pool import StaticPool
+    from sqlmodel import Session, SQLModel, create_engine
+
+    import model.models  # noqa: F401 — ลงทะเบียนตารางทั้งหมดก่อน create_all
+
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    SQLModel.metadata.create_all(engine)
+    return Session(engine)
+
+
+def _seed_budget_world(session):
+    """ผู้ใช้ U_A: หมวดแม่ อาหาร + หมวดลูก กาแฟ, หมวดแม่ เดินทาง (ไม่มีรายจ่าย แต่ current_spent เพี้ยน)"""
+    from datetime import datetime
+
+    from model.models import Categories, Transactions, UserBudget, Users
+
+    now = datetime.now()
+    session.add(Users(line_user_id="U_A"))
+    food = Categories(name="อาหาร", icon="🍜")
+    travel = Categories(name="เดินทาง", icon="🚗")
+    session.add_all([food, travel])
+    session.commit()
+    coffee = Categories(name="กาแฟ", icon="☕", parent_id=food.id)
+    session.add(coffee)
+    session.commit()
+
+    def tx(amount, cat, tx_type="expense", when=now):
+        session.add(Transactions(user_id="U_A", amount=amount, item_name="x", category_id=cat,
+                                 transaction_type=tx_type, transaction_date=when,
+                                 source_type="text"))
+
+    tx(100, food.id)
+    tx(50, coffee.id)  # ลูก → ต้องรวมขึ้นแม่
+    tx(9999, food.id, tx_type="income")  # รายรับไม่นับ
+    last_month = now.replace(day=1).replace(hour=0) - __import__("datetime").timedelta(days=1)
+    tx(777, food.id, when=last_month)  # คนละเดือน ไม่นับ
+    session.add(UserBudget(user_id="U_A", category_id=food.id, amount=1000, current_spent=0,
+                           month=now.month, year=now.year))
+    session.add(UserBudget(user_id="U_A", category_id=travel.id, amount=500, current_spent=321,
+                           month=now.month, year=now.year))
+    session.commit()
+    return now, food.id, travel.id
+
+
+@check("sync_user_budgets รวมยอดหมวดลูกขึ้นแม่ และ reset หมวดที่ไม่มีรายจ่ายเป็น 0")
+def _():
+    from sqlmodel import select
+
+    from model.db import DBManagerBudget
+    from model.models import UserBudget
+
+    with _sqlite_session() as s:
+        now, food_id, travel_id = _seed_budget_world(s)
+        result = DBManagerBudget.sync_user_budgets(s, "U_A", now.month, now.year)
+        spent = {b.category_id: b.current_spent for b in s.exec(select(UserBudget)).all()}
+    assert spent[food_id] == 150, f"อาหาร (แม่+ลูก) ต้องเป็น 150 ได้ {spent[food_id]}"
+    assert spent[travel_id] == 0, f"เดินทางไม่มีรายจ่าย ต้องเป็น 0 ได้ {spent[travel_id]}"
+    assert result["updated"] == 2, f"ต้องรายงานว่าแก้ 2 หมวด ได้ {result}"
+    return "อาหาร 0→150 (100 + กาแฟ 50), เดินทาง 321→0, ไม่นับรายรับ/เดือนอื่น"
+
+
+@check("หน้า overview อ่านอย่างเดียว ไม่เขียนทับ current_spent")
+def _():
+    from sqlmodel import select
+
+    from helper.utils import Utilities
+    from model.models import UserBudget
+
+    with _sqlite_session() as s:
+        _now, food_id, travel_id = _seed_budget_world(s)
+        overview = Utilities.get_user_overview(s, "U_A")
+        s.expire_all()
+        spent = {b.category_id: b.current_spent for b in s.exec(select(UserBudget)).all()}
+    assert spent == {food_id: 0, travel_id: 321}, f"overview เขียนทับ current_spent: {spent}"
+    assert overview["monthlyTotal"] == 150, f"monthlyTotal ต้องเป็น 150 ได้ {overview}"
+    return "current_spent คงเดิมทุกหมวด และ monthlyTotal = 150"
+
+
+@check("sync_all_budgets ซ่อมยอดของทุกคนที่มีงบในเดือนนั้น")
+def _():
+    from model.db import DBManagerBudget
+
+    with _sqlite_session() as s:
+        now, _f, _t = _seed_budget_world(s)
+        result = DBManagerBudget.sync_all_budgets(s, now.month, now.year)
+    assert result["users"] == 1 and result["updated"] == 2, f"ได้ {result}"
+    return f"{result}"
+
+
+@check("หมวดที่ใช้ได้ = ส่วนกลาง + ของตัวเอง ไม่รวมของคนอื่น")
+def _():
+    from model.db import DBManagerCategories
+    from model.models import Categories
+
+    with _sqlite_session() as s:
+        s.add_all([Categories(name="ส่วนกลาง"), Categories(name="ของ A", user_id="U_A"),
+                   Categories(name="ของ B", user_id="U_B")])
+        s.commit()
+        names = {c.name for c in DBManagerCategories.get_user_parent_categories(s, "U_A")}
+    assert names == {"ส่วนกลาง", "ของ A"}, f"ได้ {names}"
+    return "ส่วนกลาง + ของ A"
+
+
+@check("ข้อมูล temp สำหรับหน้าแก้ไข คืนเฉพาะบรรทัดที่จะบันทึก + ยอดสุทธิ")
+def _():
+    from model.db import build_temp_edit_view
+
+    raw = {
+        "grand_total": 107.0,
+        "transactions": [
+            {"item": "ข้าว", "amount": 100, "is_actual_item": True, "priority": False},
+            {"item": "รวม", "amount": 100, "is_actual_item": False, "priority": False},
+            {"item": "VAT", "amount": 7, "is_actual_item": False, "priority": True},
+        ],
+    }
+    view = build_temp_edit_view(raw)
+    items = [i["item"] for i in view["items"]]
+    assert items == ["ข้าว", "VAT"], f"ได้ {items}"
+    assert view["grand_total"] == 107.0 and view["total_matched"] is True, f"ได้ {view}"
+    # รายการที่ผู้ใช้แก้แล้วต้องถูกบันทึกทุกบรรทัด ไม่ถูกคัดซ้ำด้วย flag เดิม
+    assert all(i["is_actual_item"] and not i["priority"] for i in view["items"]), view["items"]
+    legacy = build_temp_edit_view(raw["transactions"])  # temp รุ่นเก่าเป็น list
+    assert legacy["grand_total"] is None and len(legacy["items"]) == 2, legacy
+    return "ข้าว + VAT (ตัดบรรทัดยอดรวม), ยอดสุทธิ 107 ลงตัว"
+
+
+@check("ปุ่มสรุปรายวันใน Flex ลิงก์ไป route ที่มีอยู่จริงใน LIFF")
+def _():
+    import re
+
+    source = (Path(__file__).resolve().parent.parent / "helper" / "utils.py").read_text("utf-8")
+    liff_page = (Path(__file__).resolve().parent.parent / "web" / "dashboard" / "src" / "pages"
+                 / "LiffPage.jsx").read_text("utf-8")
+    paths = set(re.findall(r"path=(/[\w\-/{}]+)", source))
+    routes = re.findall(r'path="(/[^"]*)"', liff_page)
+    patterns = [re.compile("^" + re.sub(r":\w+", r"[^/]+", r) + "$") for r in routes if r != "*"]
+    missing = [p for p in paths if "{" not in p and not any(pt.match(p) for pt in patterns)]
+    assert not missing, f"path ใน Flex ที่ไม่มี route: {missing}"
+    return f"ตรวจ {len(paths)} path กับ {len(patterns)} route"
 
 
 def main() -> int:

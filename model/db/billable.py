@@ -57,3 +57,21 @@ def select_billable_items(
         return base, True  # ใบแบบรวม VAT: ราคาสินค้ารวมทุกอย่างแล้ว
 
     return base + extra, False
+
+
+def build_temp_edit_view(raw_data: Any) -> Dict[str, Any]:
+    """ข้อมูลสำหรับหน้าแก้ไขใบเสร็จ: เฉพาะบรรทัดที่จะถูกบันทึกจริง + ยอดสุทธิจากใบเสร็จ
+
+    ผู้ใช้จึงเห็นรายการตรงกับยอดที่จะตัดงบ บรรทัดที่ส่งออกไปถูกตั้ง `is_actual_item=True, priority=False`
+    เพราะเมื่อผู้ใช้แก้แล้ว รายการนั้นคือยอดสุดท้าย ตอนบันทึก (ไม่มี grand_total) จึงถูกบันทึกครบทุกบรรทัด
+    ไม่ถูกคัดซ้ำด้วย flag เดิมของ LLM
+    """
+    if isinstance(raw_data, dict):
+        transactions = raw_data.get("transactions", [])
+        grand_total = raw_data.get("grand_total")
+    else:  # temp รุ่นเก่าเก็บเป็น list ของรายการ ไม่มี grand_total
+        transactions, grand_total = raw_data or [], None
+
+    billable, total_matched = select_billable_items(transactions, grand_total)
+    items = [{**item, "is_actual_item": True, "priority": False} for item in billable]
+    return {"items": items, "grand_total": grand_total, "total_matched": total_matched}

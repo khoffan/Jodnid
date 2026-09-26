@@ -25,7 +25,7 @@ from sqlmodel import Session, and_, extract, func, or_, select
 
 from core.config_settings import settings
 from helper.logger import JodNidLogger
-from model.db import DBManagerBudget, DBManagerCategories, select_billable_items
+from model.db import DBManagerCategories, select_billable_items
 from model.models import Categories, SystemConfiguration, Transactions, UserBudget, Users, engine
 
 is_test_mode = settings.TEST_MODE
@@ -600,7 +600,7 @@ class LineUtils:
                         "action": {
                             "type": "uri",
                             "label": "ดูรายละเอียดและแยกรายการในแอป",
-                            "uri": f"https://liff.line.me/{line_liff_id}?path=/dashboard/daily",
+                            "uri": f"https://liff.line.me/{line_liff_id}?path=/summary/daily",
                         },
                         "style": "primary",
                         "color": "#111827",
@@ -764,7 +764,8 @@ class Utilities:
     def get_user_overview(session: Session, user_id: str):
         today = datetime.now()
 
-        DBManagerBudget.sync_user_budgets(session, user_id, today.month, today.year)
+        # อ่านอย่างเดียว: current_spent ถูกปรับตอนบันทึก/undo แล้ว ถ้าเพี้ยนให้ซ่อมผ่าน sync_user_budgets
+        # (ปุ่มในหน้าผู้ใช้ของ admin หรือ cron /api/cron/sync-budgets) ไม่ใช่ทุกครั้งที่เปิดหน้า
 
         # 1. ยอดรวมทั้งเดือน และ วันนี้ (เหมือนเดิม)
         monthly_total = Utilities.get_monthly_usage(session, user_id)

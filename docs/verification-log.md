@@ -12,6 +12,37 @@
 
 ---
 
+## 2026-09-26 19:18 (+07) — `feature/liff-fixes` (backlog ก้อนที่ 3)
+
+- `sync_user_budgets` รวมยอดหมวดลูกขึ้นแม่ + reset หมวดที่ไม่มีรายจ่ายเป็น 0 และเลิกถูกเรียกจากหน้า
+  overview (GET ไม่เขียน DB แล้ว) → ซ่อมผ่าน `POST /api/administrator/users/sync-budgets` หรือ
+  cron `POST /api/cron/sync-budgets` (เพิ่ม `sync_all_budgets`)
+- หน้าแก้ใบเสร็จ: backend คืน `items` (ผลจาก `select_billable_items`) + `grand_total` → ไม่นับ VAT ซ้ำ,
+  เตือนเมื่อยอดไม่ตรง, หมวดจาก LLM ถูกจับคู่กับชื่อจริง, ปุ่มลบเห็นบนมือถือ, มีปุ่มยกเลิก
+  (`DELETE /api/temp-transaction/{id}`), สถานะกำลังบันทึก, ไม่บันทึกแถว 0 บาท, แสดง error แทนค้าง
+- `confirm-bulk` ตอบ 409 เมื่อบันทึกไม่สำเร็จ (เดิม `success: true` เสมอ)
+- `/api/categories/parent` ต้องมี token และคืนหมวดส่วนกลาง + หมวดของผู้ใช้
+- Flex สรุปรายวันลิงก์ `/summary/daily` + route `/dashboard/:type` พาข้อความเก่าไปหน้าที่ถูก
+- Summary: รายรับแสดง `+฿`, จำนวนรายการจริง, วันตามเดือน, ปีย้อนหลัง 5 ปี; Overview มีลิงก์ไป
+  สรุป/ตั้งงบ + แสดง error; LIFF บังคับ onboarding ก่อน; ลบ dead code
+
+### ชุดตรวจอัตโนมัติ
+
+- `python scripts/verify_pipeline.py` → **36/36** (เพิ่ม 6 หัวข้อที่ใช้ SQLite ใน memory: sync รวมยอดขึ้นแม่,
+  overview อ่านอย่างเดียว, sync_all_budgets, หมวดที่ใช้ได้, มุมมองหน้าแก้ไข, path ใน Flex มี route จริง)
+  — รันก่อนแก้ได้ FAIL 6 ข้อตามคาด
+- TestClient + SQLite ชั่วคราว: ช่องโหว่/สิทธิ์ LIFF **33/33** (เพิ่ม temp view, ยกเลิก temp,
+  categories/parent), web endpoint **14/14**
+- `npm run lint` / `npm run build` ของ dashboard ผ่าน
+
+### ยังไม่ได้ตรวจ
+
+- หน้าแก้ใบเสร็จ / summary / overview บนมือถือจริงใน LINE
+- **ต้องตั้ง cron** เรียก `POST /api/cron/sync-budgets` (header `X-Cron-Token`) ทุกคืน — หลัง deploy
+  ควรเรียกหนึ่งครั้งเพื่อซ่อมยอดที่เพี้ยนจากสูตรเดิม
+
+---
+
 ## 2026-09-26 19:05 (+07) — merge `hotfix/liff-auth` เข้า `feature/update-ocr`
 
 - ปิดช่องโหว่ endpoint ของ LIFF ที่เชื่อ `user_id` จาก path/body: ทุก route ต้องมี token และผ่าน

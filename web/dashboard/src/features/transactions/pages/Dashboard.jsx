@@ -7,7 +7,7 @@ import SelectField from "../../../common/components/dropdown/SelectFields";
 
 const Dashboard = ({ userId }) => {
   const { type } = useParams();
-  const { fetchDashboard, loading, dashboardData, transactions } =
+  const { fetchDashboard, loading, dashboardData, transactions, error } =
     useTransactionStore();
   const now = new Date();
 
@@ -30,11 +30,14 @@ const Dashboard = ({ userId }) => {
   // เปลี่ยนเงื่อนไข Loading ให้ยืดหยุ่นขึ้น
   if (loading) return <LoadingSkeleton />;
   if (!dashboardData)
-    return <div className="p-10 text-center text-gray-400">ไม่พบข้อมูล</div>;
+    return (
+      <div className="p-10 text-center text-gray-400">{error ? `⚠️ ${error}` : "ไม่พบข้อมูล"}</div>
+    );
 
   // ดึงข้อมูลจากโครงสร้างใหม่ที่คุณส่งมา
   // {"total_amount": 100, "summary": {...}, "transactions": [...]}
-  const { total_amount, summary } = dashboardData;
+  const { total_amount, summary, transaction_count } = dashboardData;
+  const totalCount = transaction_count ?? transactions.length;
   const isDaily = type === "daily";
   const headerTitle = isDaily ? "ยอดใช้จ่ายวันนี้" : "ยอดใช้จ่ายเดือนนี้";
 
@@ -66,11 +69,13 @@ const Dashboard = ({ userId }) => {
     "พฤศจิกายน",
     "ธันวาคม",
   ].map((name, i) => ({ label: name, value: i + 1 }));
-  const yearOptions = [0, 1].map((offset) => ({
+  const yearOptions = [0, 1, 2, 3, 4].map((offset) => ({
     label: `พ.ศ. ${now.getFullYear() - offset + 543}`,
     value: now.getFullYear() - offset,
   }));
-  const daysOptions = Array.from({ length: 31 }, (_, i) => ({
+  // จำนวนวันจริงของเดือนที่เลือก (วันที่ 0 ของเดือนถัดไป = วันสุดท้ายของเดือนนี้)
+  const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+  const daysOptions = Array.from({ length: daysInMonth }, (_, i) => ({
     label: `${i + 1}`,
     value: i + 1,
   }));
@@ -84,14 +89,21 @@ const Dashboard = ({ userId }) => {
             label="ปี"
             options={yearOptions}
             value={selectedYear}
-            onChange={setSelectedYear}
+            onChange={(year) => {
+              setSelectedYear(year);
+              setSelectedDay((day) => Math.min(day, new Date(year, selectedMonth, 0).getDate()));
+            }}
             className="flex-1"
           />
           <SelectField
             label="เดือน"
             options={monthOptions}
             value={selectedMonth}
-            onChange={setSelectedMonth}
+            onChange={(month) => {
+              setSelectedMonth(month);
+              // เช่นเลือก 31 แล้วเปลี่ยนเป็นกุมภาพันธ์ → ขยับเป็นวันสุดท้ายของเดือน
+              setSelectedDay((day) => Math.min(day, new Date(selectedYear, month, 0).getDate()));
+            }}
             className="flex-[1.5]"
           />
 
@@ -165,7 +177,9 @@ const Dashboard = ({ userId }) => {
         <div className="flex justify-between items-center mb-6">
           <h3 className="font-bold text-slate-800">รายการล่าสุด</h3>
           <span className="text-[10px] bg-slate-100 px-2 py-1 rounded-full text-slate-500 font-bold uppercase">
-            {transactions?.length || 0} รายการ
+            {totalCount > transactions.length
+              ? `${transactions.length} จาก ${totalCount} รายการ`
+              : `${totalCount} รายการ`}
           </span>
         </div>
 
@@ -190,8 +204,12 @@ const Dashboard = ({ userId }) => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-black text-slate-800 text-sm">
-                    -฿{tx.amount.toLocaleString()}
+                  <p
+                    className={`font-black text-sm ${
+                      tx.type === "income" ? "text-green-600" : "text-slate-800"
+                    }`}
+                  >
+                    {tx.type === "income" ? "+" : "-"}฿{tx.amount.toLocaleString()}
                   </p>
                 </div>
               </div>

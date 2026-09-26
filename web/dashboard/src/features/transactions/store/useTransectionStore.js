@@ -4,13 +4,11 @@ import api from "../../../common/lib/api";
 const useTransactionStore = create((set) => ({
   dashboardData: null,
   transactions: [],
-  summary: {},
-  totalAmount: 0,
   loading: false,
-  currentType: "monthly",
+  error: null,
 
   fetchDashboard: async (userId, type = "monthly", day, month, year) => {
-    set({ loading: true, currentType: type });
+    set({ loading: true, error: null });
 
     try {
       const now = new Date();
@@ -21,17 +19,7 @@ const useTransactionStore = create((set) => ({
         year: year || now.getFullYear(),
       };
 
-      const response = await api.get(
-        `/api/dashboard/${userId}`,
-        {
-          params: queryParams,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${sessionStorage.getItem("id_token")}`,
-          },
-        },
-      );
+      const response = await api.get(`/api/dashboard/${userId}`, { params: queryParams });
 
       // ตรวจสอบว่า API คืนค่า success หรือไม่ (ถ้ามี)
       // หรือตรวจสอบโครงสร้างข้อมูลที่ได้รับ
@@ -40,8 +28,6 @@ const useTransactionStore = create((set) => ({
       set({
         dashboardData: data, // เก็บก้อนใหญ่ไว้เช็คใน UI
         transactions: data.transactions || [],
-        summary: data.summary || {},
-        totalAmount: data.total_amount || 0,
         loading: false,
       });
     } catch (error) {
@@ -50,8 +36,7 @@ const useTransactionStore = create((set) => ({
         loading: false,
         dashboardData: null, // เคลียร์ข้อมูลเมื่อเกิด error
         transactions: [],
-        totalAmount: 0,
-        summary: {},
+        error: "ไม่สามารถดึงข้อมูลได้",
       });
     }
   },
@@ -85,9 +70,6 @@ const useTransactionStore = create((set) => ({
       };
     }
   },
-
-  // เพิ่มฟังก์ชันสำหรับล้างค่า (Clear Store) เวลา Logout
-  clearStore: () => set({ transactions: [], summary: {}, totalAmount: 0, loading: false }),
 }));
 
 export default useTransactionStore;

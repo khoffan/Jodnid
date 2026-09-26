@@ -35,18 +35,17 @@ export const useWebAuthStore = create((set, get) => ({
     });
   },
 
-  setOnboardingData: (categories, budgets) => {
-    set({
-      onboardingCategories: categories,
-      onboardingBudgets: budgets,
-    });
-  },
-
+  // บันทึกว่า onboard แล้ว และอัปเดต store ด้วย — ไม่งั้น guard จะพากลับ /setup และหน้า /setup
+  // ครั้งถัดไปจะแสดงขั้นเลือกหมวดซ้ำ
   setOnboardStatus: async () => {
     try {
-      await api.post("/api/user/onboarded");
+      const response = await api.post("/api/user/onboarded");
+      if (!response?.data?.success) return false;
+      set({ isOnboarded: true });
+      return true;
     } catch (error) {
-      set({ error: error.message });
+      console.error("Failed to complete onboarding:", error);
+      return false;
     }
   },
 
@@ -178,14 +177,18 @@ export const useWebAuthStore = create((set, get) => ({
           loading: false,
         });
 
-        const targetPath = urlParams.get("path");
-        if (targetPath) {
-          navigate(targetPath);
+        // ยังไม่ onboard → ต้องตั้งค่าก่อนเสมอ แม้เปิดมาจาก deep link
+        if (!isOnboarded) {
+          navigate("/setup", { replace: true });
           return;
         }
 
-        if (!isOnboarded) {
-          navigate("/setup", { replace: true });
+        // อ่าน URL ใหม่หลัง liff.init() — เปิดครั้งแรกผ่าน liff.line.me URL จะมาเป็น liff.state
+        // แล้ว SDK แปลงกลับเป็น ?path=... ให้ระหว่าง init
+        const targetPath =
+          new URLSearchParams(window.location.search).get("path") || urlParams.get("path");
+        if (targetPath) {
+          navigate(targetPath);
         }
       } else {
         liff.login();
@@ -277,22 +280,16 @@ export const useWebAuthStore = create((set, get) => ({
     } else {
       liff.logout();
     }
-    set({ isAuth: false, isOnboarded: true, user: null, loading: false, error: null });
-  },
-
-  completeOnboarding: async () => {
-    try {
-      const response = await api.post("/api/user/onboarded");
-      if (!response?.data?.success) {
-        return false;
-      }
-
-      set({ isOnboarded: true });
-      return true;
-    } catch (error) {
-      console.error("Failed to complete onboarding:", error);
-      return false;
-    }
+    sessionStorage.removeItem("id_token");
+    sessionStorage.removeItem("user_info");
+    set({
+      isAuth: false,
+      isOnboarded: true,
+      user: null,
+      userId: null,
+      loading: false,
+      error: null,
+    });
   },
 }));
 

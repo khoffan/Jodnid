@@ -122,6 +122,7 @@ const Onboarding = ({ userId }) => {
         }
       } catch (err) {
         console.error("Failed to load onboarding data:", err);
+        setConfirmError("⚠️ ไม่สามารถดึงข้อมูลหมวดหมู่/งบได้ กรุณารีเฟรชหน้านี้");
       } finally {
         setDataLoading(false);
       }
@@ -186,8 +187,9 @@ const Onboarding = ({ userId }) => {
           return updated;
         });
       }
-    } catch {
-      setAddCatError("เกิดข้อผิดพลาด กรุณาลองใหม่");
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setAddCatError(typeof detail === "string" ? detail : "เกิดข้อผิดพลาด กรุณาลองใหม่");
     } finally {
       setAddingCat(false);
     }

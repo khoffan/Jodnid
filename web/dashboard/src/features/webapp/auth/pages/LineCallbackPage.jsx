@@ -1,64 +1,28 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { useWebAuthStore } from "../store/web_auth.store";
-import api from "../../../../common/lib/api";
 
 export default function LineCallbackPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setLogin } = useWebAuthStore();
-
-  const [status, setStatus] = useState("กำลังตรวจสอบข้อมูล กรุณารอสักครู่...");
+  const completeLineLogin = useWebAuthStore((state) => state.completeLineLogin);
   const [error, setError] = useState(null);
+  // code ของ LINE ใช้ได้ครั้งเดียว — StrictMode/รีเฟรชทำให้ effect รันซ้ำแล้วครั้งที่สองจะล้ม
+  const handled = useRef(false);
 
   useEffect(() => {
-    const handleCallback = async () => {
-      const params = new URLSearchParams(location.search);
-      const code = params.get("code");
-      // const state = params.get("state");
+    if (handled.current) return;
+    handled.current = true;
 
-      // ตรวจสอบเบื้องต้นว่ามี code หรือไม่
-      if (!code) {
-        setError("ไม่พบรหัสยืนยันตัวตน (Code) จาก LINE");
+    const params = new URLSearchParams(location.search);
+    completeLineLogin(params.get("code"), params.get("state")).then((result) => {
+      if (!result.success) {
+        setError(result.error);
         return;
       }
-
-      try {
-        const res = await api.post("/api/user", {
-          code,
-        });
-        console.log("LINE Login Response:", res.data);
-        const user = res.data.user_info;
-        sessionStorage.setItem("id_token", res.data.id_token);
-        sessionStorage.setItem("user_info", JSON.stringify(user));
-        setStatus("เข้าสู่ระบบสำเร็จ กำลังโหลดข้อมูล...");
-        setLogin(user);
-        // TODO: ส่ง code ไปให้ Backend แลก token
-        // ตัวอย่างเช่น:
-        // const res = await api.post("/api/auth/line-login", { code });
-        //
-        // เมื่อ Backend ตอบกลับมาและบันทึก session แล้ว:
-        // sessionStorage.setItem("id_token", res.data.id_token);
-        // await initApp(navigate); // โหลดข้อมูล User ใหม่
-        // navigate("/");
-
-        // --- Mock การทำงาน ---
-
-        const onboardingStatusRes = await api.get("/api/user/onboarding-status");
-        if (!onboardingStatusRes?.data?.is_onboarded) {
-          navigate("/setup", { replace: true });
-          return;
-        }
-
-        navigate("/", { replace: true });
-      } catch (err) {
-        console.error("LINE Login Error:", err);
-        setError("เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย LINE");
-      }
-    };
-
-    handleCallback();
-  }, [location, navigate, setLogin]);
+      navigate(result.isOnboarded ? "/" : "/setup", { replace: true });
+    });
+  }, [location.search, navigate, completeLineLogin]);
 
   return (
     <div className="max-w-md mx-auto min-h-screen bg-white p-6 flex flex-col justify-center items-center text-center">
@@ -72,16 +36,16 @@ export default function LineCallbackPage() {
 
       {error ? (
         <div className="mt-4 p-4 bg-red-50 border border-red-100 rounded-2xl w-full">
-          <p className="text-sm text-red-600 font-medium">{error}</p>
+          <p className="text-sm text-red-600 font-medium">⚠️ {error}</p>
           <button
-            onClick={() => navigate("/login")}
+            onClick={() => navigate("/login", { replace: true })}
             className="mt-4 px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-200 transition"
           >
-            กลับไปหน้า Login
+            กลับไปหน้าเข้าสู่ระบบ
           </button>
         </div>
       ) : (
-        <p className="text-sm text-gray-400 mt-1 max-w-xs">{status}</p>
+        <p className="text-sm text-gray-400 mt-1 max-w-xs">กำลังตรวจสอบข้อมูล กรุณารอสักครู่...</p>
       )}
     </div>
   );

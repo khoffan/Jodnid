@@ -12,6 +12,34 @@
 
 ---
 
+## 2026-09-26 19:40 (+07) — `feature/web-app` (backlog ก้อนที่ 5)
+
+- **backend:** `GET /api/web/transactions` รับ `month/year/category_id/limit/offset` คืน `items/total/totals`
+  (outer join — รายการที่ไม่มีหมวดไม่หาย, กรองหมวดแม่รวมลูก), `PATCH` / `DELETE /api/web/transactions/{id}`
+  ย้าย/คืนยอดงบตามหมวด-จำนวน-ชนิด-เดือน (ของคนอื่น 400/404), `GET /api/web/transactions/export` CSV มี BOM
+- **หน้าเว็บ:** รายการของฉันกรองเดือน/ปี/หมวด + แบ่งหน้า + ยอดรับ/จ่ายของทั้งเดือน, แก้ไข (modal) / ลบ,
+  ดาวน์โหลด CSV, loading/error/empty state; หน้าเพิ่มใช้วันที่ตามเวลาเครื่อง และแสดง error ในหน้า
+- **login:** ตรวจ OAuth `state`, แลก code ครั้งเดียว, ตั้ง `isOnboarded` จากสถานะจริง (ผู้ใช้ใหม่เห็นทุกขั้น),
+  refresh แล้ว token หมดอายุไม่หมุนค้าง, `/login` พาคนที่ login แล้วไปหน้าแรก, logout ล้างข้อมูลในหน่วยความจำ,
+  เลิก `console.log` id_token
+- **เลิกซ่อนสาย web:** เปิดนอกแอป LINE (ที่ไม่ใช่ลิงก์ LIFF) หรือ `?webapp=true` = สาย web
+
+### ชุดตรวจอัตโนมัติ
+
+- `python scripts/verify_pipeline.py` → **46/46** (เพิ่ม 4 หัวข้อ SQLite: ประวัติ/กรอง/แบ่งหน้า/ยอดรวม,
+  แก้แล้วย้ายงบ, ลบแล้วคืนงบ, export CSV) — FAIL 4 ข้อก่อนแก้ตามคาด
+- TestClient + SQLite ชั่วคราว: LIFF **33/33**, web **21/21** (เพิ่ม list เดือนก่อน, PATCH ย้ายงบ,
+  PATCH ของคนอื่น/จำนวน 0, export, DELETE ของคนอื่น/คืนงบ)
+- `npm run lint` / `npm run build` ของ dashboard ผ่าน
+
+### ยังไม่ได้ตรวจ
+
+- LINE Login จริงในเบราว์เซอร์ (`/login` → `/login/callback`) — `LINE_REDIRECT_URI` ของ backend ต้องตรงกับ
+  `origin + "/login/callback"` ของแต่ละ environment และต้องลงทะเบียนใน LINE Login channel
+- เปิด LIFF จาก LINE PC (ลิงก์ `แก้ไข` ใน Flex) ต้องยังเข้าสาย LIFF
+
+---
+
 ## 2026-09-26 19:29 (+07) — `feature/admin-fixes` (backlog ก้อนที่ 4)
 
 - **เข้า console:** Firebase login อย่างเดียวไม่พอแล้ว ต้องผ่าน `/sync` (มีแถว `Administrator` ที่เปิดใช้งาน)

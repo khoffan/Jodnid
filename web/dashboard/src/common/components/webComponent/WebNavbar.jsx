@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 export default function WebNavbar({ navigate, logout }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -11,15 +11,26 @@ export default function WebNavbar({ navigate, logout }) {
   return (
     <header className="bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => handleNavigate("/")}
+          className="flex items-center gap-3 text-left"
+          aria-label="ไปหน้ารายการของฉัน"
+        >
           <span className="text-xl p-2 bg-green-50 text-green-600 rounded-xl">💼</span>
           <div>
             <p className="font-bold text-gray-900 text-lg tracking-tight">JodNid</p>
             <p className="text-xs text-gray-500">บัญชีรายรับ-รายจ่าย</p>
           </div>
-        </div>
+        </button>
 
         <div className="hidden md:flex items-center gap-4">
+          <button
+            onClick={() => handleNavigate("/")}
+            className="px-4 py-2 text-gray-700 font-semibold text-sm rounded-xl hover:bg-gray-50 transition"
+          >
+            รายการของฉัน
+          </button>
           <button
             onClick={() => handleNavigate("/add")}
             className="px-4 py-2 bg-green-600 text-white font-semibold text-sm rounded-xl hover:bg-green-700 transition flex items-center gap-1.5 shadow-sm"
@@ -39,7 +50,7 @@ export default function WebNavbar({ navigate, logout }) {
             }}
             className="bg-amber-700 text-white px-4 py-2 font-semibold text-sm rounded-xl hover:bg-amber-800 transition flex items-center gap-1.5 shadow-sm"
           >
-            Logout
+            ออกจากระบบ
           </button>
         </div>
 
@@ -76,6 +87,12 @@ export default function WebNavbar({ navigate, logout }) {
         <div className="md:hidden border-t border-gray-100 bg-white">
           <div className="space-y-2 px-4 py-4">
             <button
+              onClick={() => handleNavigate("/")}
+              className="w-full text-left px-4 py-3 bg-gray-50 text-gray-700 rounded-2xl border border-gray-100 font-semibold transition hover:bg-gray-100"
+            >
+              รายการของฉัน
+            </button>
+            <button
               onClick={() => handleNavigate("/add")}
               className="w-full text-left px-4 py-3 bg-green-50 text-green-700 rounded-2xl border border-green-100 font-semibold transition hover:bg-green-100"
             >
@@ -94,7 +111,7 @@ export default function WebNavbar({ navigate, logout }) {
               }}
               className="w-full text-left px-4 py-3 bg-amber-50 text-amber-700 rounded-2xl border border-amber-100 font-semibold transition hover:bg-amber-100"
             >
-              Logout
+              ออกจากระบบ
             </button>
           </div>
         </div>

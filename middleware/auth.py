@@ -4,6 +4,7 @@ import firebase_admin
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth, credentials
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from core.config_settings import settings
@@ -35,7 +36,12 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
         decoded_token = auth.verify_id_token(token)
 
         # คืนค่าข้อมูล User (เช่น uid, email, name) ออกไปให้ Route เรียกใช้
-        statement = select(Administrator).where(Administrator.uid == decoded_token["uid"])
+        # โหลด role_data มาพร้อมกัน — object ถูกใช้หลังปิด session (require_role อ่าน user.role)
+        statement = (
+            select(Administrator)
+            .where(Administrator.uid == decoded_token["uid"])
+            .options(selectinload(Administrator.role_data))
+        )
         with Session(engine) as session:
             userAdmin = session.exec(statement).first()
 
@@ -84,8 +90,8 @@ def require_role(*allowed_roles: str):
     """
     Dependency สำหรับ route ที่ต้องการบทบาทเฉพาะ
 
-    `Administrator.role` มีมาตั้งแต่ต้นแต่ไม่เคยถูกอ่านที่ไหนเลย ทุกคนที่ล็อกอินได้
-    จึงมีสิทธิ์เท่ากันหมด รวมถึงการแก้ค่า config ที่กระทบผู้ใช้ทุกคนในระบบ
+    เทียบกับชื่อ role ในตาราง `Role` (ผ่าน `Administrator.role_id`) — admin ที่ไม่มี role_id
+    จะได้ `role = None` และถูกปฏิเสธทุก route ที่เขียนข้อมูล
 
     ใช้กับ route ที่ "เขียน" ข้อมูล ส่วน route ที่อ่านอย่างเดียวใช้ `get_current_user` ตามเดิม
     """

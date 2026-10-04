@@ -129,14 +129,17 @@ class DBManagerAdmin:
                 line_status = {"ok": False, "detail": f"Error: {type(e).__name__}"}
 
         # --- สวิตช์ฟีเจอร์ (ค่าเริ่มต้นตรงกับที่ webhook ใช้จริง) ---
-        features = {
-            key: bool(Utilities.get_config_value(key=key, default=default))
-            for key, default in (
-                ("is_ocr_active", True),
-                ("is_text_active", True),
-                ("is_maintenance_mode", False),
-            )
-        }
+        # get_config_value เปิด connection เอง — DB ล่มต้องรายงานว่า "ไม่ทราบ" ไม่ใช่ทำให้ทั้งหน้าพัง
+        features = {}
+        for key, default in (
+            ("is_ocr_active", True),
+            ("is_text_active", True),
+            ("is_maintenance_mode", False),
+        ):
+            try:
+                features[key] = bool(Utilities.get_config_value(key=key, default=default))
+            except Exception:
+                features[key] = None
 
         return {"database": database, "line_api": line_status, "features": features}
 

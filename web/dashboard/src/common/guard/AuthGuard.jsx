@@ -9,16 +9,16 @@ export default function AuthGuard() {
 
   useEffect(() => {
     // ถ้าโหลดสถานะเสร็จแล้ว และไม่มี user ให้เด้งไปหน้า login
-    if (!isLoading && !isAuth) {
+    if (!loading && !isAuth) {
       navigate("/login", { replace: true });
       return;
     }
 
     // ถ้ายังไม่ onboarding ให้บังคับไปหน้า setup ก่อน
-    if (!loading && user && !isOnboarded && location.pathname !== "/setup") {
+    if (!loading && isAuth && !isOnboarded && location.pathname !== "/setup") {
       navigate("/setup", { replace: true });
     }
-  }, [isAuth, isLoading, navigate]);
+  }, [loading, isAuth, isOnboarded, location.pathname, navigate]);
 
   // 1. ระหว่างที่ Firebase กำลังเช็คสถานะ (isLoading) ให้โชว์หน้าโหลดนวลๆ
   if (loading) {

@@ -1,7 +1,10 @@
+import { Navigate } from "react-router";
 import { useWebAuthStore } from "../store/web_auth.store";
 
 export default function LoginPage() {
-  const { login, error, loading, isAuth, logout } = useWebAuthStore();
+  const { login, error, loading, isAuth } = useWebAuthStore();
+
+  if (isAuth) return <Navigate to="/" replace />;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
@@ -75,7 +78,6 @@ export default function LoginPage() {
           ระบบจะเชื่อมต่อข้อมูลอัตโนมัติเมื่อเข้าใช้งานผ่าน LIFF หรือ LINE
           Browser
         </p>
-        {isAuth && <button onClick={logout}>Logout</button>}
       </div>
     </div>
   );

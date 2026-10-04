@@ -1,0 +1,47 @@
+{
+  "_readme": "กรอก grand_total (ยอดที่จ่ายจริง) และ item_count (จำนวนรายการ) จากรูปแต่ละใบ",
+  "images": [
+    {
+      "file": "Uca724fb6c9bffd7d8606e754e160eac3/2026-03-25/606705236669366409.jpg",
+      "grand_total": 1500,
+      "item_count": null,
+      "keywords": [],
+      "note": ""
+    },
+    {
+      "file": "Uca724fb6c9bffd7d8606e754e160eac3/2026-04-04/608136410436468977.jpg",
+      "grand_total": 2800,
+      "item_count": null,
+      "keywords": [],
+      "note": ""
+    },
+    {
+      "file": "Uca724fb6c9bffd7d8606e754e160eac3/2026-04-06/608435645371384030.jpg",
+      "grand_total": 269,
+      "item_count": null,
+      "keywords": [],
+      "note": ""
+    },
+    {
+      "file": "Uca724fb6c9bffd7d8606e754e160eac3/2026-04-22/610733393499390148.jpg",
+      "grand_total": 110,
+      "item_count": null,
+      "keywords": [],
+      "note": ""
+    },
+    {
+      "file": "Uca724fb6c9bffd7d8606e754e160eac3/2026-04-29/611749671664091468.jpg",
+      "grand_total": 199,
+      "item_count": null,
+      "keywords": [],
+      "note": ""
+    },
+    {
+      "file": "Uca724fb6c9bffd7d8606e754e160eac3/2026-05-13/613779107666461036.jpg",
+      "grand_total": 45,
+      "item_count": null,
+      "keywords": [],
+      "note": ""
+    }
+  ]
+}

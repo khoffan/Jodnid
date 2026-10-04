@@ -10,21 +10,32 @@ export const SystemConfiguration = () => {
   const [isConfigModalOpen, setConfigModalOpen] = useState(false);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState(null);
-  const { configs, fetchConfigs, toggleConfig } = useConfigStore();
+  const { configs, status, fetchConfigs, fetchStatus, toggleConfig, updateConfig, refreshCache } =
+    useConfigStore();
 
   useEffect(() => {
     fetchConfigs();
-  }, [fetchConfigs]);
+    fetchStatus();
+  }, [fetchConfigs, fetchStatus]);
 
   const handleEdit = (config) => {
     setSelectedConfig(config);
     setConfigModalOpen(true);
   };
 
+  // คืนผลให้ modal — ปิด modal เฉพาะเมื่อบันทึกสำเร็จ ค่าที่แก้จะได้ไม่หายเมื่อ backend ปฏิเสธ
   const handleSave = async (updatedData) => {
-    // ยิง API PATCH/POST ที่นี่
-    console.log("Saving data...", updatedData);
-    setConfigModalOpen(false);
+    const result = await updateConfig(updatedData.key, {
+      name: updatedData.name,
+      value: updatedData.value,
+      value_type: updatedData.value_type,
+      description: updatedData.description,
+    });
+
+    if (!result.success) {
+      alert("ไม่สามารถบันทึกการแก้ไขได้: " + result.error);
+    }
+    return result;
   };
 
   const handleToggleConfig = async (key, newValue) => {
@@ -33,6 +44,16 @@ export const SystemConfiguration = () => {
 
     if (!result.success) {
       alert("ไม่สามารถอัปเดตสถานะได้: " + result.error);
+      return;
+    }
+    // สวิตช์บางตัวมีผลกับการ์ดสถานะด้านบนด้วย
+    fetchStatus();
+  };
+
+  const handleRefreshCache = async () => {
+    const result = await refreshCache();
+    if (!result.success) {
+      alert("ล้างแคชไม่สำเร็จ: " + result.error);
     }
   };
 
@@ -56,7 +77,7 @@ export const SystemConfiguration = () => {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {}}
+            onClick={handleRefreshCache}
             className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors font-medium rounded-lg text-sm"
           >
             <RefreshCw size={16} />
@@ -72,7 +93,7 @@ export const SystemConfiguration = () => {
         </div>
       </div>
 
-      <StatusCards />
+      <StatusCards status={status} />
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-1">

@@ -10,7 +10,8 @@ export const useOverviewStore = create((set) => ({
         budgetLimit: 0,
         categories: [], // เปลี่ยนจาก {} เป็น [] เพื่อรองรับข้อมูลชุดใหม่
     },
-    loading: false,
+    // เริ่มเป็น true เพื่อไม่ให้หน้าแสดง ฿0 ก่อนเริ่มโหลดจริง
+    loading: true,
     error: null,
 
     // 2. ปรับฟังก์ชัน Fetch ข้อมูล
@@ -36,20 +37,9 @@ export const useOverviewStore = create((set) => ({
         } catch (e) {
             console.error("Fetch overview stats error:", e);
             set({ 
-                error: e.response?.data?.message || "เกิดข้อผิดพลาดในการเชื่อมต่อ", 
+                error: e.response?.data?.detail || "เกิดข้อผิดพลาดในการเชื่อมต่อ", 
                 loading: false 
             });
         }
     },
-
-    // (Optional) ฟังก์ชันสำหรับ Reset ข้อมูล
-    clearOverview: () => set({
-        overviewStat: {
-            monthlyTotal: 0,
-            dailyTotal: 0,
-            dailyAverage: 0,
-            budgetLimit: 0,
-            categories: [],
-        }
-    })
 }));

@@ -1,11 +1,12 @@
 import { useEffect } from "react";
+import { Link } from "react-router";
 import { useOverviewStore } from "../store/overview.store";
 import LoadingSkeleton from "../../../common/components/loading/LoadindSkeleton";
 import { StatCard } from "../components/dashboard/StatCard";
 import { CategoryItem } from "../components/dashboard/CategoryItem";
 
 export const OverviewPage = ({ userId }) => {
-  const { overviewStat, loading, fetchOverviewStat } = useOverviewStore();
+  const { overviewStat, loading, error, fetchOverviewStat } = useOverviewStore();
 
   useEffect(() => {
     if (userId) {
@@ -20,6 +21,7 @@ export const OverviewPage = ({ userId }) => {
   }, [userId, fetchOverviewStat]);
 
   if (loading) return <LoadingSkeleton />;
+  if (error) return <div className="p-10 text-center text-sm text-red-600">⚠️ {error}</div>;
 
   const budgetUsagePercent =
     overviewStat.budgetLimit > 0
@@ -29,6 +31,19 @@ export const OverviewPage = ({ userId }) => {
   return (
     <div className="space-y-6 pb-24 px-2">
       <h1 className="text-2xl font-bold text-gray-800">สรุปภาพรวม</h1>
+
+      {/* ทางไปหน้าอื่นของ LIFF (เดิมเข้าได้จากลิงก์ใน LINE เท่านั้น) */}
+      <nav className="grid grid-cols-3 gap-2 text-center text-xs font-bold">
+        <Link to="/summary/daily" className="py-2.5 rounded-2xl bg-white border border-gray-100 text-gray-700">
+          📅 สรุปวันนี้
+        </Link>
+        <Link to="/summary/monthly" className="py-2.5 rounded-2xl bg-white border border-gray-100 text-gray-700">
+          🗓️ สรุปเดือนนี้
+        </Link>
+        <Link to="/setup" className="py-2.5 rounded-2xl bg-white border border-gray-100 text-gray-700">
+          ⚙️ ตั้งงบ
+        </Link>
+      </nav>
 
       {/* Main Budget Card */}
       <div className="bg-white rounded-[2.5rem] p-7 shadow-sm border border-gray-100 space-y-5">

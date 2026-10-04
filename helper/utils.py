@@ -20,12 +20,12 @@ from linebot.v3.messaging import (
     ShowLoadingAnimationRequest,
     TextMessage,
 )
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageOps
 from sqlmodel import Session, and_, extract, func, or_, select
 
 from core.config_settings import settings
 from helper.logger import JodNidLogger
-from model.db_manament import DBManagerBudget, DBManagerCategories
+from model.db import DBManagerCategories, select_billable_items
 from model.models import Categories, SystemConfiguration, Transactions, UserBudget, Users, engine
 
 is_test_mode = settings.TEST_MODE
@@ -155,18 +155,15 @@ class LineUtils:
         transactions = data.get("transactions")
         line_liff_id = settings.LINE_LIFF_ID
 
+        # ใช้ตัวเลือกรายการชุดเดียวกับ save_transaction() เพื่อให้บิลที่ผู้ใช้เห็นตรงกับยอดที่บันทึกเสมอ
+        billable_items, _total_matched = select_billable_items(transactions, grand_total)
+
         try:
-            total = sum(
-                float(t.get("amount", 0))
-                for t in transactions
-                if t.get("is_actual_item", True) or t.get("priority", True)
-            )
+            total = sum(float(t.get("amount", 0)) for t in billable_items)
             if grand_total is not None and grand_total > 0:
                 diff = total - grand_total
                 if diff > 0:
                     total = total - diff
-            else:
-                total = total
         except Exception as e:
             print(f"Error calculating total from transactions: {str(e)}")
             total = 0.0
@@ -192,9 +189,7 @@ class LineUtils:
         }
 
         item_rows = []
-        for t in transactions:
-            if not t.get("is_actual_item", True) or t.get("priority", True):
-                continue
+        for t in billable_items:
             name = str(t.get("item") or t.get("receiver") or "ไม่ระบุ")
             amount = float(t.get("amount", 0))
             # ดึงหมวดหมู่ที่ AI วิเคราะห์มาให้ (ถ้าไม่มีให้เป็น other)
@@ -458,7 +453,9 @@ class LineUtils:
         }
 
     @staticmethod
-    def create_summary_flex(title: str, data: dict, current_month_spent: float, total_budget: float):
+    def create_summary_flex(
+        title: str, data: dict, current_month_spent: float, total_budget: float
+    ):
         line_liff_id = settings.LINE_LIFF_ID
 
         bill_total = float(data.get("total_amount", 0.0))
@@ -603,7 +600,7 @@ class LineUtils:
                         "action": {
                             "type": "uri",
                             "label": "ดูรายละเอียดและแยกรายการในแอป",
-                            "uri": f"https://liff.line.me/{line_liff_id}?path=/dashboard/daily",
+                            "uri": f"https://liff.line.me/{line_liff_id}?path=/summary/daily",
                         },
                         "style": "primary",
                         "color": "#111827",
@@ -742,6 +739,7 @@ class Utilities:
         today = datetime.now()
         statement = select(func.sum(Transactions.amount)).where(
             Transactions.user_id == user_id,
+            Transactions.transaction_type == "expense",
             extract("day", Transactions.transaction_date) == today.day,
             extract("month", Transactions.transaction_date) == today.month,
             extract("year", Transactions.transaction_date) == today.year,
@@ -755,6 +753,7 @@ class Utilities:
         today = datetime.now()
         statement = select(func.sum(Transactions.amount)).where(
             Transactions.user_id == user_id,
+            Transactions.transaction_type == "expense",
             extract("month", Transactions.transaction_date) == today.month,
             extract("year", Transactions.transaction_date) == today.year,
         )
@@ -765,7 +764,8 @@ class Utilities:
     def get_user_overview(session: Session, user_id: str):
         today = datetime.now()
 
-        DBManagerBudget.sync_user_budgets(session, user_id, today.month, today.year)
+        # อ่านอย่างเดียว: current_spent ถูกปรับตอนบันทึก/undo แล้ว ถ้าเพี้ยนให้ซ่อมผ่าน sync_user_budgets
+        # (ปุ่มในหน้าผู้ใช้ของ admin หรือ cron /api/cron/sync-budgets) ไม่ใช่ทุกครั้งที่เปิดหน้า
 
         # 1. ยอดรวมทั้งเดือน และ วันนี้ (เหมือนเดิม)
         monthly_total = Utilities.get_monthly_usage(session, user_id)
@@ -834,37 +834,186 @@ class Utilities:
         return session.exec(statement).all()
 
     @staticmethod
-    def pre_process_image_file(image_data):
+    def pre_process_image_file(image_data, mode: str = "vlm"):
+        """
+        เตรียมรูปก่อนส่งเข้า OCR
+
+        - mode="vlm" (ค่าเริ่มต้น): แก้การหมุนตาม EXIF, คงภาพสี, ย่อกว้างสุด 2000px, JPEG q92
+          `typhoon-ocr` เป็น vision LLM ไม่ใช่ OCR engine แบบเดิม การแปลงขาวดำ + ดัน contrast
+          ทำให้สระ/วรรณยุกต์ไทยและตัวพิมพ์จางบนกระดาษความร้อนหายไป
+        - mode="legacy": ของเดิม (grayscale + contrast x2) เก็บไว้เทียบผลและใช้เป็นไม้สอง
+        """
         try:
-            print("DEBUG: start pre processing image")
             if isinstance(image_data, bytes):
                 img = Image.open(io.BytesIO(image_data))
             else:
                 # กรณีส่งเป็น File Object มา
                 img = Image.open(image_data)
 
-            # --- 1. Resize ---
-            max_width = 1500
+            # --- 1. หมุนรูปตาม EXIF (รูปจากมือถือมักถูกส่งมาตะแคง 90°) ---
+            img = ImageOps.exif_transpose(img)
+
+            is_legacy = mode == "legacy"
+            max_width = 1500 if is_legacy else 2000
+            quality = 85 if is_legacy else 92
+
+            # --- 2. Resize ---
             if img.width > max_width:
                 w_percent = max_width / float(img.width)
                 h_size = int((float(img.height) * float(w_percent)))
                 img = img.resize((max_width, h_size), Image.Resampling.LANCZOS)
 
-            # --- 2. Convert to Grayscale (ลดสีเหลือขาวดำ/เทา) ---
-            img = img.convert("L")
+            # กันใบเสร็จที่ยาวผิดปกติจนไฟล์ใหญ่เกินไป
+            max_height = 6000
+            if img.height > max_height:
+                h_percent = max_height / float(img.height)
+                w_size = max(1, int(float(img.width) * float(h_percent)))
+                img = img.resize((w_size, max_height), Image.Resampling.LANCZOS)
 
-            # --- 3. Enhance Contrast (ช่วยให้ตัวหนังสือในใบกำกับภาษีชัดขึ้น) ---
-            enhancer = ImageEnhance.Contrast(img)
-            img = enhancer.enhance(2.0)
+            if is_legacy:
+                # --- 3. Convert to Grayscale + Enhance Contrast (พฤติกรรมเดิม) ---
+                img = img.convert("L")
+                img = ImageEnhance.Contrast(img).enhance(2.0)
+            else:
+                img = img.convert("RGB")
 
             # แปลงกลับเป็น Bytes เพื่อส่งไป API ต่อ
             img_byte_arr = io.BytesIO()
-            img.save(img_byte_arr, format="JPEG", quality=85)
-            print("DEBUG: processed image")
+            img.save(img_byte_arr, format="JPEG", quality=quality)
             return img_byte_arr.getvalue()  # คืนค่ากลับเป็น bytes
         except Exception as e:
             print(f"Image Preprocessing Error: {e}")
             return image_data
+
+    @staticmethod
+    def should_split_image(image_data: bytes, aspect_threshold: float = 3.5) -> bool:
+        """
+        ตัดสินว่ารูปนี้ควรถูกแบ่งเป็นชิ้นย่อยก่อน OCR หรือไม่
+        แบ่งเฉพาะใบเสร็จที่ยาวผิดปกติ (สูงเกิน `aspect_threshold` เท่าของความกว้าง)
+        เพราะการแบ่งทำให้โมเดลเสียบริบทของทั้งใบ และเพิ่มโอกาสที่ request จะพัง
+        """
+        try:
+            img = ImageOps.exif_transpose(Image.open(io.BytesIO(image_data)))
+            width, height = img.size
+            if width <= 0:
+                return False
+            return (height / float(width)) >= aspect_threshold
+        except Exception as e:
+            print(f"Image Aspect Check Error: {e}")
+            return False
+
+    @staticmethod
+    def split_image_into_text_blocks(
+        image_data: bytes,
+        max_chunks: int = 6,
+        min_chunk_height: int = 80,
+        overlap_ratio: float = 0.08,
+        row_text_ratio: float = 0.015,
+        gap_tolerance: int = 18,
+    ) -> List[bytes]:
+        """
+        แบ่งใบเสร็จที่ยาวมากเป็นภาพย่อยตามแนวนอน
+
+        - ตัดที่ "กึ่งกลางช่องว่างระหว่างบล็อคข้อความ" เท่านั้น จึงไม่มีทางตัดโดนตัวหนังสือ
+        - ชิ้นที่ได้ครอบคลุมภาพทั้งใบตั้งแต่ y=0 ถึงขอบล่าง (ไม่มีบรรทัดไหนถูกทิ้ง)
+          ของเดิมทิ้งบล็อคที่สูงไม่ถึง `min_chunk_height` ทำให้บรรทัดยอดรวมที่อยู่โดดๆ หายไป
+        - แต่ละชิ้นซ้อนทับกัน `overlap_ratio` กันข้อมูลตกหล่นที่รอยต่อ
+        - ถ้าหาจุดตัดที่ปลอดภัยไม่ได้ ให้ fallback เป็นภาพเดิม 1 ชิ้น
+        """
+        try:
+            if not image_data:
+                return []
+
+            original = ImageOps.exif_transpose(Image.open(io.BytesIO(image_data))).convert("RGB")
+            width, height = original.size
+            if width <= 0 or height <= 0:
+                return [image_data]
+
+            gray = ImageEnhance.Contrast(original.convert("L")).enhance(2.0)
+            binary = gray.point(lambda p: 0 if p < 185 else 255)
+
+            # หาค่าเฉลี่ยความสว่างของแต่ละแถวด้วยการ resize เหลือกว้าง 1px
+            # (ทำใน C ครั้งเดียว แทนการวนอ่านพิกเซลทีละตัวใน Python ซึ่งกินเวลาหลายวินาที)
+            row_means = list(binary.resize((1, height), Image.Resampling.BOX).getdata())
+            dark_threshold = max(10.0 / width, row_text_ratio)
+            is_text_row = [((255 - mean) / 255.0) >= dark_threshold for mean in row_means]
+
+            raw_segments = []
+            start = None
+            for y, is_text in enumerate(is_text_row):
+                if is_text and start is None:
+                    start = y
+                elif not is_text and start is not None:
+                    raw_segments.append((start, y - 1))
+                    start = None
+
+            if start is not None:
+                raw_segments.append((start, height - 1))
+
+            if not raw_segments:
+                return [image_data]
+
+            # รวมบรรทัดที่อยู่ชิดกันให้เป็นบล็อคเดียว
+            merged_segments = []
+            cur_start, cur_end = raw_segments[0]
+            for seg_start, seg_end in raw_segments[1:]:
+                if seg_start - cur_end <= gap_tolerance:
+                    cur_end = seg_end
+                else:
+                    merged_segments.append((cur_start, cur_end))
+                    cur_start, cur_end = seg_start, seg_end
+            merged_segments.append((cur_start, cur_end))
+
+            if len(merged_segments) < 2:
+                return [image_data]
+
+            gap_cuts = [
+                (merged_segments[i][1] + merged_segments[i + 1][0]) // 2
+                for i in range(len(merged_segments) - 1)
+            ]
+            target_chunks = min(max_chunks, len(gap_cuts) + 1)
+            if target_chunks < 2:
+                return [image_data]
+
+            # เลือกจุดตัดที่ใกล้เส้นแบ่งแบบเท่าๆ กันที่สุด เพื่อให้แต่ละชิ้นสูงพอๆ กัน
+            chosen_cuts = []
+            for i in range(1, target_chunks):
+                target_y = int(height * i / target_chunks)
+                best_cut = min(gap_cuts, key=lambda cut: abs(cut - target_y))
+                if best_cut not in chosen_cuts:
+                    chosen_cuts.append(best_cut)
+            chosen_cuts.sort()
+
+            # ตัดจุดที่จะทำให้ได้ชิ้นเตี้ยเกินไปออก (ยังคงครอบคลุมภาพครบเหมือนเดิม)
+            safe_cuts = []
+            last_edge = 0
+            for cut in chosen_cuts:
+                if cut - last_edge >= min_chunk_height:
+                    safe_cuts.append(cut)
+                    last_edge = cut
+            while safe_cuts and (height - safe_cuts[-1]) < min_chunk_height:
+                safe_cuts.pop()
+
+            if not safe_cuts:
+                return [image_data]
+
+            boundaries = [0] + safe_cuts + [height]
+            overlap = int(height / (len(safe_cuts) + 1) * overlap_ratio)
+
+            chunks = []
+            for i in range(len(boundaries) - 1):
+                top = max(0, boundaries[i] - overlap) if i > 0 else 0
+                is_last = i + 2 == len(boundaries)
+                bottom = height if is_last else min(height, boundaries[i + 1] + overlap)
+                cropped = original.crop((0, top, width, bottom))
+                chunk_buf = io.BytesIO()
+                cropped.save(chunk_buf, format="JPEG", quality=92)
+                chunks.append(chunk_buf.getvalue())
+
+            return chunks if chunks else [image_data]
+        except Exception as e:
+            print(f"Image Split Error: {e}")
+            return [image_data]
 
     @staticmethod
     @lru_cache(maxsize=128)

@@ -13,7 +13,7 @@ from helper.logger import JodNidLogger
 # function
 from helper.utils import LineUtils, Utilities
 from helper.webhook_helper import process_webhook_event
-from model.db_manament import DBManagerBudget, DBManagerUsers
+from model.db import DBManagerBudget, DBManagerUsers
 from model.models import create_db_and_tables, get_session
 from routes.api_administrator_v1 import AdministratorAPIs
 from routes.api_cron_v1 import CronAPis

@@ -1,28 +1,20 @@
 import { useState } from "react";
+import { Navigate } from "react-router";
 import useAuthStore from "../store/auth.store";
-import { useNavigate } from "react-router";
 
 export default function LoginPage() {
-  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
 
-  const { signIn, isLoading } = useAuthStore();
+  // error เก็บใน store: การตรวจสิทธิ์จบใน verifyAdmin ซึ่งอาจทำงานตอนหน้านี้ถูก render ใหม่
+  const { user, signIn, isVerifying, authError: errorMsg } = useAuthStore();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrorMsg("");
-
-    const result = await signIn(email, password);
-    if (!result.success) {
-      setErrorMsg("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
-    } else {
-      navigate("/", {
-        replace: true,
-      });
-    }
+    await signIn(email, password);
   };
+
+  if (user) return <Navigate to="/" replace />;
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -76,14 +68,14 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isVerifying}
             className={`w-full py-4 mt-4 rounded-2xl font-bold text-white transition-all duration-200 shadow-lg ${
-              isLoading
+              isVerifying
                 ? "bg-gray-300 cursor-not-allowed shadow-none"
                 : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100"
             }`}
           >
-            เข้าสู่ระบบ
+            {isVerifying ? "กำลังตรวจสอบ..." : "เข้าสู่ระบบ"}
           </button>
         </form>
       </div>

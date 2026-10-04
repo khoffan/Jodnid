@@ -30,7 +30,7 @@ export const CategoryItem = ({ cat }) => {
           </p>
           <div className="flex items-center justify-end gap-1">
             <p className="text-[9px] text-gray-400 font-medium uppercase tracking-tighter">
-              Details
+              รายละเอียด
             </p>
             {/* Icon ลูกศร หมุนตามสถานะ */}
             <svg

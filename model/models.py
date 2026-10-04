@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from sqlmodel import JSON, Column, Field, Index, Relationship, Session, SQLModel, create_engine
 
+from model.permissionEnum import PermissionEnum
+
 load_dotenv()
 
 
@@ -165,6 +167,17 @@ class SystemLog(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class Role(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True, unique=True)  # เช่น 'admin', 'viewer'
+    description: Optional[str] = Field(default=None)
+    permissions: List[PermissionEnum] = Field(
+        default=[], sa_column=Column(JSON)
+    )  # เช่น ['config_read', 'config_write']
+
+    administrators: List["Administrator"] = Relationship(back_populates="role_data")
+
+
 class Administrator(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     uid: str = Field(index=True, unique=True)
@@ -173,9 +186,17 @@ class Administrator(SQLModel, table=True):
     phone: Optional[str] = Field(default=None)
     profile: Optional[str] = Field(default=None)
     is_active: bool = Field(default=True)
-    role: str = Field(default="admin")
+    role_id: Optional[int] = Field(default=None, foreign_key="role.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    role_data: Optional[Role] = Relationship(back_populates="administrators")
+
+    @property
+    def role(self) -> Optional[str]:
+        """ชื่อ role จากตาราง Role — ที่ require_role / audit_log อ่าน
+        (ต้องโหลด role_data มาก่อนปิด session ดู get_current_user)"""
+        return self.role_data.name if self.role_data else None
 
 
 # --- Database Connection ---

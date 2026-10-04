@@ -20,3 +20,6 @@ static/webpack-vendors.js
 static/webpack-vendors.js.map
 *.db
 domain.txt
+
+# รูปใบเสร็จที่เก็บในเครื่องตอน TEST_MODE — ข้อมูลผู้ใช้ ห้าม commit
+uploads/

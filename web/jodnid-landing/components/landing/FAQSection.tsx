@@ -109,7 +109,7 @@ export const FAQSection: React.FC<FAQSectionProps> = ({ faqData }) => {
             ลองทักมาคุยกับ JodNid โดยตรงบน LINE
             เพื่อสัมผัสประสบการณ์จดบัญชีที่ง่ายที่สุดได้ทันทีครับ
           </p>
-          <button className="bg-emerald-500 hover:bg-emerald-400 text-white font-black px-8 py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5 text-sm sm:text-base">
+          <button className="bg-primary hover:bg-primary-deep text-on-primary font-black px-8 py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5 text-sm sm:text-base">
             💬 เพิ่มเพื่อนบน LINE เลย
           </button>
         </div>

@@ -1,0 +1,41 @@
+/*
+ * Design tokens ของ dashboard (อิงสไตล์จาก DESIGN-supabase.md ที่ root, primary = #06C755)
+ * ชื่อ token ตรงกับ web/jodnid-landing/app/tokens.css — เปลี่ยนค่าที่ใดต้องเปลี่ยนอีกที่ให้ตรงกัน
+ *
+ * ใช้ผ่านคลาส Tailwind เช่น bg-primary, text-primary-ink, border-hairline, rounded-card
+ */
+@theme {
+  /* Brand */
+  --color-primary: #06c755; /* ปุ่มหลัก / พื้นสีเขียว */
+  --color-primary-deep: #05b348; /* hover / pressed */
+  --color-primary-ink: #058236; /* ข้อความและลิงก์สีเขียวบนพื้นขาว (contrast ≥ 4.5:1) */
+  --color-primary-soft: #e6f9ee; /* พื้นอ่อน / badge */
+  --color-primary-soft-strong: #bfefd3; /* เส้นขอบ / ring / พื้นอ่อนที่เข้มขึ้น */
+  --color-on-primary: #171717; /* ตัวอักษรบนพื้น primary (ดำ ไม่ใช่ขาว — contrast ~7.9:1) */
+
+  /* Text */
+  --color-ink: #171717;
+  --color-ink-secondary: #212121;
+  --color-ink-mute: #707070;
+  --color-ink-faint: #b2b2b2;
+
+  /* Surface */
+  --color-canvas: #ffffff;
+  --color-canvas-soft: #fafafa;
+  --color-canvas-night: #1c1c1c; /* การ์ดมืด / code block เท่านั้น ไม่ใช่พื้นหลังหน้า */
+  --color-hairline: #dfdfdf;
+  --color-hairline-strong: #c7c7c7;
+
+  /* Shape — ตั้งชื่อใหม่ ไม่ทับ rounded-xl ฯลฯ ของ Tailwind */
+  --radius-control: 6px; /* ปุ่ม, input */
+  --radius-card: 12px;
+  --radius-panel: 16px; /* modal, กล่องใหญ่ */
+
+  /* Elevation */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.12);
+
+  /* Font — Inter สำหรับอังกฤษ/ตัวเลข, Noto Sans Thai สำหรับไทย (โหลดจาก index.html) */
+  --font-sans: "Inter", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
+}

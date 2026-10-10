@@ -62,7 +62,7 @@ export const OverviewPage = ({ userId }) => {
         </div>
         <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
           <div
-            className={`h-full transition-all duration-1000 ${budgetUsagePercent > 90 ? "bg-red-500" : "bg-green-500"}`}
+            className={`h-full transition-all duration-1000 ${budgetUsagePercent > 90 ? "bg-red-500" : "bg-primary"}`}
             style={{ width: `${Math.min(budgetUsagePercent, 100)}%` }}
           ></div>
         </div>

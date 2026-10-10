@@ -76,7 +76,7 @@ export const CategoryItem = ({ cat }) => {
               คงเหลือจริง
             </p>
             <p
-              className={`text-xs font-bold ${cat.remaining < 0 ? "text-red-500" : "text-green-600"}`}
+              className={`text-xs font-bold ${cat.remaining < 0 ? "text-red-500" : "text-primary-ink"}`}
             >
               ฿{cat.remaining.toLocaleString()}
             </p>

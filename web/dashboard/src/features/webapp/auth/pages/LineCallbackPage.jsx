@@ -26,7 +26,7 @@ export default function LineCallbackPage() {
 
   return (
     <div className="max-w-md mx-auto min-h-screen bg-white p-6 flex flex-col justify-center items-center text-center">
-      <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-green-100 animate-pulse">
+      <div className="w-16 h-16 bg-primary-soft rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-primary-soft-strong animate-pulse">
         <span className="text-3xl">🔑</span>
       </div>
 

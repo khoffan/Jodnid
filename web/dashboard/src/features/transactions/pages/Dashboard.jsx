@@ -139,11 +139,11 @@ const Dashboard = ({ userId }) => {
 
       {/* 💳 Header Card: แสดงยอดรวม (Total Amount) */}
       <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl mb-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
         <p className="text-slate-400 text-xs font-medium uppercase tracking-widest opacity-80">
           {headerTitle}
         </p>
-        <h1 className="text-5xl font-black mt-2 text-green-400">
+        <h1 className="text-5xl font-black mt-2 text-primary">
           ฿{(total_amount || 0).toLocaleString()}
         </h1>
       </div>
@@ -193,7 +193,7 @@ const Dashboard = ({ userId }) => {
                 className="flex items-center justify-between group"
               >
                 <div className="flex items-center gap-4">
-                  <div className="bg-slate-50 w-12 h-12 rounded-2xl flex items-center justify-center text-xl group-hover:bg-green-50 transition-colors shadow-inner">
+                  <div className="bg-slate-50 w-12 h-12 rounded-2xl flex items-center justify-center text-xl group-hover:bg-primary-soft transition-colors shadow-inner">
                     {tx.icon || "💸"}
                   </div>
                   <div>
@@ -208,7 +208,7 @@ const Dashboard = ({ userId }) => {
                 <div className="text-right">
                   <p
                     className={`font-black text-sm ${
-                      tx.type === "income" ? "text-green-600" : "text-slate-800"
+                      tx.type === "income" ? "text-primary-ink" : "text-slate-800"
                     }`}
                   >
                     {tx.type === "income" ? "+" : "-"}฿{tx.amount.toLocaleString()}

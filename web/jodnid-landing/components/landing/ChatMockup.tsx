@@ -5,7 +5,7 @@ const ChatMockup: React.FC = () => {
     <div className="bg-[#7494C4] rounded-[3rem] p-5 shadow-2xl border-[10px] border-slate-900 aspect-[9/18] w-full max-w-[320px] mx-auto">
       {/* LINE Header */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 bg-green-500 rounded-full flex items-center justify-center text-white font-bold text-xs">J</div>
+        <div className="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-on-primary font-bold text-xs">J</div>
         <div className="text-white text-[11px] font-bold">JodNid AI Bot</div>
       </div>
 
@@ -17,7 +17,7 @@ const ChatMockup: React.FC = () => {
 
         <div className="flex justify-start">
           <div className="bg-white rounded-2xl rounded-tl-none p-4 shadow-sm">
-            <p className="text-[11px] font-black text-green-600 mb-2 italic">✨ วิเคราะห์สลิปสำเร็จ!</p>
+            <p className="text-[11px] font-black text-primary-ink mb-2 italic">✨ วิเคราะห์สลิปสำเร็จ!</p>
             <div className="text-[10px] text-slate-700 space-y-1">
               <p>💰 ยอดอาหาร: ฿180.00</p>
               <p>💰 ยอดกสนเดินทาง: ฿60.00</p>
@@ -28,14 +28,14 @@ const ChatMockup: React.FC = () => {
         </div>
 
         <div className="flex justify-end">
-          <span className="w-45 p-2 bg-green-500 rounded-2xl border-2 font-normal text-xs">
+          <span className="w-45 p-2 bg-primary rounded-2xl border-2 font-normal text-xs">
             ค่าอาหาร 180 บาท ค่าเดินทาง 60 บาท
           </span>
         </div>
 
         <div className="flex justify-start">
           <div className="bg-white rounded-2xl rounded-tl-none p-4 shadow-sm">
-            <p className="text-[11px] font-black text-green-600 mb-2 italic">✨ วิเคราะห์ข้อความ!</p>
+            <p className="text-[11px] font-black text-primary-ink mb-2 italic">✨ วิเคราะห์ข้อความ!</p>
             <div className="text-[10px] text-slate-700 space-y-1">
               <p>💰 ค่าอาหาร: ฿180.00</p>
               <p>💰 ค่าเดินทาง: ฿60.00</p>

@@ -7,7 +7,7 @@ const steps: StepItem[] = [
   {
     number: "01",
     title: "เพิ่มเพื่อนใน LINE",
-    desc: "สแกน QR Code หรือกดปุ่มเพิ่มเพื่อน JodNid เพื่อเริ่มใช้งานได้ทันที ไม่ต้องสมัครสมาชิกให้วุ่นวาย",
+    desc: "สแกน QR Code หรือกดปุ่มเพิ่มเพื่อน JodNid แล้วตั้งงบประมาณรายเดือนไม่กี่ขั้นตอน ก็เริ่มใช้งานได้เลย",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -27,7 +27,7 @@ const steps: StepItem[] = [
   {
     number: "03",
     title: "ดูสรุปผลอัตโนมัติ",
-    desc: "รับสรุปยอดรายวัน รายสัปดาห์ หรือคลิกดู Dashboard ส่วนตัวเพื่อวิเคราะห์พฤติกรรมการใช้เงินของคุณ",
+    desc: "รับสรุปยอดรายเดือนและการแจ้งเตือนให้จดบันทึก หรือคลิกดู Dashboard ส่วนตัวเพื่อวิเคราะห์พฤติกรรมการใช้เงินของคุณ",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -42,10 +42,10 @@ const HowItWorks: React.FC = () => {
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-20">
           <h2 className="text-4xl md:text-5xl font-bold text-black mb-6 tracking-tight">
-            เริ่มใช้งานใน <span className="text-green-600">3 ขั้นตอน</span>
+            เริ่มใช้งานใน <span className="text-primary-ink">3 ขั้นตอน</span>
           </h2>
           <p className="text-slate-500 text-lg max-w-2xl mx-auto">
-            ประหยัดเวลาการจดบัญชีได้มากกว่า 90% ด้วย Flow การทำงานที่ลื่นไหลที่สุดบน LINE
+            จดบัญชีได้ในแชทเดียว ไม่ต้องเปิดแอปอื่น ด้วย Flow การทำงานที่ลื่นไหลบน LINE
           </p>
         </div>
 
@@ -57,14 +57,14 @@ const HowItWorks: React.FC = () => {
             {steps.map((step, idx) => (
               <div key={idx} className="relative flex flex-col items-center text-center group">
                 {/* Step Number Badge */}
-                <div className="w-24 h-24 bg-white border-4 border-slate-50 rounded-[2.5rem] shadow-xl shadow-slate-100 flex items-center justify-center mb-8 group-hover:border-green-500 transition-all duration-300">
+                <div className="w-24 h-24 bg-white border-4 border-slate-50 rounded-[2.5rem] shadow-xl shadow-slate-100 flex items-center justify-center mb-8 group-hover:border-primary transition-all duration-300">
                   <div className="flex flex-col items-center">
-                    <span className="text-green-600 font-black text-2xl">{step.number}</span>
+                    <span className="text-primary-ink font-black text-2xl">{step.number}</span>
                     <div className="text-slate-300 mt-1">{step.icon}</div>
                   </div>
                 </div>
 
-                <h3 className="text-2xl font-black mb-4 text-slate-900 group-hover:text-green-600 transition-colors">
+                <h3 className="text-2xl font-black mb-4 text-slate-900 group-hover:text-primary-ink transition-colors">
                   {step.title}
                 </h3>
                 <p className="text-slate-500 leading-relaxed max-w-xs">
@@ -85,22 +85,22 @@ const HowItWorks: React.FC = () => {
         </div>
 
         {/* Bottom CTA within Section */}
-        <div className="mt-20 p-8 md:p-12 bg-green-600 rounded-[3rem] text-center text-white shadow-2xl shadow-green-200 relative overflow-hidden">
+        <div className="mt-20 p-8 md:p-12 bg-primary rounded-[3rem] text-center text-on-primary shadow-2xl shadow-primary-soft-strong relative overflow-hidden">
           <div className="relative z-10">
             <h3 className="text-2xl md:text-3xl font-black mb-4">พร้อมจัดการเงินให้เป็นเรื่องง่ายหรือยัง?</h3>
-            <p className="text-green-100 mb-8 max-w-xl mx-auto opacity-90 text-sm md:text-base">
-              เข้าร่วมกับผู้ใช้งานกว่าหลายร้อยคน ที่เปลี่ยนมาใช้ JodNid ช่วยจดบันทึกรายจ่ายรายวัน
+            <p className="text-on-primary/80 mb-8 max-w-xl mx-auto opacity-90 text-sm md:text-base">
+              เริ่มให้ JodNid ช่วยจดบันทึกรายรับ-รายจ่ายของคุณได้ฟรีบน LINE
             </p>
             <a
               href="https://line.me/R/ti/p/@256dlaen"
-              className="bg-white text-green-600 font-black py-4 px-10 rounded-2xl hover:bg-slate-50 transition-all active:scale-95 shadow-lg shadow-black/10"
+              className="bg-white text-primary-ink font-black py-4 px-10 rounded-2xl hover:bg-slate-50 transition-all active:scale-95 shadow-lg shadow-black/10"
             >
               เพิ่มเพื่อน JodNid เลยตอนนี้
             </a>
           </div>
           {/* Abstract Circle Decor */}
           <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
-          <div className="absolute -left-10 -top-10 w-40 h-40 bg-green-400/20 rounded-full blur-3xl" />
+          <div className="absolute -left-10 -top-10 w-40 h-40 bg-primary/20 rounded-full blur-3xl" />
         </div>
       </div>
     </section>

@@ -10,10 +10,10 @@ const features: FeatureItem[] = [
     color: "bg-blue-50 text-blue-600",
   },
   {
-    title: "จดด้วยเสียงหรือข้อความ",
+    title: "จดด้วยข้อความ",
     desc: "พิมพ์บอกเหมือนคุยกับเพื่อน 'กินกะเพราไป 60 บาท' ระบบจะบันทึกและจัดหมวดหมู่ให้เอง",
     icon: "💬",
-    color: "bg-green-50 text-green-600",
+    color: "bg-primary-soft text-primary-ink",
   },
   {
     title: "สรุปผลรายเดือน",
@@ -30,7 +30,7 @@ const Features: React.FC = () => {
         <div className="text-center max-w-3xl mx-auto mb-20">
           <h2 className="text-4xl md:text-6xl text-black font-bold mb-6 tracking-tight">
             ฉลาดกว่าเดิม <br />
-            <span className="text-green-500 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-green-600">ด้วยพลัง AI ส่วนตัว</span>
+            <span className="text-primary-ink text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-deep">ด้วยพลัง AI ส่วนตัว</span>
           </h2>
           <p className="text-slate-500 text-lg">
             ลืมการจดบัญชีแบบเดิมๆ ไปได้เลย JodNid ออกแบบมาเพื่อคนยุคใหม่ที่ต้องการความเร็วและแม่นยำ
@@ -53,7 +53,7 @@ const Features: React.FC = () => {
         {/* Highlight Section with Mockup */}
         <div className="bg-slate-900 rounded-[4rem] p-12 md:p-20 overflow-hidden relative flex flex-col md:flex-row items-center gap-16 shadow-2xl">
           <div className="flex-1 relative z-10">
-            <span className="text-green-400 font-black text-sm uppercase tracking-widest mb-6 block">Highlight Feature</span>
+            <span className="text-primary font-black text-sm uppercase tracking-widest mb-6 block">Highlight Feature</span>
             <h2 className="text-4xl md:text-6xl font-black text-white mb-8 leading-tight">
               เปลี่ยนภาพถ่ายใบเสร็จให้กลายเป็นข้อมูลบัญชีที่ทรงพลัง ด้วยพลังของ AI ระดับโลก
             </h2>
@@ -62,11 +62,11 @@ const Features: React.FC = () => {
             </p>
             <div className="flex gap-4">
               <div className="p-4 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
-                <p className="text-white font-bold mb-1">99.9%</p>
-                <p className="text-white-300 text-xs text-nowrap">ความแม่นยำของ AI</p>
+                <p className="text-white font-bold mb-1">รูปถ่ายจริง</p>
+                <p className="text-white-300 text-xs text-nowrap">อ่านยอดสุทธิได้แม้ถ่ายเอียง</p>
               </div>
               <div className="p-4 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
-                <p className="text-white font-bold mb-1">&lt; 2 วินาที</p>
+                <p className="text-white font-bold mb-1">ประมาณ 5 วินาที</p>
                 <p className="text-white-300 text-xs text-nowrap">ความเร็วในการสแกน</p>
               </div>
             </div>
@@ -76,7 +76,7 @@ const Features: React.FC = () => {
             {/* วาง ChatMockup ที่เราสร้างไว้ก่อนหน้า */}
             <ChatMockup />
             {/* Background Glow */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-green-500/20 rounded-full blur-[100px] -z-10" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-primary/20 rounded-full blur-[100px] -z-10" />
           </div>
         </div>
       </div>

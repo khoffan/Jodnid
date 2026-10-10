@@ -68,7 +68,7 @@ export const LiffOnboarding = ({ userId }) => {
             <button
               onClick={() => setMode("quick")}
               className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                mode === "quick" ? "bg-white text-green-600 shadow-sm" : "text-gray-500"
+                mode === "quick" ? "bg-white text-primary-ink shadow-sm" : "text-gray-500"
               }`}
             >
               ⚡ ด่วน
@@ -89,7 +89,7 @@ export const LiffOnboarding = ({ userId }) => {
       {!setupBudgetOnly && (
         <div
           className={`mb-5 px-4 py-2.5 rounded-2xl text-xs font-medium flex items-center gap-2 ${
-            mode === "strict" ? "bg-blue-50 text-blue-700" : "bg-green-50 text-green-700"
+            mode === "strict" ? "bg-blue-50 text-blue-700" : "bg-primary-soft text-primary-ink"
           }`}
         >
           {mode === "strict" ? (
@@ -111,16 +111,16 @@ export const LiffOnboarding = ({ userId }) => {
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition-all ${
                   step === i
-                    ? "bg-green-500 text-white shadow-lg scale-110"
+                    ? "bg-primary text-on-primary shadow-lg scale-110"
                     : visited.has(i)
-                      ? "bg-green-100 text-green-600"
+                      ? "bg-primary-soft-strong text-primary-ink"
                       : "bg-gray-100 text-gray-400"
                 }`}
               >
                 {visited.has(i) && step !== i ? "✓" : activeStepIcons[i]}
               </div>
               <span
-                className={`text-xs font-medium ${step === i ? "text-green-600" : "text-gray-400"}`}
+                className={`text-xs font-medium ${step === i ? "text-primary-ink" : "text-gray-400"}`}
               >
                 {label}
               </span>
@@ -128,7 +128,7 @@ export const LiffOnboarding = ({ userId }) => {
             {i < activeStepLabels.length - 1 && (
               <div
                 className={`flex-1 h-0.5 mx-2 mb-5 transition-colors ${
-                  visited.has(i + 1) ? "bg-green-300" : "bg-gray-200"
+                  visited.has(i + 1) ? "bg-primary/40" : "bg-gray-200"
                 }`}
               />
             )}
@@ -179,7 +179,7 @@ export const LiffOnboarding = ({ userId }) => {
             <div className="text-center">
               <button
                 onClick={() => goTo(STEP.REVIEW)}
-                className="text-sm text-green-600 underline underline-offset-2"
+                className="text-sm text-primary-ink underline underline-offset-2"
               >
                 ข้ามไปตรวจสอบ & ยืนยันเลย →
               </button>
@@ -205,7 +205,7 @@ export const LiffOnboarding = ({ userId }) => {
                   }
                   goTo(step + 1);
                 }}
-                className="flex-1 py-3.5 rounded-2xl font-bold bg-green-500 hover:bg-green-600 text-white shadow-lg transition-all active:scale-95"
+                className="flex-1 py-3.5 rounded-2xl font-bold bg-primary hover:bg-primary-deep text-on-primary shadow-lg transition-all active:scale-95"
               >
                 ถัดไป →
               </button>
@@ -216,7 +216,7 @@ export const LiffOnboarding = ({ userId }) => {
                 className={`flex-1 py-3.5 rounded-2xl font-bold shadow-lg transition-all text-lg ${
                   !canConfirm || saving || saved
                     ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                    : "bg-green-500 hover:bg-green-600 text-white active:scale-95"
+                    : "bg-primary hover:bg-primary-deep text-on-primary active:scale-95"
                 }`}
               >
                 {saving ? "กำลังบันทึก..." : saved ? "✅ บันทึกแล้ว!" : "ยืนยัน & เริ่มเลย!"}
@@ -336,7 +336,7 @@ const CategoriesStep = ({
             onClick={() => onIconChange(icon)}
             className={`w-9 h-9 rounded-xl text-xl flex items-center justify-center transition-all ${
               newCatIcon === icon
-                ? "bg-green-100 ring-2 ring-green-400"
+                ? "bg-primary-soft-strong ring-2 ring-primary"
                 : "bg-gray-50 hover:bg-gray-100"
             }`}
           >
@@ -350,13 +350,13 @@ const CategoriesStep = ({
         value={newCatName}
         onChange={(e) => onNameChange(e.target.value)}
         placeholder="ชื่อหมวดหมู่ เช่น ค่าเช่า"
-        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-green-300"
+        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-primary/40"
       />
 
       <select
         value={newCatParentId ?? ""}
         onChange={(e) => onParentChange(e.target.value ? parseInt(e.target.value) : null)}
-        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-green-300 bg-white"
+        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
       >
         <option value="">— หมวดหมู่หลัก (ไม่มีหมวดแม่) —</option>
         {categories.map((cat) => (
@@ -367,12 +367,12 @@ const CategoriesStep = ({
       </select>
 
       {addCatError && <p className="text-xs text-red-500 mb-3">{addCatError}</p>}
-      {addCatSuccess && <p className="text-xs text-green-600 mb-3">{addCatSuccess}</p>}
+      {addCatSuccess && <p className="text-xs text-primary-ink mb-3">{addCatSuccess}</p>}
 
       <button
         onClick={onAdd}
         disabled={addingCat}
-        className="w-full py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white font-medium text-sm transition-all active:scale-95 disabled:bg-gray-300"
+        className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary-deep text-on-primary font-medium text-sm transition-all active:scale-95 disabled:bg-gray-300"
       >
         {addingCat ? "กำลังเพิ่ม..." : `${newCatIcon} เพิ่มหมวดหมู่`}
       </button>
@@ -424,7 +424,7 @@ const ReviewStep = ({ categories, budgets, saveResults, saved }) => {
                   <div className="text-right">
                     {result ? (
                       result.success ? (
-                        <span className="text-green-500 font-bold">✅</span>
+                        <span className="text-primary-ink font-bold">✅</span>
                       ) : (
                         <span className="text-red-400 text-xs">❌ {result.message}</span>
                       )
@@ -438,9 +438,9 @@ const ReviewStep = ({ categories, budgets, saveResults, saved }) => {
           </div>
 
           {/* Total */}
-          <div className="bg-green-50 rounded-2xl px-4 py-3.5 flex justify-between items-center mb-4">
+          <div className="bg-primary-soft rounded-2xl px-4 py-3.5 flex justify-between items-center mb-4">
             <span className="font-semibold text-gray-700">รวมงบทั้งหมด</span>
-            <span className="text-xl font-bold text-green-600">
+            <span className="text-xl font-bold text-primary-ink">
               {total.toLocaleString("th-TH")} บาท
             </span>
           </div>

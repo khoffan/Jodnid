@@ -68,7 +68,7 @@ const EditTransactionModal = ({ tx, categories, onClose, onSaved }) => {
   };
 
   const input =
-    "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500";
+    "w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -155,7 +155,7 @@ const EditTransactionModal = ({ tx, categories, onClose, onSaved }) => {
           <button
             type="submit"
             disabled={saving}
-            className="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-xl hover:bg-green-700 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-semibold text-on-primary bg-primary rounded-xl hover:bg-primary-deep disabled:opacity-50"
           >
             {saving ? "กำลังบันทึก..." : "บันทึก"}
           </button>
@@ -224,7 +224,7 @@ export default function TransactionListPage() {
   const netBalance = totals.income - totals.expense;
   const years = [0, 1, 2, 3, 4].map((offsetYear) => now.getFullYear() - offsetYear);
   const select =
-    "px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500";
+    "px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary";
 
   return (
     <>
@@ -282,7 +282,7 @@ export default function TransactionListPage() {
 
         {/* การ์ดสรุปยอดของเดือน (ทั้งเดือน ไม่ใช่แค่หน้าที่แสดง) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
-          <div className="bg-linear-to-br from-[#06C755] to-[#05b348] p-6 rounded-2xl text-white shadow-xl shadow-green-100/30">
+          <div className="bg-linear-to-br from-primary to-primary-deep p-6 rounded-2xl text-on-primary shadow-xl shadow-primary-soft-strong/30">
             <p className="text-xs uppercase tracking-wider opacity-80 font-semibold mb-1">
               {categoryId ? "คงเหลือสุทธิ (หมวดที่เลือก)" : "คงเหลือสุทธิเดือนนี้"}
             </p>
@@ -292,7 +292,7 @@ export default function TransactionListPage() {
             <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider">
               รายรับ
             </span>
-            <p className="text-2xl font-bold text-green-600 mt-2 tracking-tight">
+            <p className="text-2xl font-bold text-primary-ink mt-2 tracking-tight">
               +฿{money(totals.income)}
             </p>
           </div>
@@ -329,7 +329,7 @@ export default function TransactionListPage() {
               <p>ยังไม่มีรายการในเดือนนี้</p>
               <button
                 onClick={() => navigate("/add")}
-                className="px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-semibold"
+                className="px-4 py-2 bg-primary text-on-primary rounded-xl text-sm font-semibold"
               >
                 + เพิ่มรายการ
               </button>
@@ -355,7 +355,7 @@ export default function TransactionListPage() {
                   <div className="flex items-center gap-3 shrink-0">
                     <span
                       className={`text-sm font-extrabold tracking-tight ${
-                        tx.transaction_type === "income" ? "text-green-600" : "text-red-600"
+                        tx.transaction_type === "income" ? "text-primary-ink" : "text-red-600"
                       }`}
                     >
                       {tx.transaction_type === "income" ? "+" : "-"}฿{money(tx.amount)}

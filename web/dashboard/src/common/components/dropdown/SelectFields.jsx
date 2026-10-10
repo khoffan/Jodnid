@@ -16,7 +16,7 @@ const SelectField = ({ label, options, value, onChange, className = "" }) => {
       <Listbox value={value} onChange={onChange}>
         <div className="relative">
           {/* ใช้ ListboxButton โดยตรง */}
-          <ListboxButton className="relative w-full bg-white border-none shadow-sm rounded-2xl px-4 py-3 text-sm font-bold text-gray-700 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500/20 transition-all active:scale-95">
+          <ListboxButton className="relative w-full bg-white border-none shadow-sm rounded-2xl px-4 py-3 text-sm font-bold text-gray-700 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 transition-all active:scale-95">
             <span className="block truncate">{selectedOption?.label}</span>
             <span className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400">
               {/* ไอคอนลูกศร */}
@@ -40,15 +40,15 @@ const SelectField = ({ label, options, value, onChange, className = "" }) => {
                   value={opt.value}
                   className={({ focus, selected }) =>
                     `relative cursor-default select-none py-3 px-4 transition-colors ${
-                      focus ? 'bg-green-50 text-green-700' : 'text-gray-900'
-                    } ${selected ? 'font-black text-green-600' : 'font-medium'}`
+                      focus ? 'bg-primary-soft text-primary-ink' : 'text-gray-900'
+                    } ${selected ? 'font-black text-primary-ink' : 'font-medium'}`
                   }
                 >
                   {({ selected }) => (
                     <div className="flex justify-between items-center">
                       <span className="block truncate">{opt.label}</span>
                       {selected && (
-                        <span className="text-green-600">
+                        <span className="text-primary-ink">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>

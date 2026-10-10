@@ -16,7 +16,7 @@ const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-10 h-10 bg-green-500 rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-green-200 group-hover:rotate-6 transition-transform">
+          <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center text-on-primary font-black text-xl shadow-lg shadow-primary-soft-strong group-hover:rotate-6 transition-transform">
             J
           </div>
           <span className="font-black text-2xl tracking-tighter text-slate-900">JodNid</span>
@@ -28,7 +28,7 @@ const Navbar: React.FC = () => {
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm font-bold text-slate-500 hover:text-green-600 transition-colors"
+              className="text-sm font-bold text-slate-500 hover:text-primary-ink transition-colors"
             >
               {link.label}
             </Link>

@@ -9,7 +9,7 @@ const money = (value) => Number(value || 0).toLocaleString("th-TH", { minimumFra
 
 const card = "bg-white rounded-2xl border border-gray-100 shadow-sm p-6";
 const input =
-  "w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#06C755]/40 focus:border-[#06C755]";
+  "w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary";
 
 const CategoryPanel = ({ onboarding }) => {
   const {
@@ -50,7 +50,7 @@ const CategoryPanel = ({ onboarding }) => {
               onClick={() => setNewCategory((c) => ({ ...c, icon }))}
               className={`aspect-square rounded-lg text-lg flex items-center justify-center transition ${
                 newCategory.icon === icon
-                  ? "bg-green-50 ring-2 ring-[#06C755]"
+                  ? "bg-primary-soft ring-2 ring-primary"
                   : "bg-gray-50 hover:bg-gray-100"
               }`}
             >
@@ -84,12 +84,12 @@ const CategoryPanel = ({ onboarding }) => {
           ))}
         </select>
         {addCategoryError && <p className="text-sm text-red-600">⚠️ {addCategoryError}</p>}
-        {addCategorySuccess && <p className="text-sm text-green-600">✅ {addCategorySuccess}</p>}
+        {addCategorySuccess && <p className="text-sm text-primary-ink">✅ {addCategorySuccess}</p>}
         <button
           type="button"
           onClick={addCategory}
           disabled={addingCategory}
-          className="w-full py-2.5 rounded-xl border-2 border-[#06C755] text-[#06C755] font-semibold text-sm hover:bg-green-50 transition disabled:opacity-50"
+          className="w-full py-2.5 rounded-xl border-2 border-primary text-primary-ink font-semibold text-sm hover:bg-primary-soft transition disabled:opacity-50"
         >
           {addingCategory ? "กำลังเพิ่ม..." : `${newCategory.icon} เพิ่มหมวดหมู่`}
         </button>
@@ -156,7 +156,7 @@ const SummaryPanel = ({ onboarding }) => {
 
   return (
     <aside className="space-y-4">
-      <div className="bg-linear-to-br from-[#06C755] to-[#05b348] p-6 rounded-2xl text-white shadow-xl shadow-green-100/30">
+      <div className="bg-linear-to-br from-primary to-primary-deep p-6 rounded-2xl text-on-primary shadow-xl shadow-primary-soft-strong/30">
         <p className="text-xs uppercase tracking-wider opacity-80 font-semibold mb-1">
           งบรวมต่อเดือน
         </p>
@@ -193,7 +193,7 @@ const SummaryPanel = ({ onboarding }) => {
           type="button"
           onClick={confirm}
           disabled={!hasBudget || saving || saved}
-          className="w-full py-3 rounded-xl font-bold text-white bg-[#06C755] hover:bg-[#05b348] transition shadow-sm disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none"
+          className="w-full py-3 rounded-xl font-bold text-on-primary bg-primary hover:bg-primary-deep transition shadow-sm disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none"
         >
           {saving ? "กำลังบันทึก..." : saved ? "✅ บันทึกแล้ว" : "บันทึกงบประมาณ"}
         </button>

@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans_Thai } from "next/font/google";
+import { Inter, Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 
-const thaiFont = IBM_Plex_Sans_Thai({
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const notoThai = Noto_Sans_Thai({
   subsets: ["thai"],
-  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-noto-thai",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -25,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="th" className={thaiFont.className}>
+    <html lang="th" className={`${inter.variable} ${notoThai.variable}`}>
       <body className="bg-white text-slate-900 antialiased">
         <Navbar />
         {children}

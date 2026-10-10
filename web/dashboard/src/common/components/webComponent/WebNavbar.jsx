@@ -17,7 +17,7 @@ export default function WebNavbar({ navigate, logout }) {
           className="flex items-center gap-3 text-left"
           aria-label="ไปหน้ารายการของฉัน"
         >
-          <span className="text-xl p-2 bg-green-50 text-green-600 rounded-xl">💼</span>
+          <span className="text-xl p-2 bg-primary-soft text-primary-ink rounded-xl">💼</span>
           <div>
             <p className="font-bold text-gray-900 text-lg tracking-tight">JodNid</p>
             <p className="text-xs text-gray-500">บัญชีรายรับ-รายจ่าย</p>
@@ -33,7 +33,7 @@ export default function WebNavbar({ navigate, logout }) {
           </button>
           <button
             onClick={() => handleNavigate("/add")}
-            className="px-4 py-2 bg-green-600 text-white font-semibold text-sm rounded-xl hover:bg-green-700 transition flex items-center gap-1.5 shadow-sm"
+            className="px-4 py-2 bg-primary text-on-primary font-semibold text-sm rounded-xl hover:bg-primary-deep transition flex items-center gap-1.5 shadow-sm"
           >
             <span>+</span> เพิ่มรายการ
           </button>
@@ -56,7 +56,7 @@ export default function WebNavbar({ navigate, logout }) {
 
         <button
           type="button"
-          className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white p-2 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-500 md:hidden"
+          className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white p-2 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary md:hidden"
           onClick={() => setMenuOpen((prev) => !prev)}
           aria-expanded={menuOpen}
           aria-label="เปิดเมนู"
@@ -94,7 +94,7 @@ export default function WebNavbar({ navigate, logout }) {
             </button>
             <button
               onClick={() => handleNavigate("/add")}
-              className="w-full text-left px-4 py-3 bg-green-50 text-green-700 rounded-2xl border border-green-100 font-semibold transition hover:bg-green-100"
+              className="w-full text-left px-4 py-3 bg-primary-soft text-primary-ink rounded-2xl border border-primary-soft-strong font-semibold transition hover:bg-primary-soft-strong"
             >
               + เพิ่มรายการ
             </button>

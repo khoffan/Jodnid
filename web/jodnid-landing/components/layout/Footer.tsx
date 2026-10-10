@@ -9,7 +9,7 @@ const Footer: React.FC = () => {
           {/* Brand */}
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center gap-2 mb-6">
-              <div className="w-8 h-8 bg-green-500 rounded-xl flex items-center justify-center text-white font-bold">J</div>
+              <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center text-on-primary font-bold">J</div>
               <span className="text-black text-xl tracking-tighter">JodNid</span>
             </div>
             <p className="text-slate-500 max-w-xs leading-relaxed">
@@ -22,9 +22,9 @@ const Footer: React.FC = () => {
           <div>
             <h4 className="text-black mb-6">เมนู</h4>
             <ul className="space-y-4 text-sm text-slate-500">
-              <li><Link href="#features" className="hover:text-green-600 transition-colors">ฟีเจอร์</Link></li>
-              <li><Link href="#how-it-works" className="hover:text-green-600 transition-colors">วิธีใช้งาน</Link></li>
-              <li><Link href="#" className="hover:text-green-600 transition-colors">นโยบายความเป็นส่วนตัว</Link></li>
+              <li><Link href="#features" className="hover:text-primary-ink transition-colors">ฟีเจอร์</Link></li>
+              <li><Link href="#how-it-works" className="hover:text-primary-ink transition-colors">วิธีใช้งาน</Link></li>
+              <li><Link href="#" className="hover:text-primary-ink transition-colors">นโยบายความเป็นส่วนตัว</Link></li>
             </ul>
           </div>
 

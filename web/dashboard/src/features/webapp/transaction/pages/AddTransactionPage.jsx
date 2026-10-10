@@ -181,7 +181,7 @@ export default function AddTransactionPage() {
                     onClick={() => setType("income")}
                     className={`flex-1 py-3 text-center rounded-xl font-semibold transition-all text-sm ${
                       type === "income"
-                        ? "bg-green-600 text-white shadow-lg shadow-green-100"
+                        ? "bg-primary text-on-primary shadow-lg shadow-primary-soft-strong"
                         : "text-gray-500 hover:bg-gray-100/50 active:scale-[0.98]"
                     }`}
                   >
@@ -200,7 +200,7 @@ export default function AddTransactionPage() {
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-100 focus:border-green-400 outline-none transition-all text-base font-medium bg-gray-50/20"
+                    className="w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-soft-strong focus:border-primary outline-none transition-all text-base font-medium bg-gray-50/20"
                     required
                     min="0"
                     step="0.01"
@@ -215,7 +215,7 @@ export default function AddTransactionPage() {
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-100 focus:border-green-400 outline-none transition-all bg-gray-50/20"
+                    className="w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-soft-strong focus:border-primary outline-none transition-all bg-gray-50/20"
                   >
                     {categories.map((cat) => (
                       <option key={cat.id} value={cat.name}>
@@ -235,7 +235,7 @@ export default function AddTransactionPage() {
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:ring-4 focus:ring-green-100 focus:border-green-400 outline-none transition-all bg-gray-50/20 text-gray-700 font-medium"
+                  className="w-full px-4 py-3.5 border border-gray-200 rounded-xl focus:ring-4 focus:ring-primary-soft-strong focus:border-primary outline-none transition-all bg-gray-50/20 text-gray-700 font-medium"
                   required
                 />
               </div>
@@ -249,7 +249,7 @@ export default function AddTransactionPage() {
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="เช่น ค่าข้าวมื้อเที่ยง, ซื้ออุปกรณ์"
                   rows={2}
-                  className="w-full px-4 py-3.5 border border-gray-200  rounded-xl focus:ring-4 focus:ring-green-100 focus:border-green-400 outline-none resize-none transition-all bg-gray-50/20"
+                  className="w-full px-4 py-3.5 border border-gray-200  rounded-xl focus:ring-4 focus:ring-primary-soft-strong focus:border-primary outline-none resize-none transition-all bg-gray-50/20"
                 />
                 {validate.note === false && (
                   <p className="text-red-500 text-xs mt-1">กรุณาระบุชื่อรายการ</p>
@@ -258,7 +258,7 @@ export default function AddTransactionPage() {
 
               <button
                 type="submit"
-                className="w-full py-3.5 border-2 border-green-600 text-green-600 hover:bg-green-50 font-bold rounded-xl transition-all active:scale-[0.98]"
+                className="w-full py-3.5 border-2 border-primary text-primary-ink hover:bg-primary-soft font-bold rounded-xl transition-all active:scale-[0.98]"
               >
                 ➕ เพิ่มรายการนี้ลงในลิสต์
               </button>
@@ -280,7 +280,7 @@ export default function AddTransactionPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">รวมรายรับ</span>
-                  <span className="font-bold text-green-600">
+                  <span className="font-bold text-primary-ink">
                     +฿
                     {totalIncome.toLocaleString("th-TH", {
                       minimumFractionDigits: 2,
@@ -302,7 +302,7 @@ export default function AddTransactionPage() {
                 <span className="text-sm font-semibold text-gray-700">คงเหลือสุทธิ</span>
                 <span
                   className={`text-xl font-extrabold tracking-tight ${
-                    netBalance >= 0 ? "text-green-600" : "text-red-600"
+                    netBalance >= 0 ? "text-primary-ink" : "text-red-600"
                   }`}
                 >
                   ฿
@@ -316,7 +316,7 @@ export default function AddTransactionPage() {
               <button
                 onClick={handleSubmitAll}
                 disabled={isLoading || items.length === 0}
-                className={`w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-sm active:scale-[0.98] transition-all flex items-center justify-center text-sm tracking-wide ${
+                className={`w-full py-4 bg-primary hover:bg-primary-deep text-on-primary rounded-xl font-bold shadow-sm active:scale-[0.98] transition-all flex items-center justify-center text-sm tracking-wide ${
                   isLoading || items.length === 0 ? "opacity-50 cursor-not-allowed" : ""
                 }`}
               >
@@ -375,7 +375,7 @@ export default function AddTransactionPage() {
                       <div className="flex items-center gap-3">
                         <span
                           className={`text-xs font-extrabold ${
-                            item.type === "income" ? "text-green-600" : "text-red-600"
+                            item.type === "income" ? "text-primary-ink" : "text-red-600"
                           }`}
                         >
                           {item.type === "income" ? "+" : "-"}฿

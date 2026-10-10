@@ -10,7 +10,7 @@ export default function LoginPage() {
     <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
       {/* โลโก้และชื่อแอป */}
       <div className="text-center mb-10">
-        <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-green-100">
+        <div className="w-16 h-16 bg-primary-soft rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-primary-soft-strong">
           <span className="text-3xl">💰</span>
         </div>
         <h1 className="text-4xl font-extrabold text-gray-800 tracking-tight mb-2">
@@ -31,7 +31,7 @@ export default function LoginPage() {
         <button
           onClick={login}
           disabled={loading}
-          className={`w-full py-3.5 px-6 bg-[#06C755] hover:bg-[#05b348] text-white rounded-2xl font-semibold shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-3 ${
+          className={`w-full py-3.5 px-6 bg-primary hover:bg-primary-deep text-white rounded-2xl font-semibold shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-3 ${
             loading ? "opacity-75 cursor-not-allowed" : ""
           }`}
         >
